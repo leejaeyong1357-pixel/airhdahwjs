@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import prizeClaude from "@/assets/prize-claude.jpg.asset.json";
-import prizeKeyboard from "@/assets/prize-keyboard.jpg.asset.json";
-import prizeMouse from "@/assets/prize-mouse.jpg.asset.json";
+import prizeClaude from "@/assets/prize-claude.jpg";
+import prizeKeyboard from "@/assets/prize-keyboard.jpg";
+import prizeMouse from "@/assets/prize-mouse.jpg";
 
 const STORAGE_KEY = "teczen-popup-hide-until";
 
 const prizes = [
-  { rank: "1등 대상", name: "Claude AI 1년 구독권", image: prizeClaude.url, tint: "from-amber-100 to-orange-50" },
-  { rank: "2등 최우수상", name: "기계식 키보드 (개발자용)", image: prizeKeyboard.url, tint: "from-zinc-100 to-slate-50" },
-  { rank: "3등 장려상", name: "게이밍 마우스 (개발자용)", image: prizeMouse.url, tint: "from-blue-100 to-indigo-50" },
+  { rank: "1등 대상", name: "Claude AI 1년 구독권", image: prizeClaude, tint: "from-amber-100 to-orange-50" },
+  { rank: "2등 최우수상", name: "기계식 키보드 (개발자용)", image: prizeKeyboard, tint: "from-zinc-100 to-slate-50" },
+  { rank: "3등 장려상", name: "게이밍 마우스 (개발자용)", image: prizeMouse, tint: "from-blue-100 to-indigo-50" },
 ];
 
 const LEFT_CHIPS = ["AI Agent", "LangGraph", "Claude Code", "Kubernetes", "LLMOps"];

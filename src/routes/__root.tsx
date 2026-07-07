@@ -26,13 +26,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "TECZEN 2026 · 제 1회 AI 경진대회" },
       { name: "twitter:description", content: "TECZEN 2026 제 1회 AI 경진대회 — 여러분의 AI 작품으로 도전하고, 경품의 주인공이 되세요." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/b7b29042-e416-4fae-b763-512682fee7ad/id-preview-b6474bc7--6666724e-de5d-42cf-83d5-342a7cb4f7da.lovable.app-1783323446306.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/b7b29042-e416-4fae-b763-512682fee7ad/id-preview-b6474bc7--6666724e-de5d-42cf-83d5-342a7cb4f7da.lovable.app-1783323446306.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "preconnect", href: "https://cdn.jsdelivr.net" },
-      { rel: "stylesheet", href: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),

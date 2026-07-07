@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import teczenLogo from "@/assets/teczen-logo.png.asset.json";
+import teczenLogo from "@/assets/teczen-logo.png";
 import { User, Gavel, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,7 +66,7 @@ function AuthPage() {
         {/* LEFT — form (white). Big logo, then "로그인" heading, then form. */}
         <form onSubmit={onSubmit} className="flex flex-col justify-center gap-5 bg-card px-10 py-12">
           <div className="flex flex-col items-center gap-3">
-            <img src={teczenLogo.url} alt="TECZEN" className="h-44 w-44 object-contain" />
+            <img src={teczenLogo} alt="TECZEN" className="h-44 w-44 object-contain" />
             <h2 className="text-3xl font-black tracking-tight">로그인</h2>
           </div>
 

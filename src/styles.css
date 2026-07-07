@@ -5,6 +5,18 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+ * Pretendard — 셀프호스팅 (내부망용). 폰트 파일은 public/fonts/ 에 두세요.
+ * scripts/fetch-assets.sh 실행 시 자동으로 받아집니다. 파일이 없으면 시스템 폰트로 대체됩니다.
+ */
+@font-face {
+  font-family: "Pretendard";
+  src: url("/fonts/PretendardVariable.woff2") format("woff2-variations");
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
  * TECZEN 2026 AI Competition — Hyundai-inspired design system.
  * Deep navy, chromed silver, precision typography.
  */
