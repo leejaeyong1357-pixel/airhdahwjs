@@ -99,6 +99,21 @@ createServer(async (req, res) => {
     res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
     res.end("Internal Server Error");
   }
-}).listen(port, "0.0.0.0", () => {
-  console.log(`TECZEN 서버 실행 중: http://localhost:${port}`);
+}).listen(port, "0.0.0.0", async () => {
+  const { networkInterfaces } = await import("node:os");
+  const lanIps = Object.values(networkInterfaces())
+    .flat()
+    .filter((i) => i && i.family === "IPv4" && !i.internal)
+    .map((i) => i.address);
+  console.log("=====================================================");
+  console.log(`TECZEN 서버 실행 중  (이 컴퓨터에서: http://localhost:${port})`);
+  if (lanIps.length) {
+    console.log("");
+    console.log("직원들에게 공유할 접속 주소:");
+    for (const ip of lanIps) console.log(`   http://${ip}:${port}`);
+    console.log("");
+    console.log("접속이 안 되면 윈도우 방화벽에서 포트를 허용하세요 (관리자 명령창):");
+    console.log(`   netsh advfirewall firewall add rule name="TECZEN" dir=in action=allow protocol=TCP localport=${port}`);
+  }
+  console.log("=====================================================");
 });

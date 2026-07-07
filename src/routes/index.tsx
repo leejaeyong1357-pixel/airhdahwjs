@@ -25,7 +25,7 @@ const ARTICLES = [
   { title: "\u201CAI가 알아서 다 해줬어요\u201D…\u2018바이브 코딩\u2019의 두 얼굴", source: "KBS 뉴스", slot: "news-1", thumb: articleVibe, href: "https://news.kbs.co.kr/news/mobile/view/view.do?ncd=8579734", tag: "트렌드" },
   { title: "7억 연봉의 개발자는 3억원의 토큰을 사용해야 한다\n– 젠슨 황", source: "IT동아", slot: "news-2", thumb: articleJensen, href: "https://it.donga.com/108912/", tag: "AI 산업" },
   { title: "AI 시대, 독서는 필수", source: "brunch · 동포뉴스", slot: "news-3", thumb: articleReading, href: "https://brunch.co.kr/@ksd7302/259", tag: "칼럼" },
-  { title: "AI 에이전트란?", source: "Google Cloud", slot: "news-4", thumb: articleAgent, href: "https://cloud.google.com/discover/what-are-ai-agents?hl=ko", tag: "기초" },
+  { title: "AI 에이전트란?", source: "Databricks", slot: "news-4", thumb: articleAgent, href: "https://www.databricks.com/kr/blog/what-are-ai-agents", tag: "기초" },
   { title: "메타 AI 안경 \u2014 웨어러블 AI의 미래", source: "AI타임스", slot: "news-5", thumb: articleMeta, href: "https://www.aitimes.com/news/articleView.html?idxno=212449", tag: "디바이스" },
 ];
 
