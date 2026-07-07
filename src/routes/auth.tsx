@@ -1,8 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
-import { bootstrapAdminIfMissing, resolveLoginEmail } from "@/lib/auth.functions";
+import { loginWithDb } from "@/lib/db-auth.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import teczenLogo from "@/assets/teczen-logo.png";
 import { User, Gavel, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isDemoMode } from "@/integrations/supabase/demo";
+import { setLocalUser } from "@/integrations/supabase/demo";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
@@ -26,8 +25,7 @@ const ROLES: { key: Role; label: string; icon: any }[] = [
 
 function AuthPage() {
   const nav = useNavigate();
-  const bootstrap = useServerFn(bootstrapAdminIfMissing);
-  const resolve = useServerFn(resolveLoginEmail);
+  const login = useServerFn(loginWithDb);
   const [role, setRole] = useState<Role>("participant");
   const [name, setName] = useState("");
   const [empNo, setEmpNo] = useState("");
@@ -35,30 +33,17 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
-  useEffect(() => {
-    if (isDemoMode()) return; // 데모 모드: 세션 확인/관리자 부트스트랩 생략
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) nav({ to: "/", replace: true });
-    });
-    bootstrap().catch(() => { /* ignore */ });
-  }, [nav, bootstrap]);
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return;
     setLoading(true);
     try {
-      if (isDemoMode()) {
-        toast.success("로그인 성공 (데모 모드)");
-        if (role === "admin") { nav({ to: "/admin", replace: true }); return; }
-        if (role === "judge") { nav({ to: "/judge", replace: true }); return; }
-        nav({ to: "/", replace: true });
-        return;
-      }
-      // 보안 요소 제거 — 역할 선택만으로 바로 진입
-      const { email } = await resolve({ data: { name: "이재용", employeeNo: "82211489" } });
-      await supabase.auth.signInWithPassword({ email, password: "Dlwodyd1357!" });
-      toast.success("로그인 성공");
+      // 프로젝트 루트 DB 파일의 명단과 대조 (비밀번호 = 주민번호 앞 6자리)
+      const user = await login({
+        data: { name: name.trim(), employeeNo: empNo.trim(), password: pw.trim(), role },
+      });
+      setLocalUser({ ...user, role });
+      toast.success(`${user.name}님, 환영합니다!`);
       if (role === "admin") { nav({ to: "/admin", replace: true }); return; }
       if (role === "judge") { nav({ to: "/judge", replace: true }); return; }
       nav({ to: "/", replace: true });
@@ -77,6 +62,44 @@ function AuthPage() {
           <div className="flex flex-col items-center gap-3">
             <img src={teczenLogo} alt="TECZEN" className="h-44 w-44 object-contain" />
             <h2 className="text-3xl font-black tracking-tight">로그인</h2>
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="login-name">이름</Label>
+              <Input
+                id="login-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="홍길동"
+                autoComplete="name"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="login-empno">사번</Label>
+              <Input
+                id="login-empno"
+                value={empNo}
+                onChange={(e) => setEmpNo(e.target.value)}
+                placeholder="82210000"
+                inputMode="numeric"
+                autoComplete="username"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="login-pw">비밀번호</Label>
+              <Input
+                id="login-pw"
+                type="password"
+                value={pw}
+                onChange={(e) => setPw(e.target.value)}
+                placeholder="주민번호 앞 6자리"
+                autoComplete="current-password"
+                required
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
@@ -101,6 +124,14 @@ function AuthPage() {
           <Button type="submit" disabled={loading} className="mt-2 rounded-full bg-primary hover:bg-primary/90 py-6 text-sm font-bold tracking-widest uppercase">
             {loading ? "로그인 중…" : `${ROLES.find((r) => r.key === role)?.label}로 로그인`}
           </Button>
+
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+          >
+            비밀번호를 모르시나요?
+          </button>
         </form>
 
         {/* RIGHT — solid Hyundai navy panel, big centered greeting */}
