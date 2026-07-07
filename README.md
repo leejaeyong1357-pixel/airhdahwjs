@@ -5,17 +5,22 @@ Lovable에서 제작 후 내부망 이관을 위해 Lovable 의존성을 제거�
 
 ## 실행 방법
 
+Node.js 18 이상만 있으면 됩니다 (Bun 불필요).
+
 ```bash
-bun install        # 또는 npm install
-bun run dev        # 개발 서버 (http://localhost:8080)
+npm install        # 최초 한 번 (패키지 설치)
+npm run dev        # 개발 서버 (http://localhost:8080)
 ```
 
 실제 서비스(프로덕션)로 띄울 때:
 
 ```bash
-bun run build      # 프로덕션 빌드 (dist/ 생성)
-bun run start      # 서버 실행 (http://localhost:3000, PORT 환경변수로 변경 가능)
+npm run build      # 프로덕션 빌드 (dist/ 생성)
+npm run start      # 서버 실행 (http://localhost:3000, PORT 환경변수로 변경 가능)
 ```
+
+Bun을 쓰는 경우 `bun install` / `bun run dev` / `bun run build` / `bun run start:bun` 으로
+동일하게 실행할 수 있습니다.
 
 ## 내부망 이관 전 해야 할 일
 
