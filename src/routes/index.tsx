@@ -10,6 +10,7 @@ import { SubmissionCard } from "@/components/SubmissionCard";
 import { listSubmissions } from "@/lib/submissions.functions";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import heroScene from "@/assets/ai-head-v2.png";
+import { SiteImage } from "@/components/SiteImage";
 import mascotPrize from "@/assets/mascot-prize.png";
 import prizeClaudeImg from "@/assets/prize-claude.jpg";
 import prizeKeyboardImg from "@/assets/prize-keyboard.jpg";
@@ -21,11 +22,11 @@ import articleReading from "@/assets/article-reading.png";
 import articleMeta from "@/assets/article-meta-glasses.png";
 
 const ARTICLES = [
-  { title: "\u201CAI가 알아서 다 해줬어요\u201D…\u2018바이브 코딩\u2019의 두 얼굴", source: "KBS 뉴스", thumb: articleVibe, href: "https://news.kbs.co.kr/news/mobile/view/view.do?ncd=8579734", tag: "트렌드" },
-  { title: "7억 연봉의 개발자는 3억원의 토큰을 사용해야 한다\n– 젠슨 황", source: "IT동아", thumb: articleJensen, href: "https://it.donga.com/108912/", tag: "AI 산업" },
-  { title: "AI 시대, 독서는 필수", source: "brunch · 동포뉴스", thumb: articleReading, href: "https://brunch.co.kr/@ksd7302/259", tag: "칼럼" },
-  { title: "AI 에이전트란?", source: "Google Cloud", thumb: articleAgent, href: "https://cloud.google.com/discover/what-are-ai-agents?hl=ko", tag: "기초" },
-  { title: "메타 AI 안경 \u2014 웨어러블 AI의 미래", source: "AI타임스", thumb: articleMeta, href: "https://www.aitimes.com/news/articleView.html?idxno=212449", tag: "디바이스" },
+  { title: "\u201CAI가 알아서 다 해줬어요\u201D…\u2018바이브 코딩\u2019의 두 얼굴", source: "KBS 뉴스", slot: "news-1", thumb: articleVibe, href: "https://news.kbs.co.kr/news/mobile/view/view.do?ncd=8579734", tag: "트렌드" },
+  { title: "7억 연봉의 개발자는 3억원의 토큰을 사용해야 한다\n– 젠슨 황", source: "IT동아", slot: "news-2", thumb: articleJensen, href: "https://it.donga.com/108912/", tag: "AI 산업" },
+  { title: "AI 시대, 독서는 필수", source: "brunch · 동포뉴스", slot: "news-3", thumb: articleReading, href: "https://brunch.co.kr/@ksd7302/259", tag: "칼럼" },
+  { title: "AI 에이전트란?", source: "Google Cloud", slot: "news-4", thumb: articleAgent, href: "https://cloud.google.com/discover/what-are-ai-agents?hl=ko", tag: "기초" },
+  { title: "메타 AI 안경 \u2014 웨어러블 AI의 미래", source: "AI타임스", slot: "news-5", thumb: articleMeta, href: "https://www.aitimes.com/news/articleView.html?idxno=212449", tag: "디바이스" },
 ];
 
 const HERO = {
@@ -143,16 +144,12 @@ function Home() {
 
             {/* Right visual */}
             <div className="relative h-80 md:h-[600px] flex items-center justify-center animate-[fadeUp_0.9s_ease-out_both]">
-              <img
-                src={heroScene}
+              <SiteImage
+                slot="hero"
+                fallback={heroScene}
                 alt="TECZEN AI"
-                className="h-full w-auto object-contain"
-                style={{
-                  animation: "bob 4s ease-in-out infinite",
-                  mixBlendMode: "multiply",
-                  maskImage: "radial-gradient(ellipse 70% 70% at 55% 50%, #000 55%, transparent 100%)",
-                  WebkitMaskImage: "radial-gradient(ellipse 70% 70% at 55% 50%, #000 55%, transparent 100%)",
-                }}
+                className="h-full w-auto object-contain rounded-[2rem] shadow-[0_30px_80px_-20px_rgba(0,44,95,0.45)]"
+                style={{ animation: "bob 4s ease-in-out infinite" }}
               />
             </div>
           </div>
@@ -242,7 +239,7 @@ function Home() {
           {ARTICLES.map((a) => (
             <a key={a.title} href={a.href} target="_blank" rel="noopener noreferrer" className="group block">
               <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
-                <img src={a.thumb} alt={a.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                <SiteImage slot={a.slot} fallback={a.thumb} alt={a.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                 <div className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur">
                   {a.tag}
                 </div>

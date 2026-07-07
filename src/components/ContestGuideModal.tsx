@@ -39,10 +39,10 @@ export function ContestGuideModal() {
             <div>결과 발표일 : <b className="text-slate-900">2026. 7. 15 (수)</b></div>
           </Row>
           <Row icon={Users} title="대상">
-            <div><b className="text-slate-900">전 관리직</b> (개인 · 팀 자유 참여)</div>
+            <div><b className="text-slate-900">전 관리직</b> (개인 참여)</div>
           </Row>
           <Row icon={Trophy} title="시상">
-            <div>대상 · 최우수상 · 장려상 · Top 30 특별혜택 제공</div>
+            <div>대상 · 최우수상 · 우수상 · 2차 바이브코딩 교육 수강 자격 부여</div>
           </Row>
           <Row icon={FileText} title="제출 방법">
             <div>상단 <b>[작품 제출]</b> 메뉴에서 제목 · 설명 · 파일 · 썸네일을 업로드해 주세요.</div>

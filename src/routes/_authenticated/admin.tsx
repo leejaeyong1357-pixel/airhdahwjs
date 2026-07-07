@@ -14,6 +14,7 @@ const tabs = [
   { to: "/admin/teams", label: "실/팀" },
   { to: "/admin/evaluations", label: "평가 내역" },
   { to: "/admin/rankings", label: "순위" },
+  { to: "/admin/photos", label: "사진 관리" },
 ];
 
 function AdminLayout() {

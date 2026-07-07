@@ -22,6 +22,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminTeamsRouteImport } from './routes/_authenticated/admin.teams'
 import { Route as AuthenticatedAdminRankingsRouteImport } from './routes/_authenticated/admin.rankings'
+import { Route as AuthenticatedAdminPhotosRouteImport } from './routes/_authenticated/admin.photos'
 import { Route as AuthenticatedAdminEvaluationsRouteImport } from './routes/_authenticated/admin.evaluations'
 
 const ChangePasswordRoute = ChangePasswordRouteImport.update({
@@ -89,6 +90,12 @@ const AuthenticatedAdminRankingsRoute =
     path: '/rankings',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminPhotosRoute =
+  AuthenticatedAdminPhotosRouteImport.update({
+    id: '/photos',
+    path: '/photos',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminEvaluationsRoute =
   AuthenticatedAdminEvaluationsRouteImport.update({
     id: '/evaluations',
@@ -106,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/submit': typeof AuthenticatedSubmitRoute
   '/work/$id': typeof WorkIdRoute
   '/admin/evaluations': typeof AuthenticatedAdminEvaluationsRoute
+  '/admin/photos': typeof AuthenticatedAdminPhotosRoute
   '/admin/rankings': typeof AuthenticatedAdminRankingsRoute
   '/admin/teams': typeof AuthenticatedAdminTeamsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -120,6 +128,7 @@ export interface FileRoutesByTo {
   '/submit': typeof AuthenticatedSubmitRoute
   '/work/$id': typeof WorkIdRoute
   '/admin/evaluations': typeof AuthenticatedAdminEvaluationsRoute
+  '/admin/photos': typeof AuthenticatedAdminPhotosRoute
   '/admin/rankings': typeof AuthenticatedAdminRankingsRoute
   '/admin/teams': typeof AuthenticatedAdminTeamsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -137,6 +146,7 @@ export interface FileRoutesById {
   '/_authenticated/submit': typeof AuthenticatedSubmitRoute
   '/work/$id': typeof WorkIdRoute
   '/_authenticated/admin/evaluations': typeof AuthenticatedAdminEvaluationsRoute
+  '/_authenticated/admin/photos': typeof AuthenticatedAdminPhotosRoute
   '/_authenticated/admin/rankings': typeof AuthenticatedAdminRankingsRoute
   '/_authenticated/admin/teams': typeof AuthenticatedAdminTeamsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | '/submit'
     | '/work/$id'
     | '/admin/evaluations'
+    | '/admin/photos'
     | '/admin/rankings'
     | '/admin/teams'
     | '/admin/users'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/submit'
     | '/work/$id'
     | '/admin/evaluations'
+    | '/admin/photos'
     | '/admin/rankings'
     | '/admin/teams'
     | '/admin/users'
@@ -184,6 +196,7 @@ export interface FileRouteTypes {
     | '/_authenticated/submit'
     | '/work/$id'
     | '/_authenticated/admin/evaluations'
+    | '/_authenticated/admin/photos'
     | '/_authenticated/admin/rankings'
     | '/_authenticated/admin/teams'
     | '/_authenticated/admin/users'
@@ -291,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRankingsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/photos': {
+      id: '/_authenticated/admin/photos'
+      path: '/photos'
+      fullPath: '/admin/photos'
+      preLoaderRoute: typeof AuthenticatedAdminPhotosRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/evaluations': {
       id: '/_authenticated/admin/evaluations'
       path: '/evaluations'
@@ -303,6 +323,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminEvaluationsRoute: typeof AuthenticatedAdminEvaluationsRoute
+  AuthenticatedAdminPhotosRoute: typeof AuthenticatedAdminPhotosRoute
   AuthenticatedAdminRankingsRoute: typeof AuthenticatedAdminRankingsRoute
   AuthenticatedAdminTeamsRoute: typeof AuthenticatedAdminTeamsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
@@ -311,6 +332,7 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminEvaluationsRoute: AuthenticatedAdminEvaluationsRoute,
+  AuthenticatedAdminPhotosRoute: AuthenticatedAdminPhotosRoute,
   AuthenticatedAdminRankingsRoute: AuthenticatedAdminRankingsRoute,
   AuthenticatedAdminTeamsRoute: AuthenticatedAdminTeamsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,

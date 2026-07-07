@@ -34,9 +34,9 @@ if errorlevel 1 ( pause & exit /b 1 )
 
 :serve
 echo.
-echo Server starting at http://localhost:3000
+echo Server starting at http://localhost:2222
 echo To stop the server, close this window or press Ctrl+C
 echo.
-start "" http://localhost:3000
+start "" http://localhost:2222
 node scripts\serve-node.mjs
 pause

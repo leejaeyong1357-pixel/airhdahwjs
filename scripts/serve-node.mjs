@@ -23,7 +23,9 @@ if (existsSync(envFile)) {
 const handler = (await import("../dist/server/server.js")).default;
 
 const clientDir = join(rootDir, "dist", "client");
-const port = Number(process.env.PORT ?? 3000);
+// public/ 은 런타임 폴백 — 관리자 [사진 관리] 업로드(public/uploads)가 재빌드 없이 반영된다
+const publicDir = join(rootDir, "public");
+const port = Number(process.env.PORT ?? 2222);
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -47,19 +49,25 @@ const MIME = {
 
 function tryServeStatic(pathname, res) {
   if (pathname === "/" || pathname.includes("..") || pathname.includes("\0")) return false;
-  const filePath = normalize(join(clientDir, decodeURIComponent(pathname)));
-  if (!filePath.startsWith(clientDir) || !existsSync(filePath)) return false;
-  const stat = statSync(filePath);
-  if (!stat.isFile()) return false;
-  res.writeHead(200, {
-    "content-type": MIME[extname(filePath).toLowerCase()] ?? "application/octet-stream",
-    "content-length": stat.size,
-    "cache-control": pathname.startsWith("/assets/")
-      ? "public, max-age=31536000, immutable"
-      : "public, max-age=3600",
-  });
-  createReadStream(filePath).pipe(res);
-  return true;
+  const decoded = decodeURIComponent(pathname);
+  // 업로드 이미지는 public/ 을 먼저 봐서 빌드 이후 교체분이 우선 반영되게 한다
+  const baseDirs = decoded.startsWith("/uploads/") ? [publicDir, clientDir] : [clientDir, publicDir];
+  for (const base of baseDirs) {
+    const filePath = normalize(join(base, decoded));
+    if (!filePath.startsWith(base) || !existsSync(filePath)) continue;
+    const stat = statSync(filePath);
+    if (!stat.isFile()) continue;
+    res.writeHead(200, {
+      "content-type": MIME[extname(filePath).toLowerCase()] ?? "application/octet-stream",
+      "content-length": stat.size,
+      "cache-control": pathname.startsWith("/assets/")
+        ? "public, max-age=31536000, immutable"
+        : "no-cache",
+    });
+    createReadStream(filePath).pipe(res);
+    return true;
+  }
+  return false;
 }
 
 createServer(async (req, res) => {

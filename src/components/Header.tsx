@@ -62,7 +62,7 @@ export function Header() {
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-white">
       <div className="flex h-24 w-full items-center justify-between pl-3 pr-6 md:pl-4">
         <Link to="/" className="flex items-center gap-3 shrink-0">
-          <img src={teczenLogo} alt="TECZEN" className="h-20 w-20 object-contain" />
+          <img src={teczenLogo} alt="TECZEN" className="h-9 w-auto object-contain" />
           <span className="hidden sm:block text-base md:text-lg font-black tracking-tight text-primary">
             제 1회 테크젠 사내 AI 경진대회
           </span>

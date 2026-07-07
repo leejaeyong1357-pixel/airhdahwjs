@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SiteImage } from "@/components/SiteImage";
 import prizeClaude from "@/assets/prize-claude.jpg";
 import prizeKeyboard from "@/assets/prize-keyboard.jpg";
 import prizeMouse from "@/assets/prize-mouse.jpg";
@@ -8,9 +9,9 @@ import prizeMouse from "@/assets/prize-mouse.jpg";
 const STORAGE_KEY = "teczen-popup-hide-until";
 
 const prizes = [
-  { rank: "1등 대상", name: "Claude AI 1년 구독권", image: prizeClaude, tint: "from-amber-100 to-orange-50" },
-  { rank: "2등 최우수상", name: "기계식 키보드 (개발자용)", image: prizeKeyboard, tint: "from-zinc-100 to-slate-50" },
-  { rank: "3등 장려상", name: "게이밍 마우스 (개발자용)", image: prizeMouse, tint: "from-blue-100 to-indigo-50" },
+  { rank: "1등 대상", name: "Claude AI 1년 구독권", slot: "prize-1", image: prizeClaude, tint: "from-amber-100 to-orange-50" },
+  { rank: "2등 최우수상", name: "기계식 키보드 (개발자용)", slot: "prize-2", image: prizeKeyboard, tint: "from-zinc-100 to-slate-50" },
+  { rank: "3등 우수상", name: "게이밍 마우스 (개발자용)", slot: "prize-3", image: prizeMouse, tint: "from-blue-100 to-indigo-50" },
 ];
 
 const LEFT_CHIPS = ["AI Agent", "LangGraph", "Claude Code", "Kubernetes", "LLMOps"];
@@ -105,7 +106,7 @@ export function PrizePopup() {
           {prizes.map((p) => (
             <div key={p.rank} className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-3">
               <div className={`flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br ${p.tint}`}>
-                <img src={p.image} alt={p.name} className="h-full w-full object-contain p-1" />
+                <SiteImage slot={p.slot} fallback={p.image} alt={p.name} className="h-full w-full object-contain p-1" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-[11px] font-bold uppercase tracking-widest text-primary">{p.rank}</div>

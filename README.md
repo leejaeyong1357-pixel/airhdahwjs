@@ -8,7 +8,7 @@ Lovable에서 제작 후 내부망 이관을 위해 Lovable 의존성을 제거�
 Node.js 18 이상만 있으면 됩니다 (Bun 불필요).
 
 **윈도우: `start.bat` 더블클릭** — 최초 실행 시 패키지 설치와 빌드까지 자동으로 하고
-브라우저(http://localhost:3000)를 열어줍니다. 소스 코드를 수정한 뒤에는 `rebuild.bat`.
+브라우저(http://localhost:2222)를 열어줍니다. 소스 코드를 수정한 뒤에는 `rebuild.bat`.
 
 명령어로 직접 할 때:
 
@@ -16,7 +16,7 @@ Node.js 18 이상만 있으면 됩니다 (Bun 불필요).
 npm install        # 최초 한 번 (패키지 설치)
 npm run dev        # 개발 서버 (http://localhost:8080)
 npm run build      # 프로덕션 빌드 (dist/ 생성)
-npm run start      # 서버 실행 (http://localhost:3000, PORT 환경변수로 변경 가능)
+npm run start      # 서버 실행 (http://localhost:2222, PORT 환경변수로 변경 가능)
 ```
 
 ## 로그인 (DB 파일)

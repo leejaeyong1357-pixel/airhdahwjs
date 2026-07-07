@@ -60,7 +60,7 @@ function AuthPage() {
         {/* LEFT — form (white). Big logo, then "로그인" heading, then form. */}
         <form onSubmit={onSubmit} className="flex flex-col justify-center gap-5 bg-card px-10 py-12">
           <div className="flex flex-col items-center gap-3">
-            <img src={teczenLogo} alt="TECZEN" className="h-44 w-44 object-contain" />
+            <img src={teczenLogo} alt="TECZEN" className="h-14 w-auto max-w-[280px] object-contain" />
             <h2 className="text-3xl font-black tracking-tight">로그인</h2>
           </div>
 
