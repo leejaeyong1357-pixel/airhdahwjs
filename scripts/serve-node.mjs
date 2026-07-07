@@ -50,8 +50,11 @@ const MIME = {
 function tryServeStatic(pathname, res) {
   if (pathname === "/" || pathname.includes("..") || pathname.includes("\0")) return false;
   const decoded = decodeURIComponent(pathname);
-  // 업로드 이미지는 public/ 을 먼저 봐서 빌드 이후 교체분이 우선 반영되게 한다
-  const baseDirs = decoded.startsWith("/uploads/") ? [publicDir, clientDir] : [clientDir, publicDir];
+  // 업로드 파일(/uploads, /media)은 public/ 을 먼저 봐서 빌드 이후 추가분이 반영되게 한다
+  const baseDirs =
+    decoded.startsWith("/uploads/") || decoded.startsWith("/media/")
+      ? [publicDir, clientDir]
+      : [clientDir, publicDir];
   for (const base of baseDirs) {
     const filePath = normalize(join(base, decoded));
     if (!filePath.startsWith(base) || !existsSync(filePath)) continue;

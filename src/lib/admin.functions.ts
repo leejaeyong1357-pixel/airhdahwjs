@@ -1,181 +1,117 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-async function requireAdmin(context: any) {
-  const { data } = await context.supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", context.userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (!data) throw new Error("관리자 권한이 필요합니다.");
-}
+// 관리자 기능 — 사용자 명단은 프로젝트 루트의 DB 파일이 원본이고,
+// 작품/평가/좋아요 데이터는 data/db.json 에서 집계한다 (Supabase 불필요).
+
+const ROSTER_GUIDE =
+  "사용자 명단은 프로젝트 폴더의 DB 파일로 관리됩니다. DB 파일을 수정하면 즉시 반영됩니다.";
 
 const UserInput = z.object({
-  name: z.string().trim().min(1).max(50),
-  employeeNo: z.string().regex(/^\d{1,20}$/),
-  jumin: z.string().regex(/^\d{6}$/),
-  team: z.string().trim().max(50).optional().default(""),
-  position: z.string().trim().max(50).optional().default(""),
+  name: z.string(),
+  employeeNo: z.string(),
+  jumin: z.string(),
+  team: z.string().optional(),
+  position: z.string().optional(),
   role: z.enum(["participant", "judge", "admin"]),
 });
 
-/** Create a user (admin only). */
+/** Create a user (admin only) — DB 파일 안내. */
 export const adminCreateUser = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => UserInput.parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const email = `emp${data.employeeNo}@teczen.local`;
-    const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password: data.jumin,
-      email_confirm: true,
-      user_metadata: { employee_no: data.employeeNo, name: data.name },
-    });
-    if (error || !created?.user) throw new Error(error?.message || "사용자 생성 실패");
-    const uid = created.user.id;
-    await supabaseAdmin.from("profiles").upsert({
-      id: uid,
-      employee_no: data.employeeNo,
-      name: data.name,
-      team: data.team || null,
-      position: data.position || null,
-      must_change_password: data.role !== "participant", // judge/admin required to change
-    });
-    await supabaseAdmin.from("user_roles").upsert({ user_id: uid, role: data.role });
-    return { ok: true, id: uid };
+  .handler(async () => {
+    const { requireAdmin } = await import("@/lib/local-store.server");
+    requireAdmin();
+    throw new Error(ROSTER_GUIDE);
   });
 
-/** Bulk CSV import: rows of { name, employeeNo, jumin, team, position, role } */
+/** Bulk CSV import — DB 파일 안내. */
 export const adminImportUsers = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({ rows: z.array(UserInput).min(1).max(1000) }).parse(d),
-  )
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    let ok = 0, failed: { employeeNo: string; error: string }[] = [];
-    for (const row of data.rows) {
-      const email = `emp${row.employeeNo}@teczen.local`;
-      const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
-        email, password: row.jumin, email_confirm: true,
-        user_metadata: { employee_no: row.employeeNo, name: row.name },
-      });
-      if (error || !created?.user) {
-        failed.push({ employeeNo: row.employeeNo, error: error?.message ?? "unknown" });
-        continue;
-      }
-      const uid = created.user.id;
-      await supabaseAdmin.from("profiles").upsert({
-        id: uid, employee_no: row.employeeNo, name: row.name,
-        team: row.team || null, position: row.position || null,
-        must_change_password: row.role !== "participant",
-      });
-      await supabaseAdmin.from("user_roles").upsert({ user_id: uid, role: row.role });
-      ok++;
-    }
-    return { ok, failed };
+  .inputValidator((d: unknown) => z.object({ rows: z.array(UserInput) }).parse(d))
+  .handler(async () => {
+    const { requireAdmin } = await import("@/lib/local-store.server");
+    requireAdmin();
+    throw new Error(ROSTER_GUIDE);
   });
 
 export const adminListUsers = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await requireAdmin(context);
-    const { data: profiles } = await context.supabase
-      .from("profiles")
-      .select("*")
-      .order("created_at", { ascending: false });
-    const { data: roles } = await context.supabase.from("user_roles").select("user_id,role");
-    const roleMap = new Map((roles ?? []).map((r: any) => [r.user_id, r.role]));
-    return (profiles ?? []).map((p: any) => ({
-      ...p,
-      role: roleMap.get(p.id) ?? "participant",
+  .handler(async () => {
+    const { requireAdmin, loadRoster } = await import("@/lib/local-store.server");
+    requireAdmin();
+    const roster = await loadRoster();
+    return Array.from(roster.values()).map((p) => ({
+      id: p.empNo,
+      employee_no: p.empNo,
+      name: p.name,
+      team: "",
+      position: p.position,
+      must_change_password: false,
+      created_at: null,
+      role: p.roles.includes("admin") ? "admin" : p.roles.includes("judge") ? "judge" : "participant",
     }));
   });
 
 export const adminResetPassword = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((d: { userId: string; newPassword: string }) =>
-    z.object({
-      userId: z.string().uuid(),
-      newPassword: z.string().min(6).max(72),
-    }).parse(d),
+    z.object({ userId: z.string(), newPassword: z.string() }).parse(d),
   )
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
-      password: data.newPassword,
-    });
-    if (error) throw new Error(error.message);
-    await supabaseAdmin
-      .from("profiles")
-      .update({ must_change_password: true })
-      .eq("id", data.userId);
-    return { ok: true };
+  .handler(async () => {
+    const { requireAdmin } = await import("@/lib/local-store.server");
+    requireAdmin();
+    throw new Error("비밀번호는 주민번호 앞 6자리로 고정입니다. " + ROSTER_GUIDE);
   });
 
 export const adminDeleteUser = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: { userId: string }) => z.object({ userId: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
-    if (error) throw new Error(error.message);
-    return { ok: true };
+  .inputValidator((d: { userId: string }) => z.object({ userId: z.string() }).parse(d))
+  .handler(async () => {
+    const { requireAdmin } = await import("@/lib/local-store.server");
+    requireAdmin();
+    throw new Error(ROSTER_GUIDE);
   });
 
-/** Team CRUD */
+/** Team CRUD — data/db.json 에 저장. */
 export const adminListTeams = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await requireAdmin(context);
-    const { data } = await context.supabase.from("teams").select("*").order("name");
-    return data ?? [];
+  .handler(async () => {
+    const { readStore, requireAdmin } = await import("@/lib/local-store.server");
+    requireAdmin();
+    return [...readStore().teams].sort((a, b) => String(a.name).localeCompare(String(b.name), "ko"));
   });
 
 export const adminCreateTeam = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((d: { name: string }) =>
     z.object({ name: z.string().trim().min(1).max(50) }).parse(d),
   )
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context);
-    const { error } = await context.supabase.from("teams").insert({ name: data.name });
-    if (error) throw new Error(error.message);
+  .handler(async ({ data }) => {
+    const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
+    requireAdmin();
+    const store = readStore();
+    if (store.teams.some((t) => t.name === data.name)) throw new Error("이미 있는 실/팀입니다.");
+    store.teams.push({ id: crypto.randomUUID(), name: data.name, created_at: new Date().toISOString() });
+    writeStore(store);
     return { ok: true };
   });
 
 export const adminDeleteTeam = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context);
-    const { error } = await context.supabase.from("teams").delete().eq("id", data.id);
-    if (error) throw new Error(error.message);
+  .handler(async ({ data }) => {
+    const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
+    requireAdmin();
+    const store = readStore();
+    store.teams = store.teams.filter((t) => t.id !== data.id);
+    writeStore(store);
     return { ok: true };
   });
 
-/** Rankings: aggregate 임원 점수 (80%) + 좋아요 정규화 (20%) */
+/** Rankings: 심사 점수 (80%) + 좋아요 정규화 (20%) */
 export const adminGetRankings = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await requireAdmin(context);
-    const [{ data: subs }, { data: evals }, { data: likes }] = await Promise.all([
-      context.supabase
-        .from("submissions")
-        .select("id,title,user_id,profiles:user_id(name,team,position)"),
-      context.supabase.from("evaluations").select("submission_id,innovation,completeness,utilization"),
-      context.supabase.from("submission_like_counts").select("*"),
-    ]);
-    const likeMap = new Map((likes ?? []).map((r: any) => [r.submission_id, r.like_count]));
+  .handler(async () => {
+    const { readStore, requireAdmin } = await import("@/lib/local-store.server");
+    requireAdmin();
+    const store = readStore();
+    const likeMap = new Map<string, number>();
+    for (const l of store.likes) likeMap.set(l.submission_id, (likeMap.get(l.submission_id) ?? 0) + 1);
     const evalMap = new Map<string, { total: number; count: number }>();
-    for (const e of evals ?? []) {
+    for (const e of store.evaluations) {
       const total = (e.innovation ?? 0) + (e.completeness ?? 0) + (e.utilization ?? 0);
       const cur = evalMap.get(e.submission_id) ?? { total: 0, count: 0 };
       cur.total += total; cur.count += 1;
@@ -183,12 +119,12 @@ export const adminGetRankings = createServerFn({ method: "GET" })
     }
     // Rubric: 혁신성 40 + 완성도 30 + 활용도 20 = 90 raw → scale to 100 → weight 80%
     // Likes: normalize (max → 100) → weight 20%
-    const maxLikes = Math.max(1, ...Array.from(likeMap.values() as Iterable<number>));
-    const rows = (subs ?? []).map((s: any) => {
+    const maxLikes = Math.max(1, ...Array.from(likeMap.values()));
+    const rows = store.submissions.map((s) => {
       const ev = evalMap.get(s.id);
       const judgeAvgRaw = ev && ev.count > 0 ? ev.total / ev.count : 0; // 0-90
       const judgeScore100 = (judgeAvgRaw / 90) * 100;
-      const likeCount = (likeMap.get(s.id) as number | undefined) ?? 0;
+      const likeCount = likeMap.get(s.id) ?? 0;
       const likeScore100 = (likeCount / maxLikes) * 100;
       const final = judgeScore100 * 0.8 + likeScore100 * 0.2;
       return {
@@ -207,34 +143,35 @@ export const adminGetRankings = createServerFn({ method: "GET" })
 
 /** All evaluations detailed (admin only). */
 export const adminListEvaluations = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await requireAdmin(context);
-    const { data } = await context.supabase
-      .from("evaluations")
-      .select(
-        "id, submission_id, innovation, completeness, utilization, created_at, judge_id, submissions:submission_id(title), profiles:judge_id(name, team, position)",
-      )
-      .order("created_at", { ascending: false });
-    return data ?? [];
+  .handler(async () => {
+    const { readStore, requireAdmin } = await import("@/lib/local-store.server");
+    requireAdmin();
+    const store = readStore();
+    const titleMap = new Map(store.submissions.map((s) => [s.id, s.title]));
+    return [...store.evaluations]
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+      .map((e) => ({
+        id: e.id,
+        submission_id: e.submission_id,
+        innovation: e.innovation,
+        completeness: e.completeness,
+        utilization: e.utilization,
+        created_at: e.created_at,
+        judge_id: e.judge_id,
+        submissions: { title: titleMap.get(e.submission_id) ?? "" },
+        profiles: e.profiles ?? null,
+      }));
   });
 
 /** Team-wise submission counts (visible to judges + admins). */
 export const listTeamSubmissionCounts = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    // Only judges + admins should see cross-team data.
-    const isJudgeOrAdmin =
-      (await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "judge" })).data ||
-      (await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" })).data;
-    if (!isJudgeOrAdmin) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: subs } = await supabaseAdmin
-      .from("submissions")
-      .select("user_id, profiles:user_id(team)");
+  .handler(async () => {
+    const { readStore, requireJudgeOrAdmin } = await import("@/lib/local-store.server");
+    requireJudgeOrAdmin();
+    const store = readStore();
     const map = new Map<string, number>();
-    for (const s of subs ?? []) {
-      const team = (s as any).profiles?.team ?? "미지정";
+    for (const s of store.submissions) {
+      const team = s.profiles?.team || "미지정";
       map.set(team, (map.get(team) ?? 0) + 1);
     }
     return Array.from(map.entries())

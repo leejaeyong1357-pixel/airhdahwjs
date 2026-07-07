@@ -29,6 +29,46 @@ const ARTICLES = [
   { title: "메타 AI 안경 \u2014 웨어러블 AI의 미래", source: "AI타임스", slot: "news-5", thumb: articleMeta, href: "https://www.aitimes.com/news/articleView.html?idxno=212449", tag: "디바이스" },
 ];
 
+
+// 히어로 반딧불 효과 — 파란 불빛이 은은하게 떠다닌다 (고정 시드, hydration 안전)
+const FIREFLIES = [
+  { left: "6%",  top: "72%", size: 5, dur: 14, delay: 0,    fx: "38vw",  fy: "-46vh" },
+  { left: "16%", top: "88%", size: 4, dur: 18, delay: 2.5,  fx: "30vw",  fy: "-60vh" },
+  { left: "28%", top: "64%", size: 6, dur: 15, delay: 5,    fx: "24vw",  fy: "-38vh" },
+  { left: "38%", top: "92%", size: 4, dur: 20, delay: 1.2,  fx: "18vw",  fy: "-64vh" },
+  { left: "50%", top: "78%", size: 5, dur: 16, delay: 7,    fx: "-14vw", fy: "-52vh" },
+  { left: "58%", top: "86%", size: 3, dur: 13, delay: 3.8,  fx: "16vw",  fy: "-48vh" },
+  { left: "68%", top: "70%", size: 6, dur: 17, delay: 9,    fx: "-20vw", fy: "-42vh" },
+  { left: "76%", top: "90%", size: 4, dur: 21, delay: 0.6,  fx: "-12vw", fy: "-58vh" },
+  { left: "86%", top: "76%", size: 5, dur: 15, delay: 6.2,  fx: "-22vw", fy: "-50vh" },
+  { left: "92%", top: "62%", size: 4, dur: 19, delay: 4.4,  fx: "-28vw", fy: "-36vh" },
+  { left: "12%", top: "55%", size: 3, dur: 22, delay: 8.5,  fx: "26vw",  fy: "-40vh" },
+  { left: "44%", top: "60%", size: 3, dur: 18, delay: 11,   fx: "10vw",  fy: "-44vh" },
+];
+
+function Fireflies() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      {FIREFLIES.map((f, i) => (
+        <span
+          key={i}
+          className="firefly"
+          style={{
+            left: f.left,
+            top: f.top,
+            width: f.size,
+            height: f.size,
+            animationDuration: `${f.dur}s`,
+            animationDelay: `${f.delay}s`,
+            ["--fx" as any]: f.fx,
+            ["--fy" as any]: f.fy,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 const HERO = {
   eyebrow: "제 1회",
   title1: "테크젠 사내",
@@ -78,6 +118,7 @@ function Home() {
             "radial-gradient(1100px 700px at 78% 45%, #E4ECF7 0%, rgba(228,236,247,0) 60%), linear-gradient(180deg, #FAF6F2 0%, #F2EDE6 100%)",
         }}
       >
+        <Fireflies />
         <div className="mx-auto max-w-[1400px] px-6 md:px-12 pt-16 pb-20 min-h-[640px]">
           <div className="grid grid-cols-1 md:grid-cols-[1.05fr_1fr] gap-10 items-center">
             {/* Left copy */}

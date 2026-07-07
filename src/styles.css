@@ -145,3 +145,22 @@
     box-shadow: 0 24px 50px -20px oklch(0.28 0.09 258 / 0.28);
   }
 }
+
+/* 히어로 반딧불 효과 */
+@keyframes firefly-drift {
+  0%   { transform: translate(0, 0); opacity: 0; }
+  8%   { opacity: 0.9; }
+  45%  { opacity: 0.35; }
+  70%  { opacity: 0.85; }
+  100% { transform: translate(var(--fx), var(--fy)); opacity: 0; }
+}
+.firefly {
+  position: absolute;
+  border-radius: 9999px;
+  background: #7fb5ff;
+  box-shadow:
+    0 0 6px 2px rgba(110, 170, 255, 0.65),
+    0 0 16px 6px rgba(110, 170, 255, 0.3);
+  animation: firefly-drift linear infinite;
+  will-change: transform, opacity;
+}

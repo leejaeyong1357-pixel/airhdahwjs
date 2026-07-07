@@ -37,26 +37,17 @@ function formatEta(sec: number) {
   return `약 ${m}분 ${s}초 남음`;
 }
 
-/** Upload a File to a Supabase Storage bucket with XHR progress events.
- *  Uses signed upload URLs so we can get real upload progress. */
+/** 서버(/api/media)로 파일을 XHR 업로드 — 진행률 이벤트 지원.
+ *  public/media/<bucket>/<path> 에 저장된다. */
 async function uploadWithProgress(
   bucket: string,
   path: string,
   file: File,
   onProgress: (loaded: number) => void,
 ): Promise<void> {
-  // 1) get a signed upload URL (token is embedded in the URL as ?token=...)
-  const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(path);
-  if (error || !data) throw new Error(error?.message ?? "signed URL 생성 실패");
-  const { signedUrl } = data;
-
-  // 2) PUT raw file with XHR for progress. Do NOT set Authorization —
-  // the signed URL carries its own token; adding a bearer breaks it.
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("PUT", signedUrl, true);
-    xhr.setRequestHeader("x-upsert", "true");
-    xhr.setRequestHeader("cache-control", "3600");
+    xhr.open("POST", `/api/media?path=${encodeURIComponent(`${bucket}/${path}`)}`, true);
     if (file.type) xhr.setRequestHeader("Content-Type", file.type);
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) onProgress(ev.loaded);

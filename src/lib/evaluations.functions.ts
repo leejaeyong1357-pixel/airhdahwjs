@@ -1,10 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-/** Judge submits/updates an evaluation. Time window & finalized-lock enforced by DB trigger. */
+// 심사 평가 — data/db.json 에 저장 (Supabase 불필요).
+
+/** Judge submits/updates an evaluation. */
 export const submitEvaluation = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z.object({
       submissionId: z.string().uuid(),
@@ -14,29 +14,50 @@ export const submitEvaluation = createServerFn({ method: "POST" })
       finalize: z.boolean().optional(),
     }).parse(d),
   )
-  .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("evaluations").upsert(
-      {
+  .handler(async ({ data }) => {
+    const { readStore, writeStore, requireJudgeOrAdmin, profileOf } = await import("@/lib/local-store.server");
+    const judge = requireJudgeOrAdmin();
+    const store = readStore();
+    const existing = store.evaluations.find(
+      (e) => e.submission_id === data.submissionId && e.judge_id === judge.empNo,
+    );
+    if (existing?.is_finalized) throw new Error("이미 확정된 평가입니다.");
+    const now = new Date().toISOString();
+    if (existing) {
+      existing.innovation = data.innovation;
+      existing.completeness = data.completeness;
+      existing.utilization = data.utilization;
+      existing.is_finalized = data.finalize ?? false;
+      existing.updated_at = now;
+    } else {
+      store.evaluations.push({
+        id: crypto.randomUUID(),
         submission_id: data.submissionId,
-        judge_id: context.userId,
+        judge_id: judge.empNo,
         innovation: data.innovation,
         completeness: data.completeness,
         utilization: data.utilization,
         is_finalized: data.finalize ?? false,
-      },
-      { onConflict: "submission_id,judge_id" },
-    );
-    if (error) throw new Error(error.message);
+        created_at: now,
+        profiles: profileOf(judge),
+      });
+    }
+    writeStore(store);
     return { ok: true };
   });
 
 /** My evaluations (submission_id -> scores + finalized). */
 export const listMyEvaluations = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data } = await context.supabase
-      .from("evaluations")
-      .select("submission_id, innovation, completeness, utilization, is_finalized")
-      .eq("judge_id", context.userId);
-    return data ?? [];
+  .handler(async () => {
+    const { readStore, requireUser } = await import("@/lib/local-store.server");
+    const user = requireUser();
+    return readStore()
+      .evaluations.filter((e) => e.judge_id === user.empNo)
+      .map((e) => ({
+        submission_id: e.submission_id,
+        innovation: e.innovation,
+        completeness: e.completeness,
+        utilization: e.utilization,
+        is_finalized: e.is_finalized,
+      }));
   });
