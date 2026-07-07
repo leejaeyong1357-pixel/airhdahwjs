@@ -16,6 +16,16 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+const AUTH_FIREFLIES = [
+  { left: "12%", top: "80%", size: 5, dur: 15, delay: 0,   fx: "20vw",  fy: "-55vh" },
+  { left: "26%", top: "92%", size: 4, dur: 19, delay: 3,   fx: "14vw",  fy: "-62vh" },
+  { left: "46%", top: "84%", size: 5, dur: 16, delay: 6.5, fx: "-8vw",  fy: "-50vh" },
+  { left: "66%", top: "90%", size: 4, dur: 20, delay: 1.5, fx: "-12vw", fy: "-58vh" },
+  { left: "82%", top: "78%", size: 6, dur: 17, delay: 8,   fx: "-18vw", fy: "-48vh" },
+  { left: "90%", top: "60%", size: 4, dur: 21, delay: 4.5, fx: "-20vw", fy: "-38vh" },
+  { left: "8%",  top: "58%", size: 4, dur: 18, delay: 10,  fx: "22vw",  fy: "-40vh" },
+];
+
 type Role = "participant" | "judge" | "admin";
 const ROLES: { key: Role; label: string; icon: any }[] = [
   { key: "participant", label: "참여자", icon: User },
@@ -55,14 +65,38 @@ function AuthPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-6rem)] max-w-6xl items-center justify-center px-6 py-12">
-      <div className="grid w-full grid-cols-1 overflow-hidden rounded-3xl border border-border bg-card shadow-2xl md:grid-cols-2">
-        {/* LEFT — form (white). Big logo, then "로그인" heading, then form. */}
-        <form onSubmit={onSubmit} className="flex flex-col justify-center gap-5 bg-card px-10 py-12">
-          <div className="flex flex-col items-center gap-3">
-            <img src={teczenLogo} alt="TECZEN" className="h-14 w-auto max-w-[280px] object-contain" />
-            <h2 className="text-3xl font-black tracking-tight">로그인</h2>
-          </div>
+    <div
+      className="relative min-h-screen overflow-hidden"
+      style={{ background: "radial-gradient(900px 520px at 50% 0%, #10203d 0%, #000105 62%)" }}
+    >
+      {/* 빛 번짐 */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute left-1/2 top-10 h-[320px] w-[640px] -translate-x-1/2 rounded-full opacity-60" style={{ background: "rgba(80,70,220,0.30)", filter: "blur(90px)" }} />
+        <div className="absolute left-[12%] top-[45%] h-[240px] w-[380px] rounded-full opacity-50" style={{ background: "rgba(210,60,140,0.14)", filter: "blur(90px)" }} />
+        <div className="absolute right-[10%] top-[30%] h-[260px] w-[400px] rounded-full opacity-60" style={{ background: "rgba(40,120,255,0.20)", filter: "blur(90px)" }} />
+        {/* 반딧불 */}
+        {AUTH_FIREFLIES.map((f, i) => (
+          <span key={i} className="firefly" style={{ left: f.left, top: f.top, width: f.size, height: f.size, animationDuration: `${f.dur}s`, animationDelay: `${f.delay}s`, ["--fx" as any]: f.fx, ["--fy" as any]: f.fy }} />
+        ))}
+      </div>
+
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-xl flex-col items-center justify-center px-6 py-14">
+        {/* 카드 밖 상단 — 로고 + 문구 */}
+        <img src={teczenLogo} alt="TECZEN" className="h-9 w-auto object-contain" style={{ filter: "brightness(0) invert(1)" }} />
+        <h1 className="mt-6 text-center font-black leading-[1.15] tracking-tight" style={{ fontSize: "clamp(34px, 5vw, 48px)" }}>
+          <span className="text-white">새로운 도전.</span>
+          <br />
+          <span style={{ background: "linear-gradient(100deg,#5ea1ff 10%,#a97bff 50%,#ff7bb1 90%)", WebkitBackgroundClip: "text", color: "transparent" }}>
+            어마무시한 가능성.
+          </span>
+        </h1>
+        <p className="mt-4 text-center text-sm text-white/60">
+          제 1회 테크젠 사내 AI 경진대회 · 여러분의 끼를 마음껏 뽐내주세요!
+        </p>
+
+        {/* 흰색 로그인 카드 */}
+        <form onSubmit={onSubmit} className="mt-10 flex w-full max-w-md flex-col gap-5 rounded-3xl bg-white px-9 py-10 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.7)]">
+          <h2 className="text-center text-2xl font-black tracking-tight text-[#0a0a0a]">로그인</h2>
 
           <div className="space-y-3">
             <div className="space-y-1.5">
@@ -133,18 +167,6 @@ function AuthPage() {
             비밀번호를 모르시나요?
           </button>
         </form>
-
-        {/* RIGHT — solid Hyundai navy panel, big centered greeting */}
-        <div className="relative flex flex-col items-center justify-center bg-primary p-10 text-white">
-          <div className="relative z-10 text-center max-w-sm">
-            <h1 className="text-4xl md:text-5xl font-black leading-tight">
-              Hello,<br />TECZEN!
-            </h1>
-            <p className="mt-6 text-sm md:text-base leading-relaxed text-white/85">
-              여러분의 끼를 마음껏 뽐내주시길 바랍니다!
-            </p>
-          </div>
-        </div>
       </div>
 
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>

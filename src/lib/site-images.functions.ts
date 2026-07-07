@@ -17,6 +17,11 @@ export const SITE_IMAGE_SLOTS = [
   { slot: "news-3", label: "기사 3 — AI 시대 독서" },
   { slot: "news-4", label: "기사 4 — AI 에이전트" },
   { slot: "news-5", label: "기사 5 — 메타 AI 안경" },
+  { slot: "video-1", label: "영상 1 — VS Code 세팅법" },
+  { slot: "video-2", label: "영상 2 — 클로드 코드 완벽 정복" },
+  { slot: "video-3", label: "영상 3 — 홈페이지 30분 자동 완성" },
+  { slot: "video-4", label: "영상 4 — AI 시대 충격적인 기술" },
+  { slot: "video-5", label: "영상 5 — 학벌보다 무서운 진짜 지능" },
 ] as const;
 
 const slotNames = SITE_IMAGE_SLOTS.map((s) => s.slot) as unknown as [string, ...string[]];

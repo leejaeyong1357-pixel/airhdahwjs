@@ -11,6 +11,11 @@ import { listSubmissions } from "@/lib/submissions.functions";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import heroScene from "@/assets/ai-head-v2.png";
 import { SiteImage } from "@/components/SiteImage";
+import video1 from "@/assets/video-1.jpg";
+import video2 from "@/assets/video-2.jpg";
+import video3 from "@/assets/video-3.jpg";
+import video4 from "@/assets/video-4.jpg";
+import video5 from "@/assets/video-5.jpg";
 import mascotPrize from "@/assets/mascot-prize.png";
 import prizeClaudeImg from "@/assets/prize-claude.jpg";
 import prizeKeyboardImg from "@/assets/prize-keyboard.jpg";
@@ -27,6 +32,14 @@ const ARTICLES = [
   { title: "AI 시대, 독서는 필수", source: "brunch · 동포뉴스", slot: "news-3", thumb: articleReading, href: "https://brunch.co.kr/@ksd7302/259", tag: "칼럼" },
   { title: "AI 에이전트란?", source: "Databricks", slot: "news-4", thumb: articleAgent, href: "https://www.databricks.com/kr/blog/what-are-ai-agents", tag: "기초" },
   { title: "메타 AI 안경 \u2014 웨어러블 AI의 미래", source: "AI타임스", slot: "news-5", thumb: articleMeta, href: "https://www.aitimes.com/news/articleView.html?idxno=212449", tag: "디바이스" },
+];
+
+const VIDEOS = [
+  { title: "남들 모르는 VS Code 세팅법!", slot: "video-1", thumb: video1, href: "https://youtu.be/2mBbZG9vVtE?si=AWtNhHTUWP961zwm" },
+  { title: "클로드 코드 완벽 정복!", slot: "video-2", thumb: video2, href: "https://youtu.be/DGolK4QzmZY?si=Jgaiv3lNF3K3d3dY" },
+  { title: "홈페이지 30분 자동 완성!", slot: "video-3", thumb: video3, href: "https://youtu.be/CDTEtw90G04?si=ITHolZ331AD1lMD1" },
+  { title: "AI 시대 세상을 지배 충격적인 기술", slot: "video-4", thumb: video4, href: "https://youtu.be/QpBy2MZlvZw?si=kJ1EL1qRQLeWoop7" },
+  { title: "학벌보다 무서운 \u201C진짜 지능\u201D", slot: "video-5", thumb: video5, href: "https://youtu.be/mVaAeGCLQdA?si=eGB5SeY74WsVuvSf" },
 ];
 
 
@@ -290,6 +303,42 @@ function Home() {
               </h3>
               <div className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
                 <span>{a.source}</span>
+                <ExternalLink className="h-3 w-3" />
+              </div>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      {/* 추천 AI 영상 */}
+      <section id="videos" className="mx-auto max-w-6xl px-6 pb-14 pt-6 scroll-mt-28">
+        <div className="flex items-end justify-between">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-black tracking-tight">
+              추천 <span className="text-primary">AI 영상</span>
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              보면 실력이 늘어나는 영상들 · 카드를 클릭하면 새 창에서 열립니다.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 lg:grid-cols-5">
+          {VIDEOS.map((v) => (
+            <a key={v.slot} href={v.href} target="_blank" rel="noopener noreferrer" className="group block">
+              <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
+                <SiteImage slot={v.slot} fallback={v.thumb} alt={v.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="grid h-11 w-11 place-items-center rounded-full bg-black/55 backdrop-blur transition group-hover:bg-red-600">
+                    <svg viewBox="0 0 24 24" className="ml-0.5 h-5 w-5 fill-white"><path d="M8 5v14l11-7z" /></svg>
+                  </div>
+                </div>
+              </div>
+              <h3 className="mt-3 line-clamp-2 text-[14px] font-bold leading-snug text-foreground group-hover:text-primary transition-colors">
+                {v.title}
+              </h3>
+              <div className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
+                <span>YouTube</span>
                 <ExternalLink className="h-3 w-3" />
               </div>
             </a>

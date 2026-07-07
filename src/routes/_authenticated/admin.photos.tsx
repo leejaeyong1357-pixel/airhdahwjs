@@ -16,6 +16,11 @@ import news2Default from "@/assets/article-jensen.png";
 import news3Default from "@/assets/article-reading.png";
 import news4Default from "@/assets/article-agent-table.png";
 import news5Default from "@/assets/article-meta-glasses.png";
+import video1Default from "@/assets/video-1.jpg";
+import video2Default from "@/assets/video-2.jpg";
+import video3Default from "@/assets/video-3.jpg";
+import video4Default from "@/assets/video-4.jpg";
+import video5Default from "@/assets/video-5.jpg";
 
 export const Route = createFileRoute("/_authenticated/admin/photos")({
   component: PhotosPage,
@@ -31,6 +36,11 @@ const DEFAULTS: Record<string, string> = {
   "news-3": news3Default,
   "news-4": news4Default,
   "news-5": news5Default,
+  "video-1": video1Default,
+  "video-2": video2Default,
+  "video-3": video3Default,
+  "video-4": video4Default,
+  "video-5": video5Default,
 };
 
 function PhotosPage() {
