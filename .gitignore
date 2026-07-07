@@ -34,3 +34,6 @@ dist-ssr
 # 관리자 [사진 관리] 업로드 이미지 — 각 서버 로컬에 보관 (git pull 시 덮어쓰지 않음)
 public/uploads/*
 !public/uploads/README.md
+
+# TanStack Router 자동 생성 파일 — 빌드 시마다 재생성되므로 추적하지 않음
+src/routeTree.gen.ts
