@@ -35,10 +35,20 @@ bash scripts/fetch-assets.sh
 - `src/assets/*.png|jpg` — 사이트에서 쓰는 이미지 18장 (Lovable에서 다운로드)
 - `public/fonts/PretendardVariable.woff2` — Pretendard 폰트 (셀프호스팅, 없으면 시스템 폰트로 대체)
 
+## 데모 모드 (기본값)
+
+백엔드(Supabase) 없이 **디자인 전체를 에러 없이 볼 수 있는 모드**가 기본으로 켜져 있습니다
+(`.env` 의 `VITE_DEMO_MODE="1"`).
+
+- 로그인 화면에서 역할(참여자/평가자/관리자)을 고르고 버튼만 누르면 바로 들어가집니다.
+- 모든 페이지(메인, 작품 제출, 심사, 관리자, 마이페이지)를 둘러볼 수 있고, 목록은 빈 상태로 나옵니다.
+- 저장/업로드 같은 동작은 "데모 모드 — 저장되지 않습니다" 안내만 표시됩니다.
+
 ## 백엔드 (Supabase)
 
-- 접속 정보는 `.env` 에 있습니다 (공개용 anon 키만 포함). 내부망용 Supabase 또는
-  자체 백엔드로 교체하려면 `.env` 와 `src/integrations/supabase/` 를 수정하세요.
+- 실제 백엔드를 붙이려면 `.env` 에서 `VITE_DEMO_MODE="0"` 으로 바꾸고, Supabase 접속 정보
+  (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` 등)를 채운 뒤
+  다시 빌드하세요. 연동 코드는 `src/integrations/supabase/` 에 있습니다.
 - DB 스키마는 `supabase/migrations/` 에 SQL로 들어 있습니다.
 
 ## 기타 외부 의존
