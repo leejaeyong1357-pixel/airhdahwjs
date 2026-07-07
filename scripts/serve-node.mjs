@@ -1,15 +1,28 @@
 // 프로덕션 실행용 서버 (Node.js 18+ 용, Bun 불필요).
 // 사용법: npm run build && npm run start
 // dist/client 의 정적 파일을 서빙하고, 나머지 요청은 SSR 핸들러로 넘긴다.
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, statSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join, normalize, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
 
-import handler from "../dist/server/server.js";
+const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const clientDir = join(dirname(fileURLToPath(import.meta.url)), "..", "dist", "client");
+// .env 를 process.env 로 로드 (Node는 자동으로 읽지 않음)
+const envFile = join(rootDir, ".env");
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, "utf8").split("\n")) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (m && process.env[m[1]] === undefined) {
+      process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    }
+  }
+}
+
+const handler = (await import("../dist/server/server.js")).default;
+
+const clientDir = join(rootDir, "dist", "client");
 const port = Number(process.env.PORT ?? 3000);
 
 const MIME = {

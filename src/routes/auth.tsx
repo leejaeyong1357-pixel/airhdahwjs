@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import teczenLogo from "@/assets/teczen-logo.png";
 import { User, Gavel, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isDemoMode } from "@/integrations/supabase/demo";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
@@ -35,6 +36,7 @@ function AuthPage() {
   const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
+    if (isDemoMode()) return; // 데모 모드: 세션 확인/관리자 부트스트랩 생략
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) nav({ to: "/", replace: true });
     });
@@ -46,6 +48,13 @@ function AuthPage() {
     if (loading) return;
     setLoading(true);
     try {
+      if (isDemoMode()) {
+        toast.success("로그인 성공 (데모 모드)");
+        if (role === "admin") { nav({ to: "/admin", replace: true }); return; }
+        if (role === "judge") { nav({ to: "/judge", replace: true }); return; }
+        nav({ to: "/", replace: true });
+        return;
+      }
       // 보안 요소 제거 — 역할 선택만으로 바로 진입
       const { email } = await resolve({ data: { name: "이재용", employeeNo: "82211489" } });
       await supabase.auth.signInWithPassword({ email, password: "Dlwodyd1357!" });
