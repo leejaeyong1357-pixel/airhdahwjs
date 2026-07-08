@@ -112,9 +112,10 @@ export const adminDeleteTeam = createServerFn({ method: "POST" })
 /** Rankings: 심사 점수 (80%) + 좋아요 정규화 (20%) */
 export const adminGetRankings = createServerFn({ method: "GET" })
   .handler(async () => {
-    const { readStore, requireAdmin } = await import("@/lib/local-store.server");
+    const { readStore, requireAdmin, loadRoster, liveProfile } = await import("@/lib/local-store.server");
     await requireAdmin();
     const store = readStore();
+    const roster = await loadRoster();
     const likeMap = new Map<string, number>();
     for (const l of store.likes) likeMap.set(l.submission_id, (likeMap.get(l.submission_id) ?? 0) + 1);
     const evalMap = new Map<string, { total: number; count: number }>();
@@ -137,7 +138,7 @@ export const adminGetRankings = createServerFn({ method: "GET" })
       return {
         submissionId: s.id,
         title: s.title,
-        author: s.profiles,
+        author: liveProfile(roster, s.user_id, s.profiles),
         judgeCount: ev?.count ?? 0,
         judgeAvg: Math.round(judgeAvgRaw * 10) / 10,
         likeCount,
@@ -173,12 +174,13 @@ export const adminListEvaluations = createServerFn({ method: "GET" })
 /** Team-wise submission counts (visible to judges + admins). */
 export const listTeamSubmissionCounts = createServerFn({ method: "GET" })
   .handler(async () => {
-    const { readStore, requireJudgeOrAdmin } = await import("@/lib/local-store.server");
+    const { readStore, requireJudgeOrAdmin, loadRoster, liveProfile } = await import("@/lib/local-store.server");
     await requireJudgeOrAdmin();
     const store = readStore();
+    const roster = await loadRoster();
     const map = new Map<string, number>();
     for (const s of store.submissions) {
-      const team = s.profiles?.team || "미지정";
+      const team = liveProfile(roster, s.user_id, s.profiles).team || "미지정";
       map.set(team, (map.get(team) ?? 0) + 1);
     }
     return Array.from(map.entries())

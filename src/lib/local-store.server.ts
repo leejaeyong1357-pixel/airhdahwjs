@@ -94,6 +94,26 @@ export function profileOf(user: StoreUser) {
   return { name: user.name, team: user.team ?? "", position: user.position, employee_no: user.empNo };
 }
 
+/**
+ * 사번(user_id)의 최신 프로필을 DB 명단에서 조회한다.
+ * 명단에 있으면 DB 기준(팀·직급·이름 최신)으로, 없으면 저장된 스냅샷으로 대체.
+ * → 제출 이후 DB에서 팀을 채워 넣어도 갤러리/상세에 바로 반영된다.
+ */
+export function liveProfile(
+  roster: Map<string, DbPerson>,
+  empNo: string,
+  fallback?: { name?: string; team?: string; position?: string },
+) {
+  const p = roster.get(empNo);
+  if (p) return { name: p.name, team: p.team ?? "", position: p.position, employee_no: empNo };
+  return {
+    name: fallback?.name ?? "",
+    team: fallback?.team ?? "",
+    position: fallback?.position ?? "",
+    employee_no: empNo,
+  };
+}
+
 export function mediaUrl(bucket: string, path: string) {
   return path ? `/media/${bucket}/${path}` : "";
 }

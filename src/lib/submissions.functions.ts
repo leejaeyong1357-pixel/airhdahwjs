@@ -24,37 +24,38 @@ const MAX_LIKES_PER_USER = 3;
 /** List submissions (authenticated users only). */
 export const listSubmissions = createServerFn({ method: "GET" })
   .handler(async () => {
-    const { readStore, requireUser, mediaUrl } = await import("@/lib/local-store.server");
+    const { readStore, requireUser, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
     const user = requireUser();
     const store = readStore();
+    const roster = await loadRoster();
     const likeCounts = new Map<string, number>();
     for (const l of store.likes) {
       likeCounts.set(l.submission_id, (likeCounts.get(l.submission_id) ?? 0) + 1);
     }
     return [...store.submissions]
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
-      .map((s) => ({
-        id: s.id,
-        title: s.title,
-        thumbnailUrl: mediaUrl("thumbnails", s.thumbnail_url),
-        createdAt: s.created_at,
-        author: {
-          name: s.profiles?.name ?? "",
-          team: s.profiles?.team ?? "",
-          position: s.profiles?.position ?? "",
-        },
-        likeCount: likeCounts.get(s.id) ?? 0,
-        mine: s.user_id === user.empNo,
-      }));
+      .map((s) => {
+        const author = liveProfile(roster, s.user_id, s.profiles);
+        return {
+          id: s.id,
+          title: s.title,
+          thumbnailUrl: mediaUrl("thumbnails", s.thumbnail_url),
+          createdAt: s.created_at,
+          author: { name: author.name, team: author.team, position: author.position },
+          likeCount: likeCounts.get(s.id) ?? 0,
+          mine: s.user_id === user.empNo,
+        };
+      });
   });
 
 /** Submission detail (authenticated). */
 export const getSubmission = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const { readStore, requireUser, mediaUrl } = await import("@/lib/local-store.server");
+    const { readStore, requireUser, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
     const user = requireUser();
     const store = readStore();
+    const roster = await loadRoster();
     const s = store.submissions.find((x) => x.id === data.id);
     if (!s) throw new Error("작품을 찾을 수 없습니다.");
     const files = store.submissions
@@ -62,10 +63,15 @@ export const getSubmission = createServerFn({ method: "GET" })
       .files.map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) }));
     const comments = store.comments
       .filter((c) => c.submission_id === data.id)
-      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+      .map((c) => ({ ...c, profiles: liveProfile(roster, c.user_id, c.profiles) }));
     const likeCount = store.likes.filter((l) => l.submission_id === data.id).length;
     return {
-      submission: { ...s, thumbnailSignedUrl: mediaUrl("thumbnails", s.thumbnail_url) },
+      submission: {
+        ...s,
+        profiles: liveProfile(roster, s.user_id, s.profiles),
+        thumbnailSignedUrl: mediaUrl("thumbnails", s.thumbnail_url),
+      },
       files,
       comments,
       likeCount,
