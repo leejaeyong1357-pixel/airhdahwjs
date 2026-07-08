@@ -164,3 +164,38 @@
   animation: firefly-drift linear infinite;
   will-change: transform, opacity;
 }
+
+/* 커스텀 마우스 포인터 */
+@media (pointer: fine) {
+  .custom-cursor,
+  .custom-cursor * {
+    cursor: none !important;
+  }
+}
+.cursor-dot,
+.cursor-ring {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 9999px;
+  opacity: 0;
+  will-change: transform;
+}
+.cursor-dot {
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  z-index: 10000;
+  background: linear-gradient(120deg, #5ea1ff, #a97bff);
+  box-shadow: 0 0 10px rgba(110, 160, 255, 0.9), 0 0 22px rgba(150, 120, 255, 0.5);
+}
+.cursor-ring {
+  left: -17px;
+  top: -17px;
+  width: 34px;
+  height: 34px;
+  z-index: 9999;
+  border: 1.5px solid rgba(120, 165, 255, 0.7);
+  box-shadow: 0 0 16px rgba(110, 160, 255, 0.3);
+  transition: opacity 0.2s;
+}

@@ -79,6 +79,18 @@ function JudgePage() {
         </div>
       </div>
 
+      {!open && (
+        <div className="mt-6 flex items-center gap-3 rounded-2xl border-2 border-amber-400/60 bg-amber-50 px-6 py-5">
+          <AlertCircle className="h-7 w-7 shrink-0 text-amber-600" />
+          <div>
+            <div className="text-lg font-black text-amber-800">지금은 평가 기간이 아닙니다!</div>
+            <div className="mt-0.5 text-sm font-semibold text-amber-700">
+              평가 기간: 2026년 7월 14일 (화) 07:00 ~ 24:00 · 기간 중에만 점수 입력이 가능합니다.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 평가 진행 방법 안내 */}
       <div className="mt-6 rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/5 to-primary/5 p-6">
         <div className="flex items-center gap-2">
@@ -89,14 +101,14 @@ function JudgePage() {
           <li className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">1</span>
-              <div className="text-sm font-bold">작품 확인</div>
+              <div className="text-base font-bold">작품 확인</div>
             </div>
-            <div className="mt-2 text-xs leading-relaxed text-muted-foreground">아래 목록의 각 작품 카드에서 <b>[작품 상세 →]</b> 링크로 이동해 설명·기술스택·첨부파일을 확인합니다.</div>
+            <div className="mt-2 text-sm leading-relaxed text-muted-foreground">아래 목록의 각 작품 카드에서 <b>[작품 상세 →]</b> 링크로 이동해 설명·기술스택·첨부파일을 확인합니다.</div>
           </li>
           <li className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">2</span>
-              <div className="text-sm font-bold">3개 항목 채점</div>
+              <div className="text-base font-bold">3개 항목 채점</div>
             </div>
             <div className="mt-2 text-xs leading-relaxed text-muted-foreground">
               슬라이더 또는 숫자 입력으로 점수를 매깁니다.<br/>
@@ -108,13 +120,13 @@ function JudgePage() {
           <li className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">3</span>
-              <div className="text-sm font-bold">평가 저장 · 평가완료</div>
+              <div className="text-base font-bold">평가 저장 · 평가완료</div>
             </div>
             <div className="mt-2 text-xs leading-relaxed text-muted-foreground"><b>[평가 저장]</b>은 임시 저장(수정 가능), <b>[평가완료]</b>를 누르면 해당 작품은 <b>더 이상 수정할 수 없습니다</b>.</div>
           </li>
         </ol>
-        <div className="mt-4 rounded-lg border border-border/60 bg-background/50 p-4 text-xs leading-relaxed text-muted-foreground">
-          <b className="text-foreground">채점 규칙</b> — 실/팀장 평가 90점 만점(혁신성 40 + 완성도 30 + 활용도 20)을 100점으로 환산한 뒤 <b>× 0.8</b>, 좋아요 점수(최다 득표=100)를 <b>× 0.2</b>로 합산해 <b>최종 100점</b>을 실시간 계산합니다. 다른 심사위원의 점수는 서로 조회할 수 없으며, 본인 평가만 확인·수정할 수 있습니다.
+        <div className="mt-4 rounded-xl border border-border/60 bg-background/50 p-5 text-[15px] leading-relaxed text-foreground/80">
+          <b className="text-[17px] text-foreground">채점 규칙</b> — 실/팀장 평가 90점 만점(혁신성 40 + 완성도 30 + 활용도 20)을 100점으로 환산한 뒤 <b>× 0.8</b>, 좋아요 점수(최다 득표=100)를 <b>× 0.2</b>로 합산해 <b>최종 100점</b>을 실시간 계산합니다. 다른 심사위원의 점수는 서로 조회할 수 없으며, 본인 평가만 확인·수정할 수 있습니다.
         </div>
       </div>
 
@@ -184,7 +196,7 @@ function EvalRow({ sub, current, maxLikes, disabled, onSave }: any) {
     <div className={`rounded-xl border p-5 ${finalized ? "border-emerald-500/40 bg-emerald-500/5" : "border-border bg-card"}`}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-xs text-muted-foreground">{sub.author.team} · {sub.author.name} {sub.author.position}</div>
+          <div className="text-xs text-muted-foreground">{[sub.author.team, `${sub.author.name} ${sub.author.position}`.trim()].filter(Boolean).join(" · ")}</div>
           <div className="mt-0.5 text-lg font-bold">{sub.title}</div>
           <button
             type="button"

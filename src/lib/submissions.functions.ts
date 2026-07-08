@@ -78,6 +78,9 @@ export const createSubmission = createServerFn({ method: "POST" })
     const { readStore, writeStore, requireUser, profileOf } = await import("@/lib/local-store.server");
     const user = requireUser();
     const store = readStore();
+    if (store.submissions.some((x) => x.user_id === user.empNo)) {
+      throw new Error("작품은 1인당 1개만 제출할 수 있습니다. 이미 제출한 작품이 있습니다.");
+    }
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     store.submissions.push({

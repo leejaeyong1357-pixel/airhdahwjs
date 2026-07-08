@@ -21,7 +21,7 @@ export const adminCreateUser = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => UserInput.parse(d))
   .handler(async () => {
     const { requireAdmin } = await import("@/lib/local-store.server");
-    requireAdmin();
+    await requireAdmin();
     throw new Error(ROSTER_GUIDE);
   });
 
@@ -30,22 +30,24 @@ export const adminImportUsers = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ rows: z.array(UserInput) }).parse(d))
   .handler(async () => {
     const { requireAdmin } = await import("@/lib/local-store.server");
-    requireAdmin();
+    await requireAdmin();
     throw new Error(ROSTER_GUIDE);
   });
 
 export const adminListUsers = createServerFn({ method: "GET" })
   .handler(async () => {
     const { requireAdmin, loadRoster } = await import("@/lib/local-store.server");
-    requireAdmin();
+    await requireAdmin();
+    const { readStore } = await import("@/lib/local-store.server");
     const roster = await loadRoster();
+    const passwords = readStore().passwords;
     return Array.from(roster.values()).map((p) => ({
       id: p.empNo,
       employee_no: p.empNo,
       name: p.name,
       team: "",
       position: p.position,
-      must_change_password: false,
+      must_change_password: !passwords[p.empNo], // 아직 초기 비밀번호 상태
       created_at: null,
       role: p.roles.includes("admin") ? "admin" : p.roles.includes("judge") ? "judge" : "participant",
     }));
@@ -53,19 +55,24 @@ export const adminListUsers = createServerFn({ method: "GET" })
 
 export const adminResetPassword = createServerFn({ method: "POST" })
   .inputValidator((d: { userId: string; newPassword: string }) =>
-    z.object({ userId: z.string(), newPassword: z.string() }).parse(d),
+    z.object({ userId: z.string(), newPassword: z.string().optional().default("") }).parse(d),
   )
-  .handler(async () => {
-    const { requireAdmin } = await import("@/lib/local-store.server");
-    requireAdmin();
-    throw new Error("비밀번호는 주민번호 앞 6자리로 고정입니다. " + ROSTER_GUIDE);
+  .handler(async ({ data }) => {
+    const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
+    await requireAdmin();
+    // 초기화: 변경된 비밀번호를 삭제해 초기 비밀번호(주민번호 앞 6자리)로 되돌리고,
+    // 다음 로그인 때 다시 변경하게 만든다.
+    const store = readStore();
+    delete store.passwords[data.userId];
+    writeStore(store);
+    return { ok: true };
   });
 
 export const adminDeleteUser = createServerFn({ method: "POST" })
   .inputValidator((d: { userId: string }) => z.object({ userId: z.string() }).parse(d))
   .handler(async () => {
     const { requireAdmin } = await import("@/lib/local-store.server");
-    requireAdmin();
+    await requireAdmin();
     throw new Error(ROSTER_GUIDE);
   });
 
@@ -73,7 +80,7 @@ export const adminDeleteUser = createServerFn({ method: "POST" })
 export const adminListTeams = createServerFn({ method: "GET" })
   .handler(async () => {
     const { readStore, requireAdmin } = await import("@/lib/local-store.server");
-    requireAdmin();
+    await requireAdmin();
     return [...readStore().teams].sort((a, b) => String(a.name).localeCompare(String(b.name), "ko"));
   });
 
@@ -83,7 +90,7 @@ export const adminCreateTeam = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
-    requireAdmin();
+    await requireAdmin();
     const store = readStore();
     if (store.teams.some((t) => t.name === data.name)) throw new Error("이미 있는 실/팀입니다.");
     store.teams.push({ id: crypto.randomUUID(), name: data.name, created_at: new Date().toISOString() });
@@ -95,7 +102,7 @@ export const adminDeleteTeam = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
-    requireAdmin();
+    await requireAdmin();
     const store = readStore();
     store.teams = store.teams.filter((t) => t.id !== data.id);
     writeStore(store);
@@ -106,7 +113,7 @@ export const adminDeleteTeam = createServerFn({ method: "POST" })
 export const adminGetRankings = createServerFn({ method: "GET" })
   .handler(async () => {
     const { readStore, requireAdmin } = await import("@/lib/local-store.server");
-    requireAdmin();
+    await requireAdmin();
     const store = readStore();
     const likeMap = new Map<string, number>();
     for (const l of store.likes) likeMap.set(l.submission_id, (likeMap.get(l.submission_id) ?? 0) + 1);
@@ -145,7 +152,7 @@ export const adminGetRankings = createServerFn({ method: "GET" })
 export const adminListEvaluations = createServerFn({ method: "GET" })
   .handler(async () => {
     const { readStore, requireAdmin } = await import("@/lib/local-store.server");
-    requireAdmin();
+    await requireAdmin();
     const store = readStore();
     const titleMap = new Map(store.submissions.map((s) => [s.id, s.title]));
     return [...store.evaluations]
@@ -167,7 +174,7 @@ export const adminListEvaluations = createServerFn({ method: "GET" })
 export const listTeamSubmissionCounts = createServerFn({ method: "GET" })
   .handler(async () => {
     const { readStore, requireJudgeOrAdmin } = await import("@/lib/local-store.server");
-    requireJudgeOrAdmin();
+    await requireJudgeOrAdmin();
     const store = readStore();
     const map = new Map<string, number>();
     for (const s of store.submissions) {

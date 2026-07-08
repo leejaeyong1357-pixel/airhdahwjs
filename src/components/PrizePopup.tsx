@@ -116,6 +116,18 @@ export function PrizePopup() {
           ))}
         </div>
 
+        <div className="px-6 pb-5 space-y-2">
+          <div className="rounded-xl bg-primary/5 border border-primary/15 px-4 py-2.5 text-[13px] font-semibold text-primary">
+            🎓 2차 바이브코딩 교육 수강 자격 부여 (Top 30명)
+          </div>
+          <div className="rounded-xl bg-primary/5 border border-primary/15 px-4 py-2.5 text-[13px] font-semibold text-primary">
+            🎤 우수작 선정 후 발표 기회 부여
+          </div>
+          <div className="rounded-xl bg-primary/5 border border-primary/15 px-4 py-2.5 text-[13px] font-semibold text-primary">
+            ✍️ 작품 제출은 1인당 1개
+          </div>
+        </div>
+
         <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-3">
           <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
             <Checkbox checked={dontShow} onCheckedChange={(v) => setDontShow(!!v)} />

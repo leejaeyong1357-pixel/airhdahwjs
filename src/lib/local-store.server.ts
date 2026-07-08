@@ -1,6 +1,7 @@
 // 로컬 파일 저장소 — Supabase 대신 서버 컴퓨터의 data/db.json 에 저장한다.
 // 업로드 파일(썸네일·작품 파일)은 public/media/ 아래에 저장되어 정적으로 서빙된다.
 // 서버 함수에서만 import 할 것 (클라이언트 번들 금지).
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -10,6 +11,7 @@ export type StoreUser = {
   name: string;
   empNo: string;
   position: string;
+  team?: string;
   roles: ("participant" | "judge" | "admin")[];
   role: string;
 };
@@ -20,9 +22,13 @@ export type Store = {
   comments: any[];
   evaluations: any[];
   teams: any[];
+  /** 사번 → 변경된 비밀번호(sha256). 없으면 아직 초기 비밀번호(주민번호 앞6자리) 상태 */
+  passwords: Record<string, string>;
+  /** 사번 → 개인정보 동의 시각(ISO) */
+  consents: Record<string, string>;
 };
 
-const EMPTY: Store = { submissions: [], likes: [], comments: [], evaluations: [], teams: [] };
+const EMPTY: Store = { submissions: [], likes: [], comments: [], evaluations: [], teams: [], passwords: {}, consents: {} };
 
 function storePath() {
   return join(process.cwd(), "data", "db.json");
@@ -63,22 +69,29 @@ export function requireUser(): StoreUser {
   return user;
 }
 
-export function requireAdmin(): StoreUser {
+export function hashPassword(pw: string): string {
+  return createHash("sha256").update(pw).digest("hex");
+}
+
+/** 헤더의 역할 주장을 믿지 않고, DB 명단(서버 원본)에서 실제 역할을 재확인한다. */
+async function requireRosterRole(roles: DbRole[], message: string): Promise<StoreUser> {
   const user = requireUser();
-  if (!user.roles?.includes("admin")) throw new Error("관리자 권한이 필요합니다.");
+  const roster = await loadRoster();
+  const person = roster.get(user.empNo);
+  if (!person || !roles.some((r) => person.roles.includes(r))) throw new Error(message);
   return user;
 }
 
-export function requireJudgeOrAdmin(): StoreUser {
-  const user = requireUser();
-  if (!user.roles?.includes("judge") && !user.roles?.includes("admin")) {
-    throw new Error("심사위원 또는 관리자만 볼 수 있습니다.");
-  }
-  return user;
+export async function requireAdmin(): Promise<StoreUser> {
+  return requireRosterRole(["admin"], "관리자 권한이 필요합니다.");
+}
+
+export async function requireJudgeOrAdmin(): Promise<StoreUser> {
+  return requireRosterRole(["judge", "admin"], "심사위원 또는 관리자만 볼 수 있습니다.");
 }
 
 export function profileOf(user: StoreUser) {
-  return { name: user.name, team: "", position: user.position, employee_no: user.empNo };
+  return { name: user.name, team: user.team ?? "", position: user.position, employee_no: user.empNo };
 }
 
 export function mediaUrl(bucket: string, path: string) {
@@ -91,6 +104,7 @@ export type DbRole = "participant" | "judge" | "admin";
 export type DbPerson = {
   name: string;
   position: string;
+  team: string;
   empNo: string;
   password: string; // 주민번호 앞 6자리
   roles: DbRole[];
@@ -131,13 +145,15 @@ export function parseRosterText(text: string): Map<string, DbPerson> {
     const words = tokens.filter((t) => !/^\d+$/.test(t));
     const name = words[0];
     const position = words[1] ?? "";
+    const team = words[2] ?? ""; // DB 파일에 직급 뒤 팀명을 추가하면 표시된다
     if (!name) continue;
 
     const existing = people.get(empNo);
     if (existing) {
       if (!existing.roles.includes(currentRole)) existing.roles.push(currentRole);
+      if (team && !existing.team) existing.team = team;
     } else {
-      people.set(empNo, { name, position, empNo, password, roles: [currentRole] });
+      people.set(empNo, { name, position, team, empNo, password, roles: [currentRole] });
     }
   }
   return people;

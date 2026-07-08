@@ -53,6 +53,11 @@ function AuthPage() {
         data: { name: name.trim(), employeeNo: empNo.trim(), password: pw.trim(), role },
       });
       setLocalUser({ ...user, role });
+      if (user.mustChangePassword || user.needsConsent) {
+        toast.info("첫 로그인입니다. 동의 및 비밀번호 변경을 진행해 주세요.");
+        nav({ to: "/change-password", replace: true });
+        return;
+      }
       toast.success(`${user.name}님, 환영합니다!`);
       if (role === "admin") { nav({ to: "/admin", replace: true }); return; }
       if (role === "judge") { nav({ to: "/judge", replace: true }); return; }

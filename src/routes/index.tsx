@@ -11,6 +11,7 @@ import { listSubmissions } from "@/lib/submissions.functions";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import heroScene from "@/assets/ai-head-v2.png";
 import { SiteImage } from "@/components/SiteImage";
+import { getLocalUser } from "@/integrations/supabase/demo";
 import video1 from "@/assets/video-1.jpg";
 import video2 from "@/assets/video-2.jpg";
 import video3 from "@/assets/video-3.jpg";
@@ -99,6 +100,8 @@ export const Route = createFileRoute("/")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/auth" });
+    const lu = getLocalUser();
+    if (lu?.mustChangePassword || lu?.needsConsent) throw redirect({ to: "/change-password" });
   },
   component: Home,
 });
@@ -211,26 +214,39 @@ function Home() {
       </section>
 
 
-      {/* INTRO — big statement copy */}
-      <section className="mx-auto max-w-5xl px-6 py-24 md:py-32 text-center">
-        <div
-          className="font-bold tracking-[0.25em] mb-6"
-          style={{ color: "#002C5F", fontSize: "clamp(13px, 1.1vw, 15px)" }}
-        >
-          TECZEN AI CONTEST
+      {/* INTRO — big statement copy (다크 + 글로우) */}
+      <section
+        className="relative overflow-hidden"
+        style={{ background: "radial-gradient(900px 520px at 50% 20%, #10203d 0%, #000105 65%)" }}
+      >
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute left-1/2 top-6 h-[300px] w-[620px] -translate-x-1/2 rounded-full opacity-60" style={{ background: "rgba(80,70,220,0.28)", filter: "blur(90px)" }} />
+          <div className="absolute left-[10%] top-[45%] h-[220px] w-[360px] rounded-full opacity-50" style={{ background: "rgba(210,60,140,0.13)", filter: "blur(90px)" }} />
+          <div className="absolute right-[8%] top-[30%] h-[240px] w-[380px] rounded-full opacity-60" style={{ background: "rgba(40,120,255,0.18)", filter: "blur(90px)" }} />
+          <span className="firefly" style={{ left: "14%", top: "82%", width: 5, height: 5, animationDuration: "16s", animationDelay: "0s", ["--fx" as any]: "18vw", ["--fy" as any]: "-40vh" }} />
+          <span className="firefly" style={{ left: "48%", top: "90%", width: 4, height: 4, animationDuration: "19s", animationDelay: "4s", ["--fx" as any]: "-6vw", ["--fy" as any]: "-46vh" }} />
+          <span className="firefly" style={{ left: "80%", top: "78%", width: 5, height: 5, animationDuration: "17s", animationDelay: "8s", ["--fx" as any]: "-16vw", ["--fy" as any]: "-36vh" }} />
         </div>
-        <h2
-          className="font-extrabold text-[#1A1A1A] leading-[1.2]"
-          style={{ fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "-0.02em" }}
-        >
-          구성원의 <span style={{ color: "#002C5F" }}>AI 활용 역량</span>을 높이고,<br />
-          실제 업무에 적용 가능한<br />
-          <span style={{ color: "#002C5F" }}>우수 아이디어</span>를 발굴합니다
-        </h2>
-        <p className="mt-10 text-[17px] md:text-[19px] leading-[1.9] text-[#4a4a4a] max-w-3xl mx-auto">
-          이번 <b className="text-[#1A1A1A]">제 1회 테크젠 AI 경진대회</b>는 구성원 여러분이<br className="hidden md:block" />
-          AI를 실제 업무에 적용해볼 수 있도록 마련된 자리입니다.
-        </p>
+        <div className="relative z-10 mx-auto max-w-5xl px-6 py-24 md:py-32 text-center">
+          <div
+            className="font-bold tracking-[0.25em] mb-6"
+            style={{ color: "#8fb7ff", fontSize: "clamp(13px, 1.1vw, 15px)" }}
+          >
+            TECZEN AI CONTEST
+          </div>
+          <h2
+            className="font-extrabold text-white leading-[1.2]"
+            style={{ fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "-0.02em" }}
+          >
+            구성원의 <span style={{ background: "linear-gradient(100deg,#5ea1ff 10%,#a97bff 60%,#ff7bb1 95%)", WebkitBackgroundClip: "text", color: "transparent" }}>AI 활용 역량</span>을 높이고,<br />
+            실제 업무에 적용 가능한<br />
+            <span style={{ background: "linear-gradient(100deg,#5ea1ff 10%,#a97bff 60%,#ff7bb1 95%)", WebkitBackgroundClip: "text", color: "transparent" }}>우수 아이디어</span>를 발굴합니다
+          </h2>
+          <p className="mt-10 text-[17px] md:text-[19px] leading-[1.9] text-white/65 max-w-3xl mx-auto">
+            이번 <b className="text-white">제 1회 테크젠 AI 경진대회</b>는 구성원 여러분이<br className="hidden md:block" />
+            AI를 실제 업무에 적용해볼 수 있도록 마련된 자리입니다.
+          </p>
+        </div>
       </section>
 
 

@@ -6,7 +6,7 @@ import {
   Scripts,
   useRouterState,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Header } from "@/components/Header";
@@ -58,8 +58,58 @@ function RootComponent() {
         <main className="flex-1"><Outlet /></main>
         {!isAuth && <FloatingVideo />}
         <Toaster position="top-center" richColors />
+        <CursorGlow />
       </div>
     </QueryClientProvider>
+  );
+}
+
+// 커스텀 마우스 포인터 — 파란 글로우 점 + 따라오는 링 (터치 기기에서는 비활성)
+function CursorGlow() {
+  const dotRef = useRef<HTMLDivElement>(null);
+  const ringRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (window.matchMedia("(pointer: coarse)").matches) return;
+    document.documentElement.classList.add("custom-cursor");
+    let tx = -100, ty = -100, rx = -100, ry = -100, scale = 1, raf = 0;
+
+    function onMove(e: MouseEvent) {
+      tx = e.clientX; ty = e.clientY;
+      if (dotRef.current) {
+        dotRef.current.style.opacity = "1";
+        dotRef.current.style.transform = `translate(${tx}px, ${ty}px)`;
+      }
+      if (ringRef.current) ringRef.current.style.opacity = "1";
+      const el = (e.target as HTMLElement)?.closest?.("a,button,[role=button],input,textarea,select,label,[data-slot=checkbox]");
+      scale = el ? 1.9 : 1;
+    }
+    function onLeave() {
+      if (dotRef.current) dotRef.current.style.opacity = "0";
+      if (ringRef.current) ringRef.current.style.opacity = "0";
+    }
+    function loop() {
+      rx += (tx - rx) * 0.18;
+      ry += (ty - ry) * 0.18;
+      if (ringRef.current) ringRef.current.style.transform = `translate(${rx}px, ${ry}px) scale(${scale})`;
+      raf = requestAnimationFrame(loop);
+    }
+    window.addEventListener("mousemove", onMove);
+    document.documentElement.addEventListener("mouseleave", onLeave);
+    raf = requestAnimationFrame(loop);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      document.documentElement.removeEventListener("mouseleave", onLeave);
+      cancelAnimationFrame(raf);
+      document.documentElement.classList.remove("custom-cursor");
+    };
+  }, []);
+
+  return (
+    <>
+      <div ref={ringRef} className="cursor-ring" aria-hidden />
+      <div ref={dotRef} className="cursor-dot" aria-hidden />
+    </>
   );
 }
 

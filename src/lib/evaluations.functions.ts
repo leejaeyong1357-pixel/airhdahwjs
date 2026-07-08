@@ -16,7 +16,7 @@ export const submitEvaluation = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { readStore, writeStore, requireJudgeOrAdmin, profileOf } = await import("@/lib/local-store.server");
-    const judge = requireJudgeOrAdmin();
+    const judge = await requireJudgeOrAdmin();
     const store = readStore();
     const existing = store.evaluations.find(
       (e) => e.submission_id === data.submissionId && e.judge_id === judge.empNo,

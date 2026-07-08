@@ -42,10 +42,13 @@ export function ContestGuideModal() {
             <div><b className="text-slate-900">전 관리직</b> (개인 참여)</div>
           </Row>
           <Row icon={Trophy} title="시상">
-            <div>대상 · 최우수상 · 우수상 · 2차 바이브코딩 교육 수강 자격 부여</div>
+            <div>대상 · 최우수상 · 우수상</div>
+            <div>2차 바이브코딩 교육 수강 자격 부여 <b className="text-slate-900">(Top 30명)</b></div>
+            <div>우수작 선정 후 <b className="text-slate-900">발표 기회 부여</b></div>
           </Row>
           <Row icon={FileText} title="제출 방법">
             <div>상단 <b>[작품 제출]</b> 메뉴에서 제목 · 설명 · 파일 · 썸네일을 업로드해 주세요.</div>
+            <div><b className="text-slate-900">1인당 1작품</b>만 제출할 수 있습니다.</div>
           </Row>
         </div>
 

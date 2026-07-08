@@ -26,6 +26,9 @@ export type LocalUser = {
   position: string;
   roles: LocalRole[];
   role: LocalRole; // 로그인 시 선택한 역할
+  mustChangePassword?: boolean; // 첫 로그인 — 비밀번호 변경 전
+  needsConsent?: boolean; // 첫 로그인 — 개인정보 동의 전
+  team?: string;
 };
 
 const LOCAL_USER_KEY = "teczen-user";
@@ -93,7 +96,7 @@ function tableRows(table: string): any[] {
       {
         id: localUserId(u),
         name: u.name,
-        team: "",
+        team: u.team ?? "",
         position: u.position,
         employee_no: u.empNo,
         must_change_password: false,
