@@ -122,7 +122,7 @@ function Home() {
   }, [nav]);
 
   return (
-    <div className="pb-32" style={{ background: "#FAF6F2" }}>
+    <div className="pb-32 bg-white">
       <PrizePopup />
       <ContestGuideModal />
 
@@ -227,7 +227,7 @@ function Home() {
           <span className="firefly" style={{ left: "48%", top: "90%", width: 4, height: 4, animationDuration: "19s", animationDelay: "4s", ["--fx" as any]: "-6vw", ["--fy" as any]: "-46vh" }} />
           <span className="firefly" style={{ left: "80%", top: "78%", width: 5, height: 5, animationDuration: "17s", animationDelay: "8s", ["--fx" as any]: "-16vw", ["--fy" as any]: "-36vh" }} />
         </div>
-        <div className="relative z-10 mx-auto max-w-5xl px-6 py-20 md:py-24 text-center">
+        <div className="relative z-10 mx-auto max-w-5xl px-6 py-10 md:py-12 text-center">
           <div
             className="font-bold tracking-[0.25em] mb-4"
             style={{ color: "#8fb7ff", fontSize: "clamp(11px, 0.9vw, 13px)" }}
@@ -251,7 +251,7 @@ function Home() {
 
 
       {/* GALLERY */}
-      <section id="gallery" className="mx-auto max-w-6xl px-6 pb-12 scroll-mt-28">
+      <section id="gallery" className="mx-auto max-w-6xl px-6 pt-16 pb-12 scroll-mt-28">
         <div className="flex items-end justify-between">
           <div>
             <h2 className="text-2xl md:text-3xl font-black tracking-tight">
