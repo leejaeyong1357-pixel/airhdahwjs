@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
+import { SubmissionActions } from "@/components/SubmissionActions";
 
 export const Route = createFileRoute("/work/$id")({
   component: WorkPage,
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/work/$id")({
 
 function WorkPage() {
   const { id } = Route.useParams();
+  const nav = useNavigate();
   const get = useServerFn(getSubmission);
   const like = useServerFn(toggleLike);
   const myLikesFn = useServerFn(listMyLikes);
@@ -89,7 +91,16 @@ function WorkPage() {
 
       <article className="mt-6 overflow-hidden rounded-2xl border border-border bg-card">
         <div className="border-b border-border px-8 py-6">
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-accent">SUBMISSION</div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="text-[11px] font-semibold uppercase tracking-widest text-accent">SUBMISSION</div>
+            {(data as any).mine && (
+              <SubmissionActions
+                id={id}
+                onChanged={() => qc.invalidateQueries({ queryKey: ["submission", id] })}
+                afterDelete={() => { qc.invalidateQueries({ queryKey: ["submissions"] }); nav({ to: "/", replace: true }); }}
+              />
+            )}
+          </div>
           <h1 className="mt-2 text-3xl font-bold tracking-tight md:text-4xl">{s.title}</h1>
           <div className="mt-3 text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">{(s as any).profiles?.team}</span>
@@ -205,8 +216,8 @@ function WorkPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] font-bold uppercase tracking-widest text-accent">{title}</div>
-      <div className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-foreground">{children}</div>
+      <div className="text-xs font-bold uppercase tracking-widest text-accent">{title}</div>
+      <div className="mt-2.5 whitespace-pre-wrap text-[16px] leading-[1.85] text-foreground">{children}</div>
     </div>
   );
 }

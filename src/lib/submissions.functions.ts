@@ -25,7 +25,7 @@ const MAX_LIKES_PER_USER = 3;
 export const listSubmissions = createServerFn({ method: "GET" })
   .handler(async () => {
     const { readStore, requireUser, mediaUrl } = await import("@/lib/local-store.server");
-    requireUser();
+    const user = requireUser();
     const store = readStore();
     const likeCounts = new Map<string, number>();
     for (const l of store.likes) {
@@ -44,6 +44,7 @@ export const listSubmissions = createServerFn({ method: "GET" })
           position: s.profiles?.position ?? "",
         },
         likeCount: likeCounts.get(s.id) ?? 0,
+        mine: s.user_id === user.empNo,
       }));
   });
 
@@ -52,7 +53,7 @@ export const getSubmission = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const { readStore, requireUser, mediaUrl } = await import("@/lib/local-store.server");
-    requireUser();
+    const user = requireUser();
     const store = readStore();
     const s = store.submissions.find((x) => x.id === data.id);
     if (!s) throw new Error("작품을 찾을 수 없습니다.");
@@ -68,6 +69,7 @@ export const getSubmission = createServerFn({ method: "GET" })
       files,
       comments,
       likeCount,
+      mine: s.user_id === user.empNo,
     };
   });
 
@@ -170,5 +172,63 @@ export const addComment = createServerFn({ method: "POST" })
       profiles: profileOf(user),
     });
     writeStore(store);
+    return { ok: true };
+  });
+
+/** 본인 작품 수정 (텍스트 항목). */
+export const updateSubmission = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      title: z.string().trim().min(1).max(120),
+      features: z.string().trim().min(1).max(2000),
+      description: z.string().trim().min(1).max(5000),
+      techStack: z.string().trim().min(1).max(2000),
+      expectedImpact: z.string().trim().min(1).max(2000),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { readStore, writeStore, requireUser } = await import("@/lib/local-store.server");
+    const user = requireUser();
+    const store = readStore();
+    const s = store.submissions.find((x) => x.id === data.id);
+    if (!s) throw new Error("작품을 찾을 수 없습니다.");
+    if (s.user_id !== user.empNo) throw new Error("본인 작품만 수정할 수 있습니다.");
+    s.title = data.title;
+    s.features = data.features;
+    s.description = data.description;
+    s.tech_stack = data.techStack;
+    s.expected_impact = data.expectedImpact;
+    s.updated_at = new Date().toISOString();
+    writeStore(store);
+    return { ok: true };
+  });
+
+/** 본인(또는 관리자) 작품 삭제 — 좋아요·댓글·평가·업로드 파일까지 정리. */
+export const deleteSubmission = createServerFn({ method: "POST" })
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const { readStore, writeStore, requireUser, loadRoster } = await import("@/lib/local-store.server");
+    const user = requireUser();
+    const store = readStore();
+    const s = store.submissions.find((x) => x.id === data.id);
+    if (!s) throw new Error("작품을 찾을 수 없습니다.");
+    if (s.user_id !== user.empNo) {
+      const me = (await loadRoster()).get(user.empNo);
+      if (!me?.roles.includes("admin")) throw new Error("본인 작품만 삭제할 수 있습니다.");
+    }
+    store.submissions = store.submissions.filter((x) => x.id !== data.id);
+    store.likes = store.likes.filter((l) => l.submission_id !== data.id);
+    store.comments = store.comments.filter((c) => c.submission_id !== data.id);
+    store.evaluations = store.evaluations.filter((e) => e.submission_id !== data.id);
+    writeStore(store);
+    // 업로드 파일 정리 (실패해도 무시)
+    try {
+      const { rmSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      const base = join(process.cwd(), "public", "media");
+      if (s.thumbnail_url) rmSync(join(base, "thumbnails", s.thumbnail_url), { force: true });
+      for (const f of s.files ?? []) rmSync(join(base, "submissions", f.file_path), { force: true });
+    } catch { /* ignore */ }
     return { ok: true };
   });
