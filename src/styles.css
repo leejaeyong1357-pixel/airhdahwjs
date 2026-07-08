@@ -17,6 +17,35 @@
 }
 
 /*
+ * GmarketSans — 사이트 기본 서체 (기하학적 고딕).
+ * Medium은 레포에 포함(public/fonts/GmarketSansMedium.woff).
+ * Light/Bold는 scripts/fetch-assets.sh 로 받으며, 없으면 Medium으로 대체된다.
+ */
+@font-face {
+  font-family: "GmarketSans";
+  src: url("/fonts/GmarketSansLight.woff") format("woff"),
+       url("/fonts/GmarketSansMedium.woff") format("woff");
+  font-weight: 100 350;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "GmarketSans";
+  src: url("/fonts/GmarketSansMedium.woff") format("woff");
+  font-weight: 351 550;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "GmarketSans";
+  src: url("/fonts/GmarketSansBold.woff") format("woff"),
+       url("/fonts/GmarketSansMedium.woff") format("woff");
+  font-weight: 551 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
  * TECZEN 2026 AI Competition — Hyundai-inspired design system.
  * Deep navy, chromed silver, precision typography.
  */
@@ -53,8 +82,8 @@
   --color-steel: var(--steel);
   --color-silver: var(--silver);
 
-  --font-display: "Pretendard", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-sans: "Pretendard", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: "GmarketSans", "Pretendard", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: "GmarketSans", "Pretendard", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 

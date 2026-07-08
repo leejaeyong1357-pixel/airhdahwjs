@@ -28,4 +28,8 @@ curl -fSL -o "src/assets/teczen-logo.png" "$BASE/__l5e/assets-v1/13b3761d-a542-4
 mkdir -p public/fonts
 curl -fSL -o public/fonts/PretendardVariable.woff2 "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/woff2/PretendardVariable.woff2" && echo "ok PretendardVariable.woff2"
 
+# GmarketSans Light/Bold (Medium은 레포에 포함되어 있음)
+curl -fSL -o public/fonts/GmarketSansLight.woff "https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansLight.woff" && echo "ok GmarketSansLight.woff"
+curl -fSL -o public/fonts/GmarketSansBold.woff "https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansBold.woff" && echo "ok GmarketSansBold.woff"
+
 echo "완료. 교체된 파일을 커밋하세요."
