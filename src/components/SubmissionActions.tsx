@@ -1,12 +1,26 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, ImagePlus } from "lucide-react";
 import { getSubmission, updateSubmission, deleteSubmission } from "@/lib/submissions.functions";
+import { getLocalUser } from "@/integrations/supabase/demo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+
+/** 썸네일을 /api/media 로 업로드하고 저장 경로를 돌려준다. */
+async function uploadThumb(empNo: string, file: File): Promise<string> {
+  const ext = file.name.split(".").pop() || "png";
+  const path = `${empNo}/thumb-${Date.now()}.${ext}`;
+  const res = await fetch(`/api/media?path=${encodeURIComponent(`thumbnails/${path}`)}`, {
+    method: "POST",
+    headers: file.type ? { "Content-Type": file.type } : undefined,
+    body: file,
+  });
+  if (!res.ok) throw new Error(`썸네일 업로드 실패 (${res.status})`);
+  return path;
+}
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -34,6 +48,10 @@ export function SubmissionActions({
   const [form, setForm] = useState({
     title: "", features: "", description: "", techStack: "", expectedImpact: "",
   });
+  const [currentThumb, setCurrentThumb] = useState<string>("");
+  const [newThumb, setNewThumb] = useState<File | null>(null);
+  const [thumbPreview, setThumbPreview] = useState<string>("");
+  const thumbRef = useRef<HTMLInputElement>(null);
 
   async function openEdit() {
     setBusy(true);
@@ -47,6 +65,9 @@ export function SubmissionActions({
         techStack: s.tech_stack ?? "",
         expectedImpact: s.expected_impact ?? "",
       });
+      setCurrentThumb(s.thumbnailSignedUrl ?? "");
+      setNewThumb(null);
+      setThumbPreview("");
       setEditOpen(true);
     } catch (err: any) {
       toast.error(err.message ?? "불러오기 실패");
@@ -55,11 +76,27 @@ export function SubmissionActions({
     }
   }
 
+  function onPickThumb(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!f.type.startsWith("image/")) {
+      toast.error("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
+    setNewThumb(f);
+    setThumbPreview(URL.createObjectURL(f));
+  }
+
   async function saveEdit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      await update({ data: { id, ...form } });
+      let thumbnailPath: string | undefined;
+      if (newThumb) {
+        const user = getLocalUser();
+        thumbnailPath = await uploadThumb(user?.empNo ?? "unknown", newThumb);
+      }
+      await update({ data: { id, ...form, ...(thumbnailPath ? { thumbnailPath } : {}) } });
       toast.success("작품이 수정되었습니다.");
       setEditOpen(false);
       onChanged?.();
@@ -107,6 +144,25 @@ export function SubmissionActions({
             <DialogTitle>작품 수정</DialogTitle>
           </DialogHeader>
           <form onSubmit={saveEdit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>썸네일</Label>
+              <div className="flex items-center gap-4">
+                <div className="h-24 w-40 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
+                  {(thumbPreview || currentThumb) ? (
+                    <img src={thumbPreview || currentThumb} alt="썸네일" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">없음</div>
+                  )}
+                </div>
+                <div>
+                  <input ref={thumbRef} type="file" accept="image/*" className="hidden" onChange={onPickThumb} />
+                  <Button type="button" variant="outline" size="sm" onClick={() => thumbRef.current?.click()}>
+                    <ImagePlus className="mr-1.5 h-3.5 w-3.5" /> 썸네일 변경
+                  </Button>
+                  {newThumb && <div className="mt-1.5 truncate text-xs text-muted-foreground">{newThumb.name}</div>}
+                </div>
+              </div>
+            </div>
             <div className="space-y-1.5">
               <Label>제목</Label>
               <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required maxLength={120} />

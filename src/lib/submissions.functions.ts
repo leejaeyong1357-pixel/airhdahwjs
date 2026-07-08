@@ -175,7 +175,7 @@ export const addComment = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** 본인 작품 수정 (텍스트 항목). */
+/** 본인 작품 수정 (텍스트 항목 + 선택적 썸네일 교체). */
 export const updateSubmission = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
@@ -185,6 +185,8 @@ export const updateSubmission = createServerFn({ method: "POST" })
       description: z.string().trim().min(1).max(5000),
       techStack: z.string().trim().min(1).max(2000),
       expectedImpact: z.string().trim().min(1).max(2000),
+      // 썸네일을 새로 올렸을 때만 전달 (/api/media 업로드 후의 경로)
+      thumbnailPath: z.string().min(1).optional(),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -199,6 +201,18 @@ export const updateSubmission = createServerFn({ method: "POST" })
     s.description = data.description;
     s.tech_stack = data.techStack;
     s.expected_impact = data.expectedImpact;
+    if (data.thumbnailPath && data.thumbnailPath !== s.thumbnail_url) {
+      const oldThumb = s.thumbnail_url;
+      s.thumbnail_url = data.thumbnailPath;
+      // 이전 썸네일 파일 정리 (실패해도 무시)
+      if (oldThumb) {
+        try {
+          const { rmSync } = await import("node:fs");
+          const { join } = await import("node:path");
+          rmSync(join(process.cwd(), "public", "media", "thumbnails", oldThumb), { force: true });
+        } catch { /* ignore */ }
+      }
+    }
     s.updated_at = new Date().toISOString();
     writeStore(store);
     return { ok: true };
