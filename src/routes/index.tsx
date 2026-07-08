@@ -205,7 +205,7 @@ function Home() {
                 slot="hero"
                 fallback={heroScene}
                 alt="TECZEN AI"
-                className="h-full w-auto object-contain rounded-[2rem] shadow-[0_30px_80px_-20px_rgba(0,44,95,0.45)]"
+                className="h-full w-auto object-contain"
                 style={{ animation: "bob 4s ease-in-out infinite" }}
               />
             </div>
@@ -227,22 +227,22 @@ function Home() {
           <span className="firefly" style={{ left: "48%", top: "90%", width: 4, height: 4, animationDuration: "19s", animationDelay: "4s", ["--fx" as any]: "-6vw", ["--fy" as any]: "-46vh" }} />
           <span className="firefly" style={{ left: "80%", top: "78%", width: 5, height: 5, animationDuration: "17s", animationDelay: "8s", ["--fx" as any]: "-16vw", ["--fy" as any]: "-36vh" }} />
         </div>
-        <div className="relative z-10 mx-auto max-w-5xl px-6 py-24 md:py-32 text-center">
+        <div className="relative z-10 mx-auto max-w-5xl px-6 py-20 md:py-24 text-center">
           <div
-            className="font-bold tracking-[0.25em] mb-6"
-            style={{ color: "#8fb7ff", fontSize: "clamp(13px, 1.1vw, 15px)" }}
+            className="font-bold tracking-[0.25em] mb-4"
+            style={{ color: "#8fb7ff", fontSize: "clamp(11px, 0.9vw, 13px)" }}
           >
             TECZEN AI CONTEST
           </div>
           <h2
-            className="font-extrabold text-white leading-[1.2]"
-            style={{ fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "-0.02em" }}
+            className="font-extrabold text-white leading-[1.3]"
+            style={{ fontSize: "clamp(22px, 2.6vw, 34px)", letterSpacing: "-0.02em" }}
           >
             구성원의 <span style={{ background: "linear-gradient(100deg,#5ea1ff 10%,#a97bff 60%,#ff7bb1 95%)", WebkitBackgroundClip: "text", color: "transparent" }}>AI 활용 역량</span>을 높이고,<br />
             실제 업무에 적용 가능한<br />
             <span style={{ background: "linear-gradient(100deg,#5ea1ff 10%,#a97bff 60%,#ff7bb1 95%)", WebkitBackgroundClip: "text", color: "transparent" }}>우수 아이디어</span>를 발굴합니다
           </h2>
-          <p className="mt-10 text-[17px] md:text-[19px] leading-[1.9] text-white/65 max-w-3xl mx-auto">
+          <p className="mt-6 text-[14px] md:text-[15px] leading-[1.8] text-white/65 max-w-3xl mx-auto">
             이번 <b className="text-white">제 1회 테크젠 AI 경진대회</b>는 구성원 여러분이<br className="hidden md:block" />
             AI를 실제 업무에 적용해볼 수 있도록 마련된 자리입니다.
           </p>
