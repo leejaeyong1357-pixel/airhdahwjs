@@ -181,7 +181,7 @@ export const addComment = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** 본인 작품 수정 (텍스트 항목 + 선택적 썸네일 교체). */
+/** 본인 작품 수정 (텍스트 항목 + 선택적 썸네일 교체 + 첨부파일 교체). */
 export const updateSubmission = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
@@ -193,6 +193,16 @@ export const updateSubmission = createServerFn({ method: "POST" })
       expectedImpact: z.string().trim().min(1).max(2000),
       // 썸네일을 새로 올렸을 때만 전달 (/api/media 업로드 후의 경로)
       thumbnailPath: z.string().min(1).optional(),
+      // 첨부파일 목록을 함께 관리할 때 전달 (유지할 기존 파일 + 새로 올린 파일의 최종 목록)
+      files: z
+        .array(z.object({
+          path: z.string().min(1),
+          name: z.string().min(1),
+          mime: z.string().optional(),
+          size: z.number().optional(),
+        }))
+        .max(20)
+        .optional(),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -207,20 +217,51 @@ export const updateSubmission = createServerFn({ method: "POST" })
     s.description = data.description;
     s.tech_stack = data.techStack;
     s.expected_impact = data.expectedImpact;
+
+    const removedFiles: string[] = [];
     if (data.thumbnailPath && data.thumbnailPath !== s.thumbnail_url) {
-      const oldThumb = s.thumbnail_url;
-      s.thumbnail_url = data.thumbnailPath;
-      // 이전 썸네일 파일 정리 (실패해도 무시)
-      if (oldThumb) {
+      if (s.thumbnail_url) {
         try {
           const { rmSync } = await import("node:fs");
           const { join } = await import("node:path");
-          rmSync(join(process.cwd(), "public", "media", "thumbnails", oldThumb), { force: true });
+          rmSync(join(process.cwd(), "public", "media", "thumbnails", s.thumbnail_url), { force: true });
         } catch { /* ignore */ }
       }
+      s.thumbnail_url = data.thumbnailPath;
     }
+
+    if (data.files) {
+      const now = new Date().toISOString();
+      const keepPaths = new Set(data.files.map((f) => f.path));
+      // 목록에서 빠진 기존 첨부파일은 디스크에서 삭제
+      for (const old of s.files ?? []) {
+        if (!keepPaths.has(old.file_path)) removedFiles.push(old.file_path);
+      }
+      s.files = data.files.map((f) => {
+        const existing = (s.files ?? []).find((x: any) => x.file_path === f.path);
+        return existing ?? {
+          submission_id: s.id,
+          file_name: f.name,
+          file_path: f.path,
+          mime_type: f.mime ?? null,
+          size_bytes: f.size ?? null,
+          created_at: now,
+        };
+      });
+    }
+
     s.updated_at = new Date().toISOString();
     writeStore(store);
+
+    if (removedFiles.length) {
+      try {
+        const { rmSync } = await import("node:fs");
+        const { join } = await import("node:path");
+        for (const p of removedFiles) {
+          rmSync(join(process.cwd(), "public", "media", "submissions", p), { force: true });
+        }
+      } catch { /* ignore */ }
+    }
     return { ok: true };
   });
 

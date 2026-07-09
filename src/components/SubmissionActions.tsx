@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Pencil, Trash2, ImagePlus } from "lucide-react";
+import { Pencil, Trash2, ImagePlus, Paperclip, X, Plus } from "lucide-react";
 import { getSubmission, updateSubmission, deleteSubmission } from "@/lib/submissions.functions";
 import { getLocalUser } from "@/integrations/supabase/demo";
 import { Button } from "@/components/ui/button";
@@ -9,18 +9,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-/** 썸네일을 /api/media 로 업로드하고 저장 경로를 돌려준다. */
-async function uploadThumb(empNo: string, file: File): Promise<string> {
-  const ext = file.name.split(".").pop() || "png";
-  const path = `${empNo}/thumb-${Date.now()}.${ext}`;
-  const res = await fetch(`/api/media?path=${encodeURIComponent(`thumbnails/${path}`)}`, {
+/** 파일을 /api/media 로 업로드하고 저장 경로를 돌려준다. */
+async function uploadMedia(bucket: string, empNo: string, prefix: string, file: File): Promise<string> {
+  const safeName = file.name.replace(/[\\/\0]/g, "_");
+  const path = `${empNo}/${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName}`;
+  const res = await fetch(`/api/media?path=${encodeURIComponent(`${bucket}/${path}`)}`, {
     method: "POST",
     headers: file.type ? { "Content-Type": file.type } : undefined,
     body: file,
   });
-  if (!res.ok) throw new Error(`썸네일 업로드 실패 (${res.status})`);
+  if (!res.ok) throw new Error(`업로드 실패 (${res.status})`);
   return path;
 }
+
+type AttachFile = { path: string; name: string; mime?: string; size?: number };
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -52,6 +54,10 @@ export function SubmissionActions({
   const [newThumb, setNewThumb] = useState<File | null>(null);
   const [thumbPreview, setThumbPreview] = useState<string>("");
   const thumbRef = useRef<HTMLInputElement>(null);
+  // 첨부파일: 유지할 기존 파일 목록 + 새로 추가한 File 목록
+  const [keptFiles, setKeptFiles] = useState<AttachFile[]>([]);
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   async function openEdit() {
     setBusy(true);
@@ -68,6 +74,10 @@ export function SubmissionActions({
       setCurrentThumb(s.thumbnailSignedUrl ?? "");
       setNewThumb(null);
       setThumbPreview("");
+      setKeptFiles((data.files ?? []).map((f: any) => ({
+        path: f.file_path, name: f.file_name, mime: f.mime_type ?? undefined, size: f.size_bytes ?? undefined,
+      })));
+      setNewFiles([]);
       setEditOpen(true);
     } catch (err: any) {
       toast.error(err.message ?? "불러오기 실패");
@@ -87,16 +97,41 @@ export function SubmissionActions({
     setThumbPreview(URL.createObjectURL(f));
   }
 
+  function onAddFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const arr = Array.from(e.target.files ?? []);
+    if (keptFiles.length + newFiles.length + arr.length > 20) {
+      toast.error("첨부파일은 최대 20개까지 가능합니다.");
+      return;
+    }
+    setNewFiles((prev) => [...prev, ...arr]);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   async function saveEdit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
+      const user = getLocalUser();
+      const empNo = user?.empNo ?? "unknown";
       let thumbnailPath: string | undefined;
       if (newThumb) {
-        const user = getLocalUser();
-        thumbnailPath = await uploadThumb(user?.empNo ?? "unknown", newThumb);
+        thumbnailPath = await uploadMedia("thumbnails", empNo, "thumb", newThumb);
       }
-      await update({ data: { id, ...form, ...(thumbnailPath ? { thumbnailPath } : {}) } });
+      // 새로 추가한 첨부파일 업로드
+      const uploaded: AttachFile[] = [];
+      for (const f of newFiles) {
+        const path = await uploadMedia("submissions", empNo, "file", f);
+        uploaded.push({ path, name: f.name, mime: f.type, size: f.size });
+      }
+      const files = [...keptFiles, ...uploaded];
+      await update({
+        data: {
+          id,
+          ...form,
+          ...(thumbnailPath ? { thumbnailPath } : {}),
+          files,
+        },
+      });
       toast.success("작품이 수정되었습니다.");
       setEditOpen(false);
       onChanged?.();
@@ -155,11 +190,13 @@ export function SubmissionActions({
                   )}
                 </div>
                 <div>
-                  <input ref={thumbRef} type="file" accept="image/*" className="hidden" onChange={onPickThumb} />
+                  <input ref={thumbRef} type="file" accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/*" className="hidden" onChange={onPickThumb} />
                   <Button type="button" variant="outline" size="sm" onClick={() => thumbRef.current?.click()}>
                     <ImagePlus className="mr-1.5 h-3.5 w-3.5" /> 썸네일 변경
                   </Button>
-                  {newThumb && <div className="mt-1.5 truncate text-xs text-muted-foreground">{newThumb.name}</div>}
+                  <div className="mt-1.5 text-xs text-muted-foreground">
+                    {newThumb ? newThumb.name : "PNG · JPG · WEBP · GIF 등 이미지 파일"}
+                  </div>
                 </div>
               </div>
             </div>
@@ -183,6 +220,51 @@ export function SubmissionActions({
               <Label>기대 효과</Label>
               <Textarea rows={2} value={form.expectedImpact} onChange={(e) => setForm({ ...form, expectedImpact: e.target.value })} required maxLength={2000} />
             </div>
+
+            <div className="space-y-1.5">
+              <Label>첨부파일</Label>
+              <div className="space-y-2">
+                {keptFiles.length === 0 && newFiles.length === 0 && (
+                  <div className="rounded-lg border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">
+                    첨부파일이 없습니다.
+                  </div>
+                )}
+                {keptFiles.map((f) => (
+                  <div key={f.path} className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                    <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setKeptFiles((prev) => prev.filter((x) => x.path !== f.path))}
+                      className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="첨부 삭제"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+                {newFiles.map((f, i) => (
+                  <div key={`new-${i}`} className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                    <Plus className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                    <span className="text-[10px] font-semibold text-primary">추가됨</span>
+                    <button
+                      type="button"
+                      onClick={() => setNewFiles((prev) => prev.filter((_, j) => j !== i))}
+                      className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="첨부 취소"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <input ref={fileRef} type="file" multiple className="hidden" onChange={onAddFiles} />
+                <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+                  <Paperclip className="mr-1.5 h-3.5 w-3.5" /> 파일 추가
+                </Button>
+              </div>
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>취소</Button>
               <Button type="submit" disabled={busy}>{busy ? "저장 중…" : "저장"}</Button>
