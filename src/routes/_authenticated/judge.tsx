@@ -14,16 +14,14 @@ export const Route = createFileRoute("/_authenticated/judge")({
   component: JudgePage,
 });
 
-// KST window: 2026-07-14 07:00 ~ 2026-07-15 00:00
+// 평가 시작(KST): 2026-07-16 00:00 ~ 이후 상시 개방 (종료일 없음)
 function isJudgingOpen() {
   const now = new Date();
   // Convert to KST
   const kst = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
-  const start = new Date(Date.UTC(2026, 6, 14, 7, 0));  // Jul is month 6 (0-indexed) — using UTC constructor, then treat as KST clock
-  const end = new Date(Date.UTC(2026, 6, 15, 0, 0));
-  // Compare kst clock as UTC
+  const start = new Date(Date.UTC(2026, 6, 16, 0, 0)); // Jul is month 6 (0-indexed) — treated as KST clock
   const kstAsUtc = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), kst.getUTCHours(), kst.getUTCMinutes());
-  return kstAsUtc >= start.getTime() && kstAsUtc < end.getTime();
+  return kstAsUtc >= start.getTime();
 }
 
 function JudgePage() {
@@ -71,7 +69,7 @@ function JudgePage() {
           <div className="text-[11px] font-semibold uppercase tracking-widest text-accent">JUDGING</div>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">심사위원 평가</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            평가 시간: 2026-07-14 07:00 ~ 24:00 (한국 시간)
+            평가 기간: 2026-07-16 (목)부터 상시 (한국 시간)
           </p>
         </div>
         <div className={`rounded-full px-4 py-2 text-xs font-bold uppercase tracking-widest ${open ? "bg-emerald-500/15 text-emerald-700" : "bg-amber-500/15 text-amber-700"}`}>
@@ -85,7 +83,7 @@ function JudgePage() {
           <div>
             <div className="text-lg font-black text-amber-800">지금은 평가 기간이 아닙니다!</div>
             <div className="mt-0.5 text-sm font-semibold text-amber-700">
-              평가 기간: 2026년 7월 14일 (화) 07:00 ~ 24:00 · 기간 중에만 점수 입력이 가능합니다.
+              평가는 2026년 7월 16일 (목)부터 시작됩니다 · 시작일 이후에는 상시 점수 입력이 가능합니다.
             </div>
           </div>
         </div>

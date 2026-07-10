@@ -35,8 +35,8 @@ export function ContestGuideModal() {
 
         <div className="space-y-5 p-8">
           <Row icon={Calendar} title="일정">
-            <div>접수일자 : <b className="text-slate-900">2026. 7. 8 (수) ~ 2026. 7. 13 (월)</b></div>
-            <div>결과 발표일 : <b className="text-slate-900">2026. 7. 15 (수)</b></div>
+            <div>접수일자 : <b className="text-slate-900">2026. 7. 8 (수) ~ 2026. 7. 15 (수)</b></div>
+            <div>결과 발표일 : <b className="text-slate-900">2026. 7. 20 (월)</b></div>
           </Row>
           <Row icon={Users} title="대상">
             <div><b className="text-slate-900">전 관리직</b> (개인 참여)</div>

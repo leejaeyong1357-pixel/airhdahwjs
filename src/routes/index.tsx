@@ -88,10 +88,10 @@ const HERO = {
   title1: "테크젠 사내",
   title2: "AI 경진대회",
   info: [
-    { label: "대회 기간", value: "7. 8 (수) ~ 7. 13 (월)" },
+    { label: "대회 기간", value: "7. 8 (수) ~ 7. 15 (수)" },
     { label: "참가 대상", value: "전 관리직" },
     { label: "주제", value: "자유주제", sub: "(업무·비업무 모두 허용, 게임은 지양)" },
-    { label: "결과 발표일", value: "7. 15 (수)" },
+    { label: "결과 발표일", value: "7. 20 (월)" },
   ],
 };
 
@@ -196,6 +196,10 @@ function Home() {
                   참가 신청하기
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
+                <div className="mt-4 inline-flex items-center gap-2 text-[14px] font-semibold text-[#002C5F]">
+                  <span className="text-base">🎤</span>
+                  우수작은 발표회 실시 예정
+                </div>
               </div>
             </div>
 
