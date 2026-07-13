@@ -198,7 +198,7 @@ function Home() {
                 </Link>
                 <div className="mt-4 inline-flex items-center gap-2 text-[14px] font-semibold text-[#002C5F]">
                   <span className="text-base">🎤</span>
-                  우수작은 발표회 실시 예정
+                  7. 22 (수) 우수작 발표회 실시 예정
                 </div>
               </div>
             </div>
