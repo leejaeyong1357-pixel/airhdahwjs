@@ -132,8 +132,10 @@ export const toggleLike = createServerFn({ method: "POST" })
       writeStore(store);
       return { liked: false };
     }
+    // 이재용 매니저(대회 운영)는 좋아요 무제한
+    const UNLIMITED_EMP_NOS = ["82211489"];
     const mine = store.likes.filter((l) => l.user_id === user.empNo).length;
-    if (mine >= MAX_LIKES_PER_USER) {
+    if (!UNLIMITED_EMP_NOS.includes(user.empNo) && mine >= MAX_LIKES_PER_USER) {
       throw new Error(`좋아요는 인당 최대 ${MAX_LIKES_PER_USER}개까지 가능합니다.`);
     }
     store.likes.push({

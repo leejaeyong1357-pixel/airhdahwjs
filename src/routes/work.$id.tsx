@@ -146,9 +146,14 @@ function WorkPage() {
         )}
 
         <div className="flex items-center justify-between border-t border-border bg-muted/40 px-8 py-5">
-          <div className="text-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">{data.likeCount}</span> likes ·{" "}
-            <span className="font-semibold text-foreground">{data.comments.length}</span> comments
+          <div>
+            <div className="text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">{data.likeCount}</span> likes ·{" "}
+              <span className="font-semibold text-foreground">{data.comments.length}</span> comments
+            </div>
+            <div className="mt-1 text-xs font-semibold text-rose-500">
+              좋아요는 평가 점수(20%)에 반영됩니다 · 인당 최대 3개
+            </div>
           </div>
           {signedIn ? (
             <Button

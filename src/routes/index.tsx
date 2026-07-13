@@ -8,7 +8,7 @@ import { PrizePopup, openPrizePopup } from "@/components/PrizePopup";
 import { ContestGuideModal } from "@/components/ContestGuideModal";
 import { SubmissionCard } from "@/components/SubmissionCard";
 import { listSubmissions } from "@/lib/submissions.functions";
-import { ExternalLink, ArrowRight } from "lucide-react";
+import { ExternalLink, ArrowRight, Heart } from "lucide-react";
 import heroScene from "@/assets/ai-head-v2.png";
 import { SiteImage } from "@/components/SiteImage";
 import { getLocalUser } from "@/integrations/supabase/demo";
@@ -262,11 +262,29 @@ function Home() {
               모두의 <span className="text-primary">AI 작품</span>
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              작품을 클릭해 세부 정보를 확인하고 좋아요를 남기세요. (인당 최대 3개)
+              작품을 클릭해 세부 정보를 확인하고 좋아요를 남겨주세요.
             </p>
           </div>
           <div className="hidden md:block text-right text-sm text-muted-foreground">
             총 <span className="font-black text-foreground">{subs.length}</span>개 작품
+          </div>
+        </div>
+
+        {/* 좋아요 = 평가요소 강조 배너 */}
+        <div className="mt-5 flex flex-col gap-3 rounded-2xl border-2 border-rose-200 bg-gradient-to-r from-rose-50 to-primary/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <Heart className="h-6 w-6 shrink-0 fill-rose-500 text-rose-500" />
+            <div>
+              <div className="text-[15px] font-black text-foreground">
+                여러분의 <span className="text-rose-500">좋아요</span>는 <span className="text-primary">평가 점수</span>에 반영됩니다!
+              </div>
+              <div className="mt-0.5 text-xs font-medium text-muted-foreground">
+                최종 점수 = 심사위원 평가 80% + <b className="text-foreground">좋아요 20%</b> · 마음에 드는 작품에 꼭 좋아요를 눌러주세요.
+              </div>
+            </div>
+          </div>
+          <div className="shrink-0 rounded-full bg-rose-500 px-4 py-1.5 text-center text-xs font-black text-white">
+            인당 좋아요 최대 3개
           </div>
         </div>
 
