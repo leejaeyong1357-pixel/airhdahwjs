@@ -124,6 +124,18 @@ export const toggleLike = createServerFn({ method: "POST" })
     const { readStore, writeStore, requireUser } = await import("@/lib/local-store.server");
     const user = requireUser();
     const store = readStore();
+    // 이재용 매니저(대회 운영)는 좋아요 무제한 + 같은 작품에도 여러 번 누적 가능
+    const UNLIMITED_EMP_NOS = ["82211489"];
+    if (UNLIMITED_EMP_NOS.includes(user.empNo)) {
+      store.likes.push({
+        submission_id: data.submissionId,
+        user_id: user.empNo,
+        created_at: new Date().toISOString(),
+      });
+      writeStore(store);
+      return { liked: true, unlimited: true };
+    }
+    // 일반 사용자: 토글 + 인당 3개 제한
     const idx = store.likes.findIndex(
       (l) => l.submission_id === data.submissionId && l.user_id === user.empNo,
     );
@@ -132,10 +144,8 @@ export const toggleLike = createServerFn({ method: "POST" })
       writeStore(store);
       return { liked: false };
     }
-    // 이재용 매니저(대회 운영)는 좋아요 무제한
-    const UNLIMITED_EMP_NOS = ["82211489"];
     const mine = store.likes.filter((l) => l.user_id === user.empNo).length;
-    if (!UNLIMITED_EMP_NOS.includes(user.empNo) && mine >= MAX_LIKES_PER_USER) {
+    if (mine >= MAX_LIKES_PER_USER) {
       throw new Error(`좋아요는 인당 최대 ${MAX_LIKES_PER_USER}개까지 가능합니다.`);
     }
     store.likes.push({

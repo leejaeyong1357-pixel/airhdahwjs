@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { getSubmission, toggleLike, addComment, listMyLikes } from "@/lib/submissions.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { getLocalUser } from "@/integrations/supabase/demo";
 import { Heart, MessageSquare, Download, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,16 +40,23 @@ function WorkPage() {
     queryFn: () => myLikesFn(),
     enabled: signedIn,
   });
-  const liked = myLikes.includes(id);
+  // 이재용 매니저(대회 운영)는 좋아요 무제한 + 같은 작품에도 여러 번 누적 가능
+  const unlimited = getLocalUser()?.empNo === "82211489";
+  const liked = !unlimited && myLikes.includes(id);
 
   const likeMut = useMutation({
     mutationFn: () => like({ data: { submissionId: id } }),
     onMutate: async () => {
+      const prevSub = qc.getQueryData<any>(["submission", id]);
+      if (unlimited) {
+        // 항상 +1 (누적)
+        if (prevSub) qc.setQueryData(["submission", id], { ...prevSub, likeCount: prevSub.likeCount + 1 });
+        return { prevSub };
+      }
       await qc.cancelQueries({ queryKey: ["myLikes"] });
       const prevLikes = qc.getQueryData<string[]>(["myLikes"]) ?? [];
       const nextLikes = prevLikes.includes(id) ? prevLikes.filter((x) => x !== id) : [...prevLikes, id];
       qc.setQueryData<string[]>(["myLikes"], nextLikes);
-      const prevSub = qc.getQueryData<any>(["submission", id]);
       if (prevSub) {
         qc.setQueryData(["submission", id], {
           ...prevSub,
@@ -64,6 +72,7 @@ function WorkPage() {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["submissions"] });
+      qc.invalidateQueries({ queryKey: ["submission", id] });
     },
   });
 
@@ -162,7 +171,7 @@ function WorkPage() {
               className={liked ? "bg-rose-500 text-white hover:bg-rose-600 border-rose-500" : "hover:text-rose-500 hover:border-rose-300"}
             >
               <Heart className={`mr-2 h-4 w-4 ${liked ? "fill-white text-white" : "text-rose-500"}`} />
-              {liked ? "좋아요 취소" : "좋아요"}
+              {unlimited ? "좋아요 +1" : liked ? "좋아요 취소" : "좋아요"}
             </Button>
           ) : (
             <Button asChild variant="outline">
