@@ -170,6 +170,33 @@ export const adminListEvaluations = createServerFn({ method: "GET" })
       }));
   });
 
+/** 좋아요 상세 내역 (관리자 전용) — 누가 어떤 작품에 좋아요를 눌렀는지. */
+export const adminListLikes = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { readStore, requireAdmin, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    await requireAdmin();
+    const store = readStore();
+    const roster = await loadRoster();
+    const titleMap = new Map(store.submissions.map((s) => [s.id, s.title]));
+    const authorMap = new Map(store.submissions.map((s) => [s.id, liveProfile(roster, s.user_id, s.profiles)]));
+    return [...store.likes]
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+      .map((l, i) => {
+        const liker = liveProfile(roster, l.user_id, undefined);
+        const author = authorMap.get(l.submission_id);
+        return {
+          key: `${l.user_id}-${l.submission_id}-${l.created_at}-${i}`,
+          likerName: liker.name || l.user_id,
+          likerTeam: liker.team || "",
+          likerPosition: liker.position || "",
+          likerEmpNo: l.user_id,
+          submissionTitle: titleMap.get(l.submission_id) ?? "(삭제된 작품)",
+          submissionAuthor: author ? `${author.team ? author.team + " · " : ""}${author.name}` : "",
+          createdAt: l.created_at,
+        };
+      });
+  });
+
 /** Team-wise submission counts (visible to judges + admins). */
 export const listTeamSubmissionCounts = createServerFn({ method: "GET" })
   .handler(async () => {

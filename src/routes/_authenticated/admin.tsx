@@ -13,6 +13,7 @@ const tabs = [
   { to: "/admin/users", label: "사용자" },
   { to: "/admin/teams", label: "실/팀" },
   { to: "/admin/evaluations", label: "평가 내역" },
+  { to: "/admin/likes", label: "좋아요 내역" },
   { to: "/admin/rankings", label: "순위" },
   { to: "/admin/photos", label: "사진 관리" },
 ];
