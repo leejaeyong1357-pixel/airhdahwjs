@@ -3,25 +3,26 @@ import { z } from "zod";
 
 // 심사 평가 — data/db.json 에 저장 (Supabase 불필요).
 
-/** Judge submits/updates an evaluation. */
+/** Judge submits/updates an evaluation. 평가완료 후에도 다시 수정 가능. */
 export const submitEvaluation = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
       submissionId: z.string().uuid(),
       innovation: z.number().int().min(0).max(40),
-      completeness: z.number().int().min(0).max(30),
+      completeness: z.number().int().min(0).max(40),
       utilization: z.number().int().min(0).max(20),
       finalize: z.boolean().optional(),
     }).parse(d),
   )
   .handler(async ({ data }) => {
     const { readStore, writeStore, requireJudgeOrAdmin, profileOf } = await import("@/lib/local-store.server");
+    const { isJudgingOpen } = await import("@/lib/judging");
     const judge = await requireJudgeOrAdmin();
+    if (!isJudgingOpen()) throw new Error("평가 기간이 아닙니다.");
     const store = readStore();
     const existing = store.evaluations.find(
       (e) => e.submission_id === data.submissionId && e.judge_id === judge.empNo,
     );
-    if (existing?.is_finalized) throw new Error("이미 확정된 평가입니다.");
     const now = new Date().toISOString();
     if (existing) {
       existing.innovation = data.innovation;

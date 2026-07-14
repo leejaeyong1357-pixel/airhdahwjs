@@ -125,16 +125,15 @@ export const adminGetRankings = createServerFn({ method: "GET" })
       cur.total += total; cur.count += 1;
       evalMap.set(e.submission_id, cur);
     }
-    // Rubric: 혁신성 40 + 완성도 30 + 활용도 20 = 90 raw → scale to 100 → weight 80%
-    // Likes: normalize (max → 100) → weight 20%
-    const maxLikes = Math.max(1, ...Array.from(likeMap.values()));
+    // 배점: 혁신성 40 + 완성도 40 + 활용도 20 = 100 raw → ×0.8 (0-80점)
+    //       좋아요 1개당 1점, 최대 20점 (0-20점)  →  최종 100점
     const rows = store.submissions.map((s) => {
       const ev = evalMap.get(s.id);
-      const judgeAvgRaw = ev && ev.count > 0 ? ev.total / ev.count : 0; // 0-90
-      const judgeScore100 = (judgeAvgRaw / 90) * 100;
+      const judgeAvgRaw = ev && ev.count > 0 ? ev.total / ev.count : 0; // 0-100
+      const judgeScore = (judgeAvgRaw / 100) * 80;                      // 0-80
       const likeCount = likeMap.get(s.id) ?? 0;
-      const likeScore100 = (likeCount / maxLikes) * 100;
-      const final = judgeScore100 * 0.8 + likeScore100 * 0.2;
+      const likeScore = Math.min(likeCount, 20);                       // 0-20
+      const final = judgeScore + likeScore;
       return {
         submissionId: s.id,
         title: s.title,

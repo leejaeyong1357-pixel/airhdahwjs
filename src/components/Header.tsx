@@ -122,7 +122,7 @@ export function Header() {
                   </li>
                 </ul>
                 <div className="mt-4 rounded-md bg-primary/5 p-3 text-[11px] text-muted-foreground leading-relaxed">
-                  총점 = (실/팀장 평가 100점 환산 × 0.8) + (좋아요 정규화 점수 × 0.2)
+                  최종 100점 = (실/팀장 평가 100점 → 80점 환산) + (좋아요 1개당 1점, 최대 20점)
                 </div>
               </PopoverContent>
             </Popover>

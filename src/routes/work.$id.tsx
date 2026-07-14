@@ -3,14 +3,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { getSubmission, toggleLike, addComment, listMyLikes } from "@/lib/submissions.functions";
+import { listMyEvaluations, submitEvaluation } from "@/lib/evaluations.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { getLocalUser } from "@/integrations/supabase/demo";
-import { Heart, MessageSquare, Download, ArrowLeft } from "lucide-react";
+import { Heart, MessageSquare, Download, ArrowLeft, Gavel, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { SubmissionActions } from "@/components/SubmissionActions";
+import { isJudgingOpen, JUDGING_PERIOD_LABEL, computeFinalScore } from "@/lib/judging";
 
 export const Route = createFileRoute("/work/$id")({
   component: WorkPage,
@@ -43,6 +45,17 @@ function WorkPage() {
   // 이재용 매니저(대회 운영)는 좋아요 무제한 + 같은 작품에도 여러 번 누적 가능
   const unlimited = getLocalUser()?.empNo === "82211489";
   const liked = !unlimited && myLikes.includes(id);
+
+  // 심사위원/관리자면 평가 패널 표시
+  const roles = getLocalUser()?.roles ?? [];
+  const isJudge = roles.includes("judge") || roles.includes("admin");
+  const myEvalFn = useServerFn(listMyEvaluations);
+  const { data: myEvals = [] } = useQuery({
+    queryKey: ["myEvals"],
+    queryFn: () => myEvalFn(),
+    enabled: isJudge,
+  });
+  const myEval = myEvals.find((e: any) => e.submission_id === id);
 
   const likeMut = useMutation({
     mutationFn: () => like({ data: { submissionId: id } }),
@@ -181,6 +194,17 @@ function WorkPage() {
         </div>
       </article>
 
+      {/* 심사위원 평가 패널 */}
+      {isJudge && (
+        <EvalPanel
+          submissionId={id}
+          title={s.title}
+          likeCount={data.likeCount}
+          current={myEval}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["myEvals"] })}
+        />
+      )}
+
 
       {/* Comments */}
       <section className="mt-10">
@@ -232,6 +256,137 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div>
       <div className="text-xs font-bold uppercase tracking-widest text-accent">{title}</div>
       <div className="mt-2.5 whitespace-pre-wrap text-[16px] leading-[1.85] text-foreground">{children}</div>
+    </div>
+  );
+}
+
+// ───────── 심사위원 평가 패널 (작품 상세 하단) ─────────
+function EvalPanel({
+  submissionId, title, likeCount, current, onSaved,
+}: {
+  submissionId: string;
+  title: string;
+  likeCount: number;
+  current?: { innovation: number; completeness: number; utilization: number; is_finalized?: boolean };
+  onSaved: () => void;
+}) {
+  const submitFn = useServerFn(submitEvaluation);
+  const [inn, setInn] = useState<number>(current?.innovation ?? 0);
+  const [com, setCom] = useState<number>(current?.completeness ?? 0);
+  const [uti, setUti] = useState<number>(current?.utilization ?? 0);
+  const [busy, setBusy] = useState(false);
+  const open = isJudgingOpen();
+
+  useEffect(() => {
+    if (current) { setInn(current.innovation); setCom(current.completeness); setUti(current.utilization); }
+  }, [current]);
+
+  const judgeRaw = inn + com + uti;                 // 0-100
+  const finalScore = computeFinalScore(judgeRaw, likeCount);
+  const finalized = !!current?.is_finalized;
+
+  async function save(finalize: boolean) {
+    setBusy(true);
+    try {
+      await submitFn({ data: { submissionId, innovation: inn, completeness: com, utilization: uti, finalize } });
+      toast.success(finalize ? "평가를 완료했습니다." : "평가를 저장했습니다.");
+      onSaved();
+    } catch (e: any) {
+      toast.error(e.message ?? "저장 실패");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-8 rounded-3xl border-2 border-primary/25 bg-primary/5 p-7">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Gavel className="h-6 w-6 text-primary" />
+          <h2 className="text-2xl font-black tracking-tight">심사위원 평가</h2>
+          {finalized && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-[13px] font-black text-emerald-700">
+              <Check className="h-4 w-4" /> 평가완료
+            </span>
+          )}
+        </div>
+        <div className="text-right">
+          <div className="text-[13px] font-bold text-muted-foreground">최종 점수 (실시간)</div>
+          <div className="text-4xl font-black text-primary">
+            {finalScore}<span className="text-lg text-muted-foreground">/100</span>
+          </div>
+        </div>
+      </div>
+
+      {!open && (
+        <div className="mt-5 flex items-center gap-3 rounded-2xl border-2 border-amber-400/60 bg-amber-50 px-5 py-4">
+          <span className="text-2xl">⏰</span>
+          <div>
+            <div className="text-[16px] font-black text-amber-800">지금은 평가 기간이 아닙니다!</div>
+            <div className="text-[13px] font-semibold text-amber-700">평가 가능 기간: {JUDGING_PERIOD_LABEL}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-6 space-y-5">
+        <ScoreRow label="혁신성" hint="새로운 아이디어, 창의적인 AI 활용" max={40} value={inn} onChange={setInn} disabled={!open} />
+        <ScoreRow label="완성도" hint="결과물의 품질, UI/UX, 안정성, 디테일" max={40} value={com} onChange={setCom} disabled={!open} />
+        <ScoreRow label="활용도" hint="실제 업무 적용 가능성, 실용성" max={20} value={uti} onChange={setUti} disabled={!open} />
+      </div>
+
+      <div className="mt-6 rounded-2xl bg-white/70 px-5 py-4 text-[15px] font-semibold text-foreground">
+        심사 점수 <b className="text-primary">{judgeRaw}</b>/100 → {((judgeRaw / 100) * 80).toFixed(1)}점
+        <span className="mx-2 text-muted-foreground">+</span>
+        좋아요 <b className="text-rose-500">{likeCount}</b>개 → {Math.min(likeCount, 20)}점
+        <span className="mx-2 text-muted-foreground">=</span>
+        최종 <b className="text-primary">{finalScore}</b>점
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+        <Button size="lg" variant="outline" disabled={busy || !open} onClick={() => save(false)}>
+          <Gavel className="mr-2 h-4 w-4" /> 평가 저장
+        </Button>
+        <Button size="lg" disabled={busy || !open} onClick={() => save(true)}>
+          <Check className="mr-2 h-4 w-4" /> 평가완료
+        </Button>
+      </div>
+      <div className="mt-2 text-right text-[13px] text-muted-foreground">
+        평가완료 후에도 기간 내에는 언제든 다시 수정할 수 있습니다.
+      </div>
+    </section>
+  );
+}
+
+function ScoreRow({ label, hint, max, value, onChange, disabled }: {
+  label: string; hint: string; max: number; value: number; onChange: (v: number) => void; disabled: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-white p-5">
+      <div className="flex items-baseline justify-between">
+        <div className="text-[19px] font-black text-foreground">{label}</div>
+        <div className="text-[14px] font-bold text-muted-foreground">최대 {max}점</div>
+      </div>
+      <div className="mt-1 text-[14px] text-muted-foreground">{hint}</div>
+      <div className="mt-4 flex items-center gap-4">
+        <input
+          type="range"
+          min={0}
+          max={max}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          disabled={disabled}
+          className="h-2 flex-1 accent-primary"
+        />
+        <input
+          type="number"
+          min={0}
+          max={max}
+          value={value}
+          onChange={(e) => onChange(Math.min(max, Math.max(0, Math.round(Number(e.target.value) || 0))))}
+          disabled={disabled}
+          className="w-20 rounded-lg border-2 border-border bg-background px-2 py-2 text-center text-xl font-black text-primary disabled:opacity-60"
+        />
+      </div>
     </div>
   );
 }

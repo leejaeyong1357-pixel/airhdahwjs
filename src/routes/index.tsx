@@ -109,10 +109,14 @@ export const Route = createFileRoute("/")({
 function Home() {
   const nav = useNavigate();
   const fn = useServerFn(listSubmissions);
-  const { data: subs = [] } = useQuery({
+  const { data: rawSubs = [] } = useQuery({
     queryKey: ["submissions", "public"],
     queryFn: () => fn(),
   });
+  // 좋아요 많은 순으로 정렬 + 순위 부여 (동점은 최신순)
+  const subs = [...rawSubs]
+    .sort((a: any, b: any) => (b.likeCount ?? 0) - (a.likeCount ?? 0) || (a.createdAt < b.createdAt ? 1 : -1))
+    .map((s: any, i: number) => ({ ...s, rank: (s.likeCount ?? 0) > 0 ? i + 1 : undefined }));
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
@@ -279,7 +283,7 @@ function Home() {
                 여러분의 <span className="text-rose-500">좋아요</span>는 <span className="text-primary">평가 점수</span>에 반영됩니다!
               </div>
               <div className="mt-0.5 text-xs font-medium text-muted-foreground">
-                최종 점수 = 심사위원 평가 80% + <b className="text-foreground">좋아요 20%</b> · 마음에 드는 작품에 꼭 좋아요를 눌러주세요.
+                최종 100점 = 심사위원 평가 80점 + <b className="text-foreground">좋아요 20점(1개당 1점)</b> · 마음에 드는 작품에 꼭 좋아요를 눌러주세요.
               </div>
             </div>
           </div>
@@ -288,10 +292,8 @@ function Home() {
           </div>
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-2">
-          <button className="rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground">전체</button>
-          <button className="rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-muted-foreground hover:border-primary/40 hover:text-foreground">최신순</button>
-          <button className="rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-muted-foreground hover:border-primary/40 hover:text-foreground">인기순</button>
+        <div className="mt-6 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+          <span className="rounded-full bg-primary px-4 py-1.5 text-primary-foreground">🔥 좋아요 많은 순</span>
         </div>
 
         {subs.length === 0 ? (

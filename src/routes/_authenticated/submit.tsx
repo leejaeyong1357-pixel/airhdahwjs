@@ -186,7 +186,7 @@ function SubmitPage() {
 
       <form onSubmit={onSubmit} className="space-y-6 rounded-2xl border border-border bg-card p-8">
         <Field label="1. 제목" htmlFor="title">
-          <Input id="title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength={120} placeholder="예: AI Vision" />
+          <Input id="title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength={120} placeholder="작품 제목을 입력하세요" />
         </Field>
         <Field label="2. 주요 기능" htmlFor="features">
           <Textarea id="features" required value={form.features} onChange={(e) => setForm({ ...form, features: e.target.value })} rows={3} maxLength={2000} placeholder="핵심 기능을 요약해 주세요" />
