@@ -37,6 +37,15 @@ function JudgePage() {
   const done = subs.filter((s: any) => evaluatedIds.has(s.id)).length;
   const remaining = total - done;
 
+  // 갤러리와 동일하게 좋아요 많은 순 정렬 + 순위 부여
+  const ranked = useMemo(() => {
+    return [...subs]
+      .sort((a: any, b: any) => (b.likeCount ?? 0) - (a.likeCount ?? 0) || (a.createdAt < b.createdAt ? 1 : -1))
+      .map((s: any, i: number) => ({ ...s, rank: (s.likeCount ?? 0) > 0 ? i + 1 : undefined }));
+  }, [subs]);
+  const pending = ranked.filter((s: any) => !evaluatedIds.has(s.id));   // 아직 평가 안 함
+  const completed = ranked.filter((s: any) => evaluatedIds.has(s.id));  // 평가완료
+
   if (role && role !== "judge" && role !== "admin") {
     return (
       <div className="mx-auto max-w-2xl p-12 text-center">
@@ -82,31 +91,54 @@ function JudgePage() {
         </div>
       </div>
 
-      {/* 작품 갤러리 — 카드를 누르면 작품 상세에서 평가 */}
-      <div className="mt-8 flex items-end justify-between">
-        <h2 className="text-xl font-black tracking-tight">
-          작품 목록 <span className="text-primary">({total})</span>
-        </h2>
-        <div className="text-sm text-muted-foreground">카드를 누르면 상세 페이지에서 평가할 수 있어요</div>
-      </div>
-
       {subs.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
+        <div className="mt-8 rounded-2xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
           아직 제출된 작품이 없습니다.
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
-          {subs.map((s: any) => (
-            <div key={s.id} className="relative">
-              <SubmissionCard {...s} rank={undefined} />
-              {evaluatedIds.has(s.id) && (
-                <div className="pointer-events-none absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-black text-white shadow">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> 평가완료
-                </div>
-              )}
+        <>
+          {/* 평가할 작품 (아직 평가 안 한 것) */}
+          <div className="mt-10 flex items-end justify-between">
+            <h2 className="text-xl font-black tracking-tight">
+              평가할 작품 <span className="text-primary">({pending.length})</span>
+            </h2>
+            <div className="text-sm text-muted-foreground">카드를 누르면 상세 페이지에서 평가할 수 있어요</div>
+          </div>
+          {pending.length === 0 ? (
+            <div className="mt-6 rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/50 p-10 text-center text-sm font-semibold text-emerald-700">
+              🎉 모든 작품 평가를 완료했습니다!
             </div>
-          ))}
-        </div>
+          ) : (
+            <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
+              {pending.map((s: any) => (
+                <SubmissionCard key={s.id} {...s} />
+              ))}
+            </div>
+          )}
+
+          {/* 평가완료 섹션 (맨 아래, 구분선) */}
+          {completed.length > 0 && (
+            <>
+              <div className="mt-14 flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-4 py-1.5 text-[13px] font-black text-emerald-700">
+                  <CheckCircle2 className="h-4 w-4" /> 평가완료 ({completed.length})
+                </div>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
+                {completed.map((s: any) => (
+                  <div key={s.id} className="relative opacity-90">
+                    <SubmissionCard {...s} />
+                    <div className="pointer-events-none absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-black text-white shadow">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> 완료
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
       )}
     </div>
   );
