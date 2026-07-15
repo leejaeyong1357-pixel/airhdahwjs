@@ -13,7 +13,6 @@ import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { SubmissionActions } from "@/components/SubmissionActions";
 import { isJudgingOpen, JUDGING_PERIOD_LABEL, computeFinalScore } from "@/lib/judging";
-import { listBannedFromJudges } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/work/$id")({
   component: WorkPage,
@@ -58,16 +57,8 @@ function WorkPage() {
     enabled: isJudge,
   });
   const myEval = myEvals.find((e: any) => e.submission_id === id);
-  const bannedFn = useServerFn(listBannedFromJudges);
-  const { data: bannedList = [] } = useQuery({
-    queryKey: ["bannedFromJudges"],
-    queryFn: () => bannedFn(),
-    enabled: isJudge,
-  });
-  // 평가 제외(밴) 대상은 팀장(평가자) 평가 대상에서 제외 — 관리자는 예외
-  const authorEmpNo = (data as any)?.submission?.user_id ?? "";
-  const hiddenFromJudge = !isAdmin && bannedList.includes(authorEmpNo);
-  const canEvaluate = isJudge && !hiddenFromJudge;
+  // 평가 가능 여부는 서버(로스터 기준)에서 판정: 밴 대상·자기 팀/실 작품 제외 (관리자 예외)
+  const canEvaluate = !!(data as any)?.canEvaluate;
 
   const likeMut = useMutation({
     mutationFn: () => like({ data: { submissionId: id } }),

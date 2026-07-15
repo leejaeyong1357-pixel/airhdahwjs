@@ -49,11 +49,51 @@ export const listSubmissions = createServerFn({ method: "GET" })
       });
   });
 
+/**
+ * 평가자 전용 목록 — 밴 대상 + (팀장/실장의) 자기 소속 작품을 서버(로스터 기준)에서 제외.
+ * 로컬 세션 스냅샷에 의존하지 않으므로 항상 정확하게 걸러진다.
+ */
+export const listJudgeSubmissions = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { readStore, requireJudgeOrAdmin, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { isSameEvalScope } = await import("@/lib/org");
+    const user = await requireJudgeOrAdmin();
+    const store = readStore();
+    const roster = await loadRoster();
+    const me = roster.get(user.empNo);
+    const isAdmin = !!me?.roles.includes("admin");
+    const banned = new Set(store.bannedFromJudges ?? []);
+    const likeCounts = new Map<string, number>();
+    for (const l of store.likes) likeCounts.set(l.submission_id, (likeCounts.get(l.submission_id) ?? 0) + 1);
+    return [...store.submissions]
+      .filter((s) => {
+        if (banned.has(s.user_id)) return false; // 평가 제외(밴)
+        if (isAdmin) return true;                 // 관리자는 전체
+        const authorTeam = liveProfile(roster, s.user_id, s.profiles).team;
+        return !isSameEvalScope(me?.team, authorTeam); // 자기 팀/실 제외
+      })
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+      .map((s) => {
+        const author = liveProfile(roster, s.user_id, s.profiles);
+        return {
+          id: s.id,
+          title: s.title,
+          thumbnailUrl: mediaUrl("thumbnails", s.thumbnail_url),
+          createdAt: s.created_at,
+          author: { name: author.name, team: author.team, position: author.position },
+          authorEmpNo: s.user_id,
+          likeCount: likeCounts.get(s.id) ?? 0,
+          mine: s.user_id === user.empNo,
+        };
+      });
+  });
+
 /** Submission detail (authenticated). */
 export const getSubmission = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const { readStore, requireUser, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { isSameEvalScope } = await import("@/lib/org");
     const user = requireUser();
     const store = readStore();
     const roster = await loadRoster();
@@ -67,6 +107,16 @@ export const getSubmission = createServerFn({ method: "GET" })
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
       .map((c) => ({ ...c, profiles: liveProfile(roster, c.user_id, c.profiles) }));
     const likeCount = store.likes.filter((l) => l.submission_id === data.id).length;
+
+    // 평가 가능 여부 (로스터 기준, 서버 판정)
+    const me = roster.get(user.empNo);
+    const isAdmin = !!me?.roles.includes("admin");
+    const isJudge = !!me?.roles.includes("judge") || isAdmin;
+    const authorTeam = liveProfile(roster, s.user_id, s.profiles).team;
+    const isBanned = (store.bannedFromJudges ?? []).includes(s.user_id);
+    const isOwnScope = isSameEvalScope(me?.team, authorTeam);
+    const canEvaluate = isJudge && (isAdmin || (!isBanned && !isOwnScope));
+
     return {
       submission: {
         ...s,
@@ -77,6 +127,7 @@ export const getSubmission = createServerFn({ method: "GET" })
       comments,
       likeCount,
       mine: s.user_id === user.empNo,
+      canEvaluate,
     };
   });
 

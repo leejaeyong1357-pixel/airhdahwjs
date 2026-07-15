@@ -3,13 +3,12 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getLocalUser } from "@/integrations/supabase/demo";
-import { listSubmissions } from "@/lib/submissions.functions";
+import { listJudgeSubmissions } from "@/lib/submissions.functions";
 import { listMyEvaluations } from "@/lib/evaluations.functions";
-import { listBannedFromJudges } from "@/lib/admin.functions";
 import { SubmissionCard } from "@/components/SubmissionCard";
 import { AlertCircle, ClipboardList, CheckCircle2, Clock, ChevronDown, Building2, Filter, X, Scale, ShieldCheck, LifeBuoy } from "lucide-react";
 import { isJudgingOpen, JUDGING_PERIOD_LABEL, SCORE_RULE_LABEL } from "@/lib/judging";
-import { ORG, silOfTeam, normalizeTeam, isSameEvalScope } from "@/lib/org";
+import { ORG, silOfTeam, normalizeTeam } from "@/lib/org";
 
 export const Route = createFileRoute("/_authenticated/judge")({
   component: JudgePage,
@@ -21,27 +20,13 @@ function JudgePage() {
   const isAdmin = roles.includes("admin");
   const isJudge = roles.includes("judge");
 
-  const listFn = useServerFn(listSubmissions);
+  // 평가 제외(밴) + 공정성(자기 팀/실) 제외는 서버(로스터 기준)에서 처리된다.
+  const listFn = useServerFn(listJudgeSubmissions);
   const myEvalFn = useServerFn(listMyEvaluations);
-  const bannedFn = useServerFn(listBannedFromJudges);
-  const { data: rawSubs = [] } = useQuery({ queryKey: ["submissions"], queryFn: () => listFn() });
+  const { data: subs = [] } = useQuery({ queryKey: ["judgeSubmissions"], queryFn: () => listFn() });
   const { data: myEvals = [] } = useQuery({ queryKey: ["myEvals"], queryFn: () => myEvalFn() });
-  const { data: banned = [] } = useQuery({ queryKey: ["bannedFromJudges"], queryFn: () => bannedFn() });
 
   const open = isJudgingOpen();
-
-  // 평가 제외(밴) 대상 + 공정성(자기 팀/실) 작품은 평가자 화면에서 제외한다.
-  const bannedSet = useMemo(() => new Set(banned), [banned]);
-  const myTeam = localUser?.team;
-  const subs = useMemo(
-    () =>
-      rawSubs.filter(
-        (s: any) =>
-          !bannedSet.has(s.authorEmpNo) &&
-          !(isJudge && !isAdmin && isSameEvalScope(myTeam, s.author?.team)),
-      ),
-    [rawSubs, bannedSet, isJudge, isAdmin, myTeam],
-  );
 
   // 선택된 팀 필터
   const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
