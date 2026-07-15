@@ -204,7 +204,9 @@ function OrgSubmissionPanel({
   // 실별 합계 + 매핑되지 않은 팀은 "기타"로 모은다
   const groups = useMemo(() => {
     const rows = ORG.map((g) => {
-      const teams = g.teams.map((t) => ({ name: t, count: teamCounts.get(t) ?? 0 }));
+      let teams = g.teams.map((t) => ({ name: t, count: teamCounts.get(t) ?? 0 }));
+      // 직속(부서)는 각 팀장이 자기 팀만 보므로, 접수 있는 팀만 노출한다.
+      if (g.isDept) teams = teams.filter((t) => t.count > 0);
       const silSelf = teamCounts.get(g.name) ?? 0;
       if (silSelf > 0) teams.push({ name: g.name, count: silSelf });
       const total = teams.reduce((a, b) => a + b.count, 0);

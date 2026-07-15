@@ -55,14 +55,25 @@ export function silOfTeam(rawTeam?: string): string | null {
   return null;
 }
 
+/** 그룹 이름이 '직속(부서)' 묶음인지 (실이 아님). */
+function isDeptGroupName(name: string | null): boolean {
+  return !!name && ORG.some((g) => g.isDept && g.name === name);
+}
+
 /**
- * 평가 범위 — 평가자(실장/팀장)는 "본인이 속한 실"의 작품만 평가한다.
- * - 실장(team = 실명)  → 그 실 전체
- * - 팀장(team = 팀명)  → 그 팀이 속한 실 전체 (실 내 모든 팀)
- * 두 사람의 소속 실이 같으면 true.
+ * 평가 범위 — 평가자(실장/팀장)가 이 작품을 평가할 수 있는지.
+ * - 실 소속(경영지원실/PT생산실/엔진생산실/품질관리실): 그 실 전체(실 내 모든 팀)
+ * - 직속 부서(재경팀·사업기획팀): 실이 아니므로 각 팀장은 "자기 팀만"
+ * 둘 다 정규화 후 비교.
  */
 export function sameSil(judgeTeam?: string, authorTeam?: string): boolean {
-  const js = silOfTeam(judgeTeam);
-  const as = silOfTeam(authorTeam);
-  return js !== null && js === as;
+  const jt = normalizeTeam(judgeTeam);
+  const at = normalizeTeam(authorTeam);
+  if (!jt || !at) return false;
+  const js = silOfTeam(jt);
+  const as = silOfTeam(at);
+  if (js === null || js !== as) return false;
+  // 직속(부서)는 실이 아니므로 같은 팀일 때만 (그룹 공유 X)
+  if (isDeptGroupName(js)) return jt === at;
+  return true; // 실: 실 전체
 }
