@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getLocalUser } from "@/integrations/supabase/demo";
@@ -7,9 +7,9 @@ import { listSubmissions } from "@/lib/submissions.functions";
 import { listMyEvaluations } from "@/lib/evaluations.functions";
 import { listBannedFromJudges } from "@/lib/admin.functions";
 import { SubmissionCard } from "@/components/SubmissionCard";
-import { AlertCircle, ClipboardList, CheckCircle2, Clock, ChevronDown, Building2, Filter, X } from "lucide-react";
+import { AlertCircle, ClipboardList, CheckCircle2, Clock, ChevronDown, Building2, Filter, X, Scale, ShieldCheck, LifeBuoy } from "lucide-react";
 import { isJudgingOpen, JUDGING_PERIOD_LABEL, SCORE_RULE_LABEL } from "@/lib/judging";
-import { ORG, silOfTeam, normalizeTeam } from "@/lib/org";
+import { ORG, silOfTeam, normalizeTeam, isSameEvalScope } from "@/lib/org";
 
 export const Route = createFileRoute("/_authenticated/judge")({
   component: JudgePage,
@@ -30,11 +30,17 @@ function JudgePage() {
 
   const open = isJudgingOpen();
 
-  // 평가 제외(밴) 대상은 평가자 화면에서 제외한다 (관리자 화면에서 관리).
+  // 평가 제외(밴) 대상 + 공정성(자기 팀/실) 작품은 평가자 화면에서 제외한다.
   const bannedSet = useMemo(() => new Set(banned), [banned]);
+  const myTeam = localUser?.team;
   const subs = useMemo(
-    () => rawSubs.filter((s: any) => !bannedSet.has(s.authorEmpNo)),
-    [rawSubs, bannedSet],
+    () =>
+      rawSubs.filter(
+        (s: any) =>
+          !bannedSet.has(s.authorEmpNo) &&
+          !(isJudge && !isAdmin && isSameEvalScope(myTeam, s.author?.team)),
+      ),
+    [rawSubs, bannedSet, isJudge, isAdmin, myTeam],
   );
 
   // 선택된 팀 필터
@@ -84,6 +90,9 @@ function JudgePage() {
       <p className="mt-2 text-[15px] text-muted-foreground">
         평가 기간: <b className="text-foreground">{JUDGING_PERIOD_LABEL}</b>
       </p>
+
+      {/* 평가 원칙 */}
+      <EvalPrinciples />
 
       {/* 진행 상황 요약 */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -315,6 +324,52 @@ function OrgSubmissionPanel({
         })}
       </div>
     </div>
+  );
+}
+
+function EvalPrinciples() {
+  return (
+    <div className="mt-6 overflow-hidden rounded-2xl border-2 border-primary/25 bg-gradient-to-br from-primary/5 to-transparent">
+      <div className="flex items-center gap-2 border-b border-primary/15 bg-primary/10 px-6 py-3.5">
+        <ShieldCheck className="h-5 w-5 text-primary" />
+        <h2 className="text-[17px] font-black tracking-tight text-primary">평가 원칙 (꼭 읽어주세요)</h2>
+      </div>
+      <ol className="space-y-4 px-6 py-5">
+        <Principle n={1} icon={Scale} title="공정성">
+          평가의 공정성을 위해, 팀장님께서는 소속 <b>팀원의 작품</b>을, 실장님께서는 소속 <b>실의 작품</b>을 평가하실 수 없습니다.
+          해당 작품은 평가 목록에 표시되지 않으니 양해 부탁드립니다.
+        </Principle>
+        <Principle n={2} icon={ShieldCheck} title="평가의 질">
+          보다 충실한 평가를 위해, 기술 검증 등 <b>참여에 의의를 둔 작품</b>은 평가 대상에서 제외하였습니다.
+          <span className="text-muted-foreground"> (예: 미래성장팀 이재용 매니저 「기술 검증」)</span>
+        </Principle>
+        <Principle n={3} icon={LifeBuoy} title="작품 열람 안내">
+          제출 작품은 웹사이트·영상·프로그램·파이썬 등 형태가 다양합니다. 평가 중 작품이 열리지 않을 경우
+          <b> ICT팀 헬프데스크(소종진 매니저 · 류태곤 매니저)</b>로 협조 요청 부탁드립니다.
+          열람이 어려우실 때에는 <b>작품 설명 내용</b>을 참고하여 평가해 주시면 감사하겠습니다.
+        </Principle>
+      </ol>
+      <div className="border-t border-primary/15 bg-primary/[0.04] px-6 py-4 text-[13.5px] leading-relaxed text-foreground/80">
+        예상보다 많은 구성원께서 관심을 가져주신 덕분에 평가하실 작품이 많습니다. 하루라는 짧은 시간 동안
+        평가해 주시느라 노고가 크시겠지만, 소중한 평가에 진심으로 감사드립니다. 🙏
+      </div>
+    </div>
+  );
+}
+
+function Principle({ n, icon: Icon, title, children }: {
+  n: number; icon: any; title: string; children: ReactNode;
+}) {
+  return (
+    <li className="flex gap-3.5">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-[15px] font-black text-white">{n}</span>
+      <div>
+        <div className="flex items-center gap-1.5 text-[15.5px] font-black text-foreground">
+          <Icon className="h-4 w-4 text-primary" /> {title}
+        </div>
+        <p className="mt-1 text-[14.5px] leading-relaxed text-foreground/85">{children}</p>
+      </div>
+    </li>
   );
 }
 

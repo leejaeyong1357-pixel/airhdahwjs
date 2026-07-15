@@ -30,8 +30,10 @@ export type Store = {
   bannedFromJudges: string[];
 };
 
-// 초기 밴 목록 시드 — 직급 M1 (고빛나·임보라·양선미). 기존 db.json 에도 자동 적용.
-const DEFAULT_BANNED = ["82211553", "82211017", "82210701"];
+// 초기 밴 목록 시드 — 기존 db.json 에도 자동 적용.
+//   82211553 고빛나 · 82211017 임보라 · 82210701 양선미 (직급 M1)
+//   82211489 이재용 (미래성장팀, 기술 검증 = 참여 목적 작품 → 평가 제외)
+const DEFAULT_BANNED = ["82211553", "82211017", "82210701", "82211489"];
 
 const EMPTY: Store = {
   submissions: [], likes: [], comments: [], evaluations: [], teams: [],

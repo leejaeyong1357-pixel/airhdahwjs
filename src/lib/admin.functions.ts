@@ -151,10 +151,17 @@ export const adminGetRankings = createServerFn({ method: "GET" })
 /** All evaluations detailed (admin only). */
 export const adminListEvaluations = createServerFn({ method: "GET" })
   .handler(async () => {
-    const { readStore, requireAdmin } = await import("@/lib/local-store.server");
+    const { readStore, requireAdmin, loadRoster, liveProfile } = await import("@/lib/local-store.server");
     await requireAdmin();
     const store = readStore();
+    const roster = await loadRoster();
     const titleMap = new Map(store.submissions.map((s) => [s.id, s.title]));
+    const authorMap = new Map(
+      store.submissions.map((s) => {
+        const a = liveProfile(roster, s.user_id, s.profiles);
+        return [s.id, { name: a.name, team: a.team, position: a.position }];
+      }),
+    );
     return [...store.evaluations]
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
       .map((e) => ({
@@ -166,8 +173,21 @@ export const adminListEvaluations = createServerFn({ method: "GET" })
         created_at: e.created_at,
         judge_id: e.judge_id,
         submissions: { title: titleMap.get(e.submission_id) ?? "" },
+        author: authorMap.get(e.submission_id) ?? null,
         profiles: e.profiles ?? null,
       }));
+  });
+
+/** 평가 내역 전체 초기화 — 좋아요·작품은 유지, 평가만 삭제 (관리자 전용). */
+export const adminResetEvaluations = createServerFn({ method: "POST" })
+  .handler(async () => {
+    const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
+    await requireAdmin();
+    const store = readStore();
+    const removed = store.evaluations.length;
+    store.evaluations = [];
+    writeStore(store);
+    return { ok: true, removed };
   });
 
 /** 좋아요 상세 내역 (관리자 전용) — 누가 어떤 작품에 좋아요를 눌렀는지. */

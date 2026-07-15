@@ -38,6 +38,11 @@ export function normalizeTeam(raw?: string): string {
   return base || t;
 }
 
+/** 팀명이 실(室) 이름인지 (실장/실 직속 판별용). */
+export function isSilName(rawTeam?: string): boolean {
+  return SIL_NAMES.has(normalizeTeam(rawTeam));
+}
+
 /** 팀 → 소속 실(또는 "직속 (부서)") 이름. 매핑에 없으면 null. */
 export function silOfTeam(rawTeam?: string): string | null {
   const team = normalizeTeam(rawTeam);
@@ -48,6 +53,19 @@ export function silOfTeam(rawTeam?: string): string | null {
     if (g.teams.includes(team)) return g.name;
   }
   return null;
+}
+
+/**
+ * 공정성 원칙 — 평가자(팀장/실장)가 자기 소속 작품을 평가할 수 없는지 판별.
+ * - 팀장(team = 팀명): 같은 팀 작품이면 true
+ * - 실장(team = 실명): 같은 실 소속(직속 팀 포함) 작품이면 true
+ */
+export function isSameEvalScope(judgeTeam?: string, authorTeam?: string): boolean {
+  const jt = normalizeTeam(judgeTeam);
+  const at = normalizeTeam(authorTeam);
+  if (!jt || !at) return false;
+  if (isSilName(jt)) return silOfTeam(at) === jt; // 실장: 실 전체
+  return at === jt;                                // 팀장: 같은 팀
 }
 
 // ── 평가단(팀장)에게 노출하지 않을 사람들 ─────────────────────────────
