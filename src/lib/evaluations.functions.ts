@@ -17,23 +17,22 @@ export const submitEvaluation = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { readStore, writeStore, requireJudgeOrAdmin, profileOf, loadRoster, liveProfile } = await import("@/lib/local-store.server");
     const { isJudgingOpen } = await import("@/lib/judging");
-    const { isSameEvalScope } = await import("@/lib/org");
+    const { sameSil } = await import("@/lib/org");
     const judge = await requireJudgeOrAdmin();
     if (!isJudgingOpen()) throw new Error("평가 기간이 아닙니다.");
     const store = readStore();
     const roster = await loadRoster();
     const me = roster.get(judge.empNo);
-    const isAdmin = me?.roles.includes("admin");
     const target = store.submissions.find((s) => s.id === data.submissionId);
-    // 평가 제외(밴) 대상 작품은 팀장(평가자)이 평가할 수 없다. (관리자는 예외)
-    if (!isAdmin && target && (store.bannedFromJudges ?? []).includes(target.user_id)) {
+    // 평가 제외(밴) 대상 작품은 평가할 수 없다.
+    if (target && (store.bannedFromJudges ?? []).includes(target.user_id)) {
       throw new Error("해당 작품은 평가 대상이 아닙니다.");
     }
-    // 공정성: 자기 팀(실장은 자기 실) 작품은 평가할 수 없다. (관리자는 예외)
-    if (!isAdmin && target) {
+    // 평가 범위: 본인이 속한 실의 작품만 평가할 수 있다.
+    if (target) {
       const authorTeam = liveProfile(roster, target.user_id, target.profiles).team;
-      if (isSameEvalScope(me?.team, authorTeam)) {
-        throw new Error("공정성 원칙에 따라 소속 팀(실) 작품은 평가할 수 없습니다.");
+      if (!sameSil(me?.team, authorTeam)) {
+        throw new Error("본인이 속한 실의 작품만 평가할 수 있습니다.");
       }
     }
     const existing = store.evaluations.find(

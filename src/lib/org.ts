@@ -56,14 +56,13 @@ export function silOfTeam(rawTeam?: string): string | null {
 }
 
 /**
- * 공정성 원칙 — 평가자(팀장/실장)가 자기 소속 작품을 평가할 수 없는지 판별.
- * - 팀장(team = 팀명): 같은 팀 작품이면 true
- * - 실장(team = 실명): 같은 실 소속(직속 팀 포함) 작품이면 true
+ * 평가 범위 — 평가자(실장/팀장)는 "본인이 속한 실"의 작품만 평가한다.
+ * - 실장(team = 실명)  → 그 실 전체
+ * - 팀장(team = 팀명)  → 그 팀이 속한 실 전체 (실 내 모든 팀)
+ * 두 사람의 소속 실이 같으면 true.
  */
-export function isSameEvalScope(judgeTeam?: string, authorTeam?: string): boolean {
-  const jt = normalizeTeam(judgeTeam);
-  const at = normalizeTeam(authorTeam);
-  if (!jt || !at) return false;
-  if (isSilName(jt)) return silOfTeam(at) === jt; // 실장: 실 전체
-  return at === jt;                                // 팀장: 같은 팀
+export function sameSil(judgeTeam?: string, authorTeam?: string): boolean {
+  const js = silOfTeam(judgeTeam);
+  const as = silOfTeam(authorTeam);
+  return js !== null && js === as;
 }

@@ -56,21 +56,19 @@ export const listSubmissions = createServerFn({ method: "GET" })
 export const listJudgeSubmissions = createServerFn({ method: "GET" })
   .handler(async () => {
     const { readStore, requireJudgeOrAdmin, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
-    const { isSameEvalScope } = await import("@/lib/org");
+    const { sameSil } = await import("@/lib/org");
     const user = await requireJudgeOrAdmin();
     const store = readStore();
     const roster = await loadRoster();
     const me = roster.get(user.empNo);
-    const isAdmin = !!me?.roles.includes("admin");
     const banned = new Set(store.bannedFromJudges ?? []);
     const likeCounts = new Map<string, number>();
     for (const l of store.likes) likeCounts.set(l.submission_id, (likeCounts.get(l.submission_id) ?? 0) + 1);
     return [...store.submissions]
       .filter((s) => {
         if (banned.has(s.user_id)) return false; // 평가 제외(밴)
-        if (isAdmin) return true;                 // 관리자는 전체
         const authorTeam = liveProfile(roster, s.user_id, s.profiles).team;
-        return !isSameEvalScope(me?.team, authorTeam); // 자기 팀/실 제외
+        return sameSil(me?.team, authorTeam);     // 본인이 속한 실의 작품만
       })
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
       .map((s) => {
@@ -93,7 +91,7 @@ export const getSubmission = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const { readStore, requireUser, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
-    const { isSameEvalScope } = await import("@/lib/org");
+    const { sameSil } = await import("@/lib/org");
     const user = requireUser();
     const store = readStore();
     const roster = await loadRoster();
@@ -108,14 +106,12 @@ export const getSubmission = createServerFn({ method: "GET" })
       .map((c) => ({ ...c, profiles: liveProfile(roster, c.user_id, c.profiles) }));
     const likeCount = store.likes.filter((l) => l.submission_id === data.id).length;
 
-    // 평가 가능 여부 (로스터 기준, 서버 판정)
+    // 평가 가능 여부 (로스터 기준, 서버 판정) — 본인이 속한 실의 작품만
     const me = roster.get(user.empNo);
-    const isAdmin = !!me?.roles.includes("admin");
-    const isJudge = !!me?.roles.includes("judge") || isAdmin;
+    const isJudge = !!me?.roles.includes("judge") || !!me?.roles.includes("admin");
     const authorTeam = liveProfile(roster, s.user_id, s.profiles).team;
     const isBanned = (store.bannedFromJudges ?? []).includes(s.user_id);
-    const isOwnScope = isSameEvalScope(me?.team, authorTeam);
-    const canEvaluate = isJudge && (isAdmin || (!isBanned && !isOwnScope));
+    const canEvaluate = isJudge && !isBanned && sameSil(me?.team, authorTeam);
 
     return {
       submission: {

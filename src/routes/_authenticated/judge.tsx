@@ -220,7 +220,8 @@ function OrgSubmissionPanel({
       etcTeams.sort((a, b) => b.count - a.count);
       rows.push({ name: "기타", isDept: true, teams: etcTeams, total: etcTeams.reduce((a, b) => a + b.count, 0) });
     }
-    return rows;
+    // 평가자는 본인이 속한 실의 작품만 보므로, 접수가 있는 실(=담당 실)만 표시한다.
+    return rows.filter((r) => r.total > 0);
   }, [teamCounts]);
 
   const grandTotal = subs.length;
@@ -233,11 +234,13 @@ function OrgSubmissionPanel({
       return next;
     });
 
+  if (groups.length === 0) return null;
+
   return (
     <div className="mt-6 rounded-2xl border border-border bg-card p-6">
       <div className="flex flex-wrap items-center gap-2">
         <Building2 className="h-5 w-5 text-primary" />
-        <h2 className="text-[17px] font-black tracking-tight">실별 · 팀별 접수 현황</h2>
+        <h2 className="text-[17px] font-black tracking-tight">담당 실 · 팀별 접수 현황</h2>
         <span className="ml-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[13px] font-bold text-primary">
           총 {grandTotal}건
         </span>
@@ -248,7 +251,7 @@ function OrgSubmissionPanel({
         )}
       </div>
       <p className="mt-1 text-[13px] text-muted-foreground">
-        팀을 누르면 아래 목록이 그 팀 작품만 보입니다. 여러 팀을 선택할 수 있어요. (4실 · 직속 · 15개 팀)
+        본인이 속한 실의 작품만 평가할 수 있습니다. 팀을 누르면 그 팀 작품만 볼 수 있어요. (여러 팀 선택 가능)
       </p>
 
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -319,9 +322,9 @@ function EvalPrinciples() {
         <h2 className="text-[22px] font-black tracking-tight text-primary">평가 원칙 (꼭 읽어주세요)</h2>
       </div>
       <ol className="space-y-6 px-7 py-6">
-        <Principle n={1} icon={Scale} title="공정성">
-          평가의 공정성을 위해, 팀장님께서는 소속 <b>팀원의 작품</b>을, 실장님께서는 소속 <b>실의 작품</b>을 평가하실 수 없습니다.
-          해당 작품은 평가 목록에 표시되지 않으니 양해 부탁드립니다.
+        <Principle n={1} icon={Scale} title="평가 범위">
+          각 실장·팀장님께는 <b>본인이 속한 실의 작품</b>만 표시됩니다. 팀장님도 소속 실 전체(실 내 모든 팀)의
+          작품을 평가하실 수 있습니다. 담당 실 외의 작품은 목록에 나타나지 않습니다.
         </Principle>
         <Principle n={2} icon={ShieldCheck} title="평가의 질">
           보다 충실한 평가를 위해, <b>참여에 의의를 둔 작품</b>은 평가 대상에서 제외하였습니다.
