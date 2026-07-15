@@ -8,6 +8,7 @@ interface Props {
   author: { name: string; team: string; position: string };
   likeCount: number;
   rank?: number; // 좋아요 순위 (1,2,3 이면 뱃지 표시)
+  hideLikes?: boolean; // 평가자 화면: 순위/좋아요 노출 금지
 }
 
 const RANK_BADGE: Record<number, { emoji: string; label: string; ring: string }> = {
@@ -16,8 +17,8 @@ const RANK_BADGE: Record<number, { emoji: string; label: string; ring: string }>
   3: { emoji: "🥉", label: "3위", ring: "ring-2 ring-orange-400" },
 };
 
-export function SubmissionCard({ id, title, thumbnailUrl, author, likeCount, rank }: Props) {
-  const badge = rank ? RANK_BADGE[rank] : undefined;
+export function SubmissionCard({ id, title, thumbnailUrl, author, likeCount, rank, hideLikes }: Props) {
+  const badge = !hideLikes && rank ? RANK_BADGE[rank] : undefined;
   return (
     <Link
       to="/work/$id"
@@ -53,10 +54,12 @@ export function SubmissionCard({ id, title, thumbnailUrl, author, likeCount, ran
         <div className="mt-0.5 text-xs font-semibold text-foreground/80">
           {author.name} <span className="font-normal text-muted-foreground">{author.position}</span>
         </div>
-        <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-          <Heart className="h-3 w-3 fill-rose-500 text-rose-500" />
-          <span className="font-semibold text-foreground">{likeCount}</span>
-        </div>
+        {!hideLikes && (
+          <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+            <Heart className="h-3 w-3 fill-rose-500 text-rose-500" />
+            <span className="font-semibold text-foreground">{likeCount}</span>
+          </div>
+        )}
       </div>
     </Link>
   );

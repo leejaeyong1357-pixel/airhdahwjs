@@ -7,6 +7,8 @@ import { dirname, join } from "node:path";
 
 import { getRequest } from "@tanstack/react-start/server";
 
+import { JUDGING_START_UTC_MS } from "@/lib/judging";
+
 export type StoreUser = {
   name: string;
   empNo: string;
@@ -44,13 +46,27 @@ function storePath() {
   return join(process.cwd(), "data", "db.json");
 }
 
+let purgedStaleEvals = false;
+
 export function readStore(): Store {
+  let store: Store;
   try {
     const raw = readFileSync(storePath(), "utf8");
-    return { ...EMPTY, ...JSON.parse(raw) };
+    store = { ...EMPTY, ...JSON.parse(raw) };
   } catch {
     return { ...EMPTY };
   }
+  // 평가 기간 시작 전(=테스트/오류)에 만들어진 평가는 자동으로 정리한다.
+  // 서버가 기간 외 평가를 막으므로, 기간 시작 이전 평가는 정상 데이터일 수 없다.
+  if (!purgedStaleEvals) {
+    purgedStaleEvals = true;
+    const before = store.evaluations.length;
+    store.evaluations = store.evaluations.filter(
+      (e) => new Date(e.created_at).getTime() >= JUDGING_START_UTC_MS,
+    );
+    if (store.evaluations.length !== before) writeStore(store);
+  }
+  return store;
 }
 
 export function writeStore(store: Store) {

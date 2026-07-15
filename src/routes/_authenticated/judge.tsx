@@ -43,18 +43,17 @@ function JudgePage() {
   const done = subs.filter((s: any) => evaluatedIds.has(s.id)).length;
   const remaining = total - done;
 
-  // 갤러리와 동일하게 좋아요 많은 순 정렬 + 순위 부여 (순위는 전체 기준)
-  const ranked = useMemo(() => {
-    return [...subs]
-      .sort((a: any, b: any) => (b.likeCount ?? 0) - (a.likeCount ?? 0) || (a.createdAt < b.createdAt ? 1 : -1))
-      .map((s: any, i: number) => ({ ...s, rank: (s.likeCount ?? 0) > 0 ? i + 1 : undefined }));
-  }, [subs]);
+  // 공정성: 평가자는 순위(누가 1등인지)·좋아요 수를 볼 수 없다. 제출 순으로만 정렬.
+  const sorted = useMemo(
+    () => [...subs].sort((a: any, b: any) => (a.createdAt < b.createdAt ? 1 : -1)),
+    [subs],
+  );
 
   // 팀 필터 적용
   const visible = useMemo(() => {
-    if (selectedTeams.size === 0) return ranked;
-    return ranked.filter((s: any) => selectedTeams.has(normalizeTeam(s.author?.team) || "미지정"));
-  }, [ranked, selectedTeams]);
+    if (selectedTeams.size === 0) return sorted;
+    return sorted.filter((s: any) => selectedTeams.has(normalizeTeam(s.author?.team) || "미지정"));
+  }, [sorted, selectedTeams]);
 
   const pending = visible.filter((s: any) => !evaluatedIds.has(s.id));   // 아직 평가 안 함
   const completed = visible.filter((s: any) => evaluatedIds.has(s.id));  // 평가완료
@@ -150,7 +149,7 @@ function JudgePage() {
           ) : (
             <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
               {pending.map((s: any) => (
-                <SubmissionCard key={s.id} {...s} />
+                <SubmissionCard key={s.id} {...s} hideLikes />
               ))}
             </div>
           )}
@@ -168,7 +167,7 @@ function JudgePage() {
               <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
                 {completed.map((s: any) => (
                   <div key={s.id} className="relative opacity-90">
-                    <SubmissionCard {...s} />
+                    <SubmissionCard {...s} hideLikes />
                     <div className="pointer-events-none absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-black text-white shadow">
                       <CheckCircle2 className="h-3.5 w-3.5" /> 완료
                     </div>
@@ -314,19 +313,18 @@ function OrgSubmissionPanel({
 
 function EvalPrinciples() {
   return (
-    <div className="mt-6 overflow-hidden rounded-2xl border-2 border-primary/25 bg-gradient-to-br from-primary/5 to-transparent">
-      <div className="flex items-center gap-2 border-b border-primary/15 bg-primary/10 px-6 py-3.5">
-        <ShieldCheck className="h-5 w-5 text-primary" />
-        <h2 className="text-[17px] font-black tracking-tight text-primary">평가 원칙 (꼭 읽어주세요)</h2>
+    <div className="mt-6 overflow-hidden rounded-2xl border-2 border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
+      <div className="flex items-center gap-2.5 border-b border-primary/15 bg-primary/10 px-7 py-4">
+        <ShieldCheck className="h-6 w-6 text-primary" />
+        <h2 className="text-[22px] font-black tracking-tight text-primary">평가 원칙 (꼭 읽어주세요)</h2>
       </div>
-      <ol className="space-y-4 px-6 py-5">
+      <ol className="space-y-6 px-7 py-6">
         <Principle n={1} icon={Scale} title="공정성">
           평가의 공정성을 위해, 팀장님께서는 소속 <b>팀원의 작품</b>을, 실장님께서는 소속 <b>실의 작품</b>을 평가하실 수 없습니다.
           해당 작품은 평가 목록에 표시되지 않으니 양해 부탁드립니다.
         </Principle>
         <Principle n={2} icon={ShieldCheck} title="평가의 질">
-          보다 충실한 평가를 위해, 기술 검증 등 <b>참여에 의의를 둔 작품</b>은 평가 대상에서 제외하였습니다.
-          <span className="text-muted-foreground"> (예: 미래성장팀 이재용 매니저 「기술 검증」)</span>
+          보다 충실한 평가를 위해, <b>참여에 의의를 둔 작품</b>은 평가 대상에서 제외하였습니다.
         </Principle>
         <Principle n={3} icon={LifeBuoy} title="작품 열람 안내">
           제출 작품은 웹사이트·영상·프로그램·파이썬 등 형태가 다양합니다. 평가 중 작품이 열리지 않을 경우
@@ -334,7 +332,7 @@ function EvalPrinciples() {
           열람이 어려우실 때에는 <b>작품 설명 내용</b>을 참고하여 평가해 주시면 감사하겠습니다.
         </Principle>
       </ol>
-      <div className="border-t border-primary/15 bg-primary/[0.04] px-6 py-4 text-[13.5px] leading-relaxed text-foreground/80">
+      <div className="border-t border-primary/15 bg-primary/[0.04] px-7 py-5 text-[16px] leading-relaxed text-foreground/85">
         예상보다 많은 구성원께서 관심을 가져주신 덕분에 평가하실 작품이 많습니다. 하루라는 짧은 시간 동안
         평가해 주시느라 노고가 크시겠지만, 소중한 평가에 진심으로 감사드립니다. 🙏
       </div>
@@ -346,13 +344,13 @@ function Principle({ n, icon: Icon, title, children }: {
   n: number; icon: any; title: string; children: ReactNode;
 }) {
   return (
-    <li className="flex gap-3.5">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-[15px] font-black text-white">{n}</span>
+    <li className="flex gap-4">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-[18px] font-black text-white">{n}</span>
       <div>
-        <div className="flex items-center gap-1.5 text-[15.5px] font-black text-foreground">
-          <Icon className="h-4 w-4 text-primary" /> {title}
+        <div className="flex items-center gap-2 text-[19px] font-black text-foreground">
+          <Icon className="h-5 w-5 text-primary" /> {title}
         </div>
-        <p className="mt-1 text-[14.5px] leading-relaxed text-foreground/85">{children}</p>
+        <p className="mt-1.5 text-[17px] leading-relaxed text-foreground/90">{children}</p>
       </div>
     </li>
   );
