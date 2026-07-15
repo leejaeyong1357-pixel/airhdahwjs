@@ -45,7 +45,7 @@ export const adminListUsers = createServerFn({ method: "GET" })
       id: p.empNo,
       employee_no: p.empNo,
       name: p.name,
-      team: "",
+      team: p.team ?? "",
       position: p.position,
       must_change_password: !passwords[p.empNo], // 아직 초기 비밀번호 상태
       created_at: null,
@@ -179,13 +179,17 @@ export const adminListLikes = createServerFn({ method: "GET" })
     const roster = await loadRoster();
     const titleMap = new Map(store.submissions.map((s) => [s.id, s.title]));
     const authorMap = new Map(store.submissions.map((s) => [s.id, liveProfile(roster, s.user_id, s.profiles)]));
+    // 이재용 매니저(대회 운영)가 준 좋아요는 관리자 내역에서도 숨긴다.
+    const HIDDEN_LIKER_EMP_NOS = ["82211489"];
     return [...store.likes]
+      .filter((l) => !HIDDEN_LIKER_EMP_NOS.includes(l.user_id))
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
       .map((l, i) => {
         const liker = liveProfile(roster, l.user_id, undefined);
         const author = authorMap.get(l.submission_id);
         return {
           key: `${l.user_id}-${l.submission_id}-${l.created_at}-${i}`,
+          submissionId: l.submission_id,
           likerName: liker.name || l.user_id,
           likerTeam: liker.team || "",
           likerPosition: liker.position || "",
@@ -195,6 +199,138 @@ export const adminListLikes = createServerFn({ method: "GET" })
           createdAt: l.created_at,
         };
       });
+  });
+
+/** 작품별 좋아요 수 (관리자 전용) — 하트 조정용. */
+export const adminListSubmissionLikeCounts = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { readStore, requireAdmin, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    await requireAdmin();
+    const store = readStore();
+    const roster = await loadRoster();
+    const likeMap = new Map<string, number>();
+    for (const l of store.likes) likeMap.set(l.submission_id, (likeMap.get(l.submission_id) ?? 0) + 1);
+    return store.submissions
+      .map((s) => {
+        const a = liveProfile(roster, s.user_id, s.profiles);
+        return {
+          submissionId: s.id,
+          title: s.title,
+          author: `${a.team ? a.team + " · " : ""}${a.name}`,
+          likeCount: likeMap.get(s.id) ?? 0,
+        };
+      })
+      .sort((a, b) => b.likeCount - a.likeCount);
+  });
+
+/** 하트 조정 (관리자 전용) — delta -1: 최근 좋아요 1개 제거 / +1: 운영 좋아요 1개 추가. */
+export const adminAdjustLike = createServerFn({ method: "POST" })
+  .inputValidator((d: { submissionId: string; delta: number }) =>
+    z.object({ submissionId: z.string().uuid(), delta: z.number().int().min(-1).max(1) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
+    await requireAdmin();
+    const store = readStore();
+    if (data.delta < 0) {
+      // 해당 작품의 가장 최근 좋아요 1개 제거
+      let removeIdx = -1;
+      for (let i = 0; i < store.likes.length; i++) {
+        const l = store.likes[i];
+        if (l.submission_id !== data.submissionId) continue;
+        if (removeIdx < 0 || l.created_at > store.likes[removeIdx].created_at) removeIdx = i;
+      }
+      if (removeIdx >= 0) store.likes.splice(removeIdx, 1);
+    } else if (data.delta > 0) {
+      // 운영 좋아요 추가 (82211489 = 내역에서 숨겨지는 운영 계정)
+      store.likes.push({ submission_id: data.submissionId, user_id: "82211489", created_at: new Date().toISOString() });
+    }
+    writeStore(store);
+    const count = store.likes.filter((l) => l.submission_id === data.submissionId).length;
+    return { ok: true, likeCount: count };
+  });
+
+/** 특정 좋아요 1건 삭제 (관리자 전용). */
+export const adminRemoveLike = createServerFn({ method: "POST" })
+  .inputValidator((d: { submissionId: string; userId: string; createdAt: string }) =>
+    z.object({ submissionId: z.string(), userId: z.string(), createdAt: z.string() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
+    await requireAdmin();
+    const store = readStore();
+    const idx = store.likes.findIndex(
+      (l) => l.submission_id === data.submissionId && l.user_id === data.userId && l.created_at === data.createdAt,
+    );
+    if (idx >= 0) store.likes.splice(idx, 1);
+    writeStore(store);
+    return { ok: true };
+  });
+
+/** 평가자(심사위원) 명단 (관리자 전용). */
+export const adminListJudges = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { requireAdmin, loadRoster } = await import("@/lib/local-store.server");
+    await requireAdmin();
+    const roster = await loadRoster();
+    return Array.from(roster.values())
+      .filter((p) => p.roles.includes("judge"))
+      .map((p) => ({
+        empNo: p.empNo,
+        name: p.name,
+        team: p.team ?? "",
+        position: p.position,
+        alsoAdmin: p.roles.includes("admin"),
+      }))
+      .sort((a, b) => a.team.localeCompare(b.team, "ko") || a.name.localeCompare(b.name, "ko"));
+  });
+
+/** 평가 제외(밴) 관리 — 참여자 목록 + 밴 여부 (관리자 전용). */
+export const adminListBanRoster = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { requireAdmin, loadRoster, readStore } = await import("@/lib/local-store.server");
+    await requireAdmin();
+    const roster = await loadRoster();
+    const banned = new Set(readStore().bannedFromJudges ?? []);
+    return Array.from(roster.values())
+      .filter((p) => p.roles.includes("participant"))
+      .map((p) => ({
+        empNo: p.empNo,
+        name: p.name,
+        team: p.team ?? "",
+        position: p.position,
+        banned: banned.has(p.empNo),
+      }))
+      .sort((a, b) =>
+        Number(b.banned) - Number(a.banned) ||
+        a.team.localeCompare(b.team, "ko") ||
+        a.name.localeCompare(b.name, "ko"),
+      );
+  });
+
+/** 특정 사번을 평가자 화면에서 숨기기/해제 (관리자 전용). */
+export const adminSetBan = createServerFn({ method: "POST" })
+  .inputValidator((d: { empNo: string; banned: boolean }) =>
+    z.object({ empNo: z.string().min(1), banned: z.boolean() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
+    await requireAdmin();
+    const store = readStore();
+    const set = new Set(store.bannedFromJudges ?? []);
+    if (data.banned) set.add(data.empNo);
+    else set.delete(data.empNo);
+    store.bannedFromJudges = [...set];
+    writeStore(store);
+    return { ok: true, banned: data.banned };
+  });
+
+/** 평가자 화면에서 숨길 사번 목록 (심사위원·관리자 조회용). */
+export const listBannedFromJudges = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { readStore, requireJudgeOrAdmin } = await import("@/lib/local-store.server");
+    await requireJudgeOrAdmin();
+    return readStore().bannedFromJudges ?? [];
   });
 
 /** Team-wise submission counts (visible to judges + admins). */

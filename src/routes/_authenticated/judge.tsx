@@ -5,10 +5,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { getLocalUser } from "@/integrations/supabase/demo";
 import { listSubmissions } from "@/lib/submissions.functions";
 import { listMyEvaluations } from "@/lib/evaluations.functions";
+import { listBannedFromJudges } from "@/lib/admin.functions";
 import { SubmissionCard } from "@/components/SubmissionCard";
-import { AlertCircle, ClipboardList, CheckCircle2, Clock, ChevronDown, Building2 } from "lucide-react";
+import { AlertCircle, ClipboardList, CheckCircle2, Clock, ChevronDown, Building2, Filter, X } from "lucide-react";
 import { isJudgingOpen, JUDGING_PERIOD_LABEL, SCORE_RULE_LABEL } from "@/lib/judging";
-import { ORG, silOfTeam, normalizeTeam, HIDDEN_FROM_JUDGES_EMP_NOS } from "@/lib/org";
+import { ORG, silOfTeam, normalizeTeam } from "@/lib/org";
 
 export const Route = createFileRoute("/_authenticated/judge")({
   component: JudgePage,
@@ -22,17 +23,28 @@ function JudgePage() {
 
   const listFn = useServerFn(listSubmissions);
   const myEvalFn = useServerFn(listMyEvaluations);
+  const bannedFn = useServerFn(listBannedFromJudges);
   const { data: rawSubs = [] } = useQuery({ queryKey: ["submissions"], queryFn: () => listFn() });
   const { data: myEvals = [] } = useQuery({ queryKey: ["myEvals"], queryFn: () => myEvalFn() });
+  const { data: banned = [] } = useQuery({ queryKey: ["bannedFromJudges"], queryFn: () => bannedFn() });
 
   const open = isJudgingOpen();
 
-  // 직급 M1 인원(팀장 평가 대상 제외)은 평가자에게 숨긴다. 관리자는 전부 볼 수 있다.
-  const hidden = new Set(HIDDEN_FROM_JUDGES_EMP_NOS);
+  // 평가 제외(밴) 대상은 평가자 화면에서 제외한다 (관리자 화면에서 관리).
+  const bannedSet = useMemo(() => new Set(banned), [banned]);
   const subs = useMemo(
-    () => (isAdmin ? rawSubs : rawSubs.filter((s: any) => !hidden.has(s.authorEmpNo))),
-    [rawSubs, isAdmin],
+    () => rawSubs.filter((s: any) => !bannedSet.has(s.authorEmpNo)),
+    [rawSubs, bannedSet],
   );
+
+  // 선택된 팀 필터
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
+  const toggleTeam = (team: string) =>
+    setSelectedTeams((prev) => {
+      const next = new Set(prev);
+      next.has(team) ? next.delete(team) : next.add(team);
+      return next;
+    });
 
   // 내가 평가한 작품 id 집합
   const evaluatedIds = useMemo(() => new Set(myEvals.map((e: any) => e.submission_id)), [myEvals]);
@@ -40,14 +52,21 @@ function JudgePage() {
   const done = subs.filter((s: any) => evaluatedIds.has(s.id)).length;
   const remaining = total - done;
 
-  // 갤러리와 동일하게 좋아요 많은 순 정렬 + 순위 부여
+  // 갤러리와 동일하게 좋아요 많은 순 정렬 + 순위 부여 (순위는 전체 기준)
   const ranked = useMemo(() => {
     return [...subs]
       .sort((a: any, b: any) => (b.likeCount ?? 0) - (a.likeCount ?? 0) || (a.createdAt < b.createdAt ? 1 : -1))
       .map((s: any, i: number) => ({ ...s, rank: (s.likeCount ?? 0) > 0 ? i + 1 : undefined }));
   }, [subs]);
-  const pending = ranked.filter((s: any) => !evaluatedIds.has(s.id));   // 아직 평가 안 함
-  const completed = ranked.filter((s: any) => evaluatedIds.has(s.id));  // 평가완료
+
+  // 팀 필터 적용
+  const visible = useMemo(() => {
+    if (selectedTeams.size === 0) return ranked;
+    return ranked.filter((s: any) => selectedTeams.has(normalizeTeam(s.author?.team) || "미지정"));
+  }, [ranked, selectedTeams]);
+
+  const pending = visible.filter((s: any) => !evaluatedIds.has(s.id));   // 아직 평가 안 함
+  const completed = visible.filter((s: any) => evaluatedIds.has(s.id));  // 평가완료
 
   if (localUser && !isJudge && !isAdmin) {
     return (
@@ -73,8 +92,8 @@ function JudgePage() {
         <StatCard icon={Clock} tone="amber" label="남은 평가" value={remaining} unit="개" />
       </div>
 
-      {/* 실별 / 팀별 접수 현황 */}
-      <OrgSubmissionPanel subs={subs} />
+      {/* 실별 / 팀별 접수 현황 + 팀 필터 */}
+      <OrgSubmissionPanel subs={subs} selectedTeams={selectedTeams} onToggleTeam={toggleTeam} onClear={() => setSelectedTeams(new Set())} />
 
       {!open && (
         <div className="mt-6 flex items-center gap-3 rounded-2xl border-2 border-amber-400/60 bg-amber-50 px-6 py-5">
@@ -103,6 +122,26 @@ function JudgePage() {
         </div>
       ) : (
         <>
+          {/* 활성 필터 표시 */}
+          {selectedTeams.size > 0 && (
+            <div className="mt-8 flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+              <Filter className="h-4 w-4 text-primary" />
+              <span className="text-[13px] font-bold text-primary">선택한 팀만 보기</span>
+              {[...selectedTeams].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => toggleTeam(t)}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[12px] font-bold text-white"
+                >
+                  {t} <X className="h-3 w-3" />
+                </button>
+              ))}
+              <button onClick={() => setSelectedTeams(new Set())} className="ml-1 text-[12px] font-semibold text-muted-foreground underline">
+                전체 해제
+              </button>
+            </div>
+          )}
+
           {/* 평가할 작품 (아직 평가 안 한 것) */}
           <div className="mt-10 flex items-end justify-between">
             <h2 className="text-xl font-black tracking-tight">
@@ -112,7 +151,7 @@ function JudgePage() {
           </div>
           {pending.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/50 p-10 text-center text-sm font-semibold text-emerald-700">
-              🎉 모든 작품 평가를 완료했습니다!
+              {selectedTeams.size > 0 ? "선택한 팀에 평가할 작품이 없습니다." : "🎉 모든 작품 평가를 완료했습니다!"}
             </div>
           ) : (
             <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
@@ -150,8 +189,15 @@ function JudgePage() {
   );
 }
 
-/** 실별 → 팀별 접수 건수. 버튼으로 실을 펼치면 팀별 건수가 보인다. */
-function OrgSubmissionPanel({ subs }: { subs: any[] }) {
+/** 실별 → 팀별 접수 건수. 실을 펼치고(다중 가능) 팀을 누르면 아래 목록이 그 팀들만 필터된다. */
+function OrgSubmissionPanel({
+  subs, selectedTeams, onToggleTeam, onClear,
+}: {
+  subs: any[];
+  selectedTeams: Set<string>;
+  onToggleTeam: (team: string) => void;
+  onClear: () => void;
+}) {
   // 팀별 접수 건수 집계
   const teamCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -166,13 +212,11 @@ function OrgSubmissionPanel({ subs }: { subs: any[] }) {
   const groups = useMemo(() => {
     const rows = ORG.map((g) => {
       const teams = g.teams.map((t) => ({ name: t, count: teamCounts.get(t) ?? 0 }));
-      // 실 이름 자체로 접수된 항목(실장/실 직속)도 합산해 보여준다
       const silSelf = teamCounts.get(g.name) ?? 0;
-      if (silSelf > 0) teams.push({ name: `${g.name} 직속`, count: silSelf });
+      if (silSelf > 0) teams.push({ name: g.name, count: silSelf });
       const total = teams.reduce((a, b) => a + b.count, 0);
       return { name: g.name, isDept: g.isDept, teams, total };
     });
-    // 조직도에 없는 팀 모으기
     const known = new Set<string>();
     for (const g of ORG) { g.teams.forEach((t) => known.add(t)); known.add(g.name); }
     const etcTeams: { name: string; count: number }[] = [];
@@ -187,33 +231,45 @@ function OrgSubmissionPanel({ subs }: { subs: any[] }) {
   }, [teamCounts]);
 
   const grandTotal = subs.length;
-  const [openSil, setOpenSil] = useState<string | null>(null);
+  // 다중 펼침 — 기본은 모두 펼침. 사용자가 접은 실만 기억한다.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggleSil = (name: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
 
   return (
     <div className="mt-6 rounded-2xl border border-border bg-card p-6">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Building2 className="h-5 w-5 text-primary" />
         <h2 className="text-[17px] font-black tracking-tight">실별 · 팀별 접수 현황</h2>
         <span className="ml-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[13px] font-bold text-primary">
           총 {grandTotal}건
         </span>
+        {selectedTeams.size > 0 && (
+          <button onClick={onClear} className="ml-auto inline-flex items-center gap-1 text-[13px] font-semibold text-muted-foreground underline">
+            필터 초기화
+          </button>
+        )}
       </div>
       <p className="mt-1 text-[13px] text-muted-foreground">
-        실 이름을 누르면 팀별 접수 건수를 볼 수 있어요. (4실 · 직속 · 15개 팀)
+        팀을 누르면 아래 목록이 그 팀 작품만 보입니다. 여러 팀을 선택할 수 있어요. (4실 · 직속 · 15개 팀)
       </p>
 
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         {groups.map((g) => {
-          const expanded = openSil === g.name;
+          const expanded = !collapsed.has(g.name);
           return (
             <div key={g.name} className="overflow-hidden rounded-xl border border-border">
               <button
                 type="button"
-                onClick={() => setOpenSil(expanded ? null : g.name)}
+                onClick={() => toggleSil(g.name)}
                 className="flex w-full items-center justify-between gap-3 bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted/70"
               >
                 <span className="flex items-center gap-2">
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "" : "-rotate-90"}`} />
                   <span className="text-[15px] font-bold text-foreground">{g.name}</span>
                   {g.isDept && (
                     <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">부서</span>
@@ -228,14 +284,29 @@ function OrgSubmissionPanel({ subs }: { subs: any[] }) {
                   {g.teams.length === 0 ? (
                     <div className="px-4 py-3 text-[13px] text-muted-foreground">소속 팀이 없습니다.</div>
                   ) : (
-                    g.teams.map((t) => (
-                      <div key={t.name} className="flex items-center justify-between px-4 py-2.5">
-                        <span className="text-[14px] text-foreground/85">{t.name}</span>
-                        <span className={`text-[14px] font-bold ${t.count > 0 ? "text-foreground" : "text-muted-foreground/50"}`}>
-                          {t.count}건
-                        </span>
-                      </div>
-                    ))
+                    g.teams.map((t) => {
+                      const active = selectedTeams.has(t.name);
+                      return (
+                        <button
+                          key={t.name}
+                          type="button"
+                          onClick={() => onToggleTeam(t.name)}
+                          className={`flex w-full items-center justify-between px-4 py-2.5 text-left transition-colors ${
+                            active ? "bg-primary/10" : "hover:bg-muted/50"
+                          }`}
+                        >
+                          <span className={`flex items-center gap-2 text-[14px] ${active ? "font-bold text-primary" : "text-foreground/85"}`}>
+                            <span className={`grid h-4 w-4 shrink-0 place-items-center rounded border text-[10px] font-black text-white ${active ? "border-primary bg-primary" : "border-muted-foreground/40"}`}>
+                              {active ? "✓" : ""}
+                            </span>
+                            {t.name}
+                          </span>
+                          <span className={`text-[14px] font-bold ${t.count > 0 ? "text-foreground" : "text-muted-foreground/50"}`}>
+                            {t.count}건
+                          </span>
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               )}

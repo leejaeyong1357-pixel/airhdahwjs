@@ -12,6 +12,7 @@ const tabs = [
   { to: "/admin", label: "대시보드", exact: true },
   { to: "/admin/users", label: "사용자" },
   { to: "/admin/teams", label: "실/팀" },
+  { to: "/admin/judging", label: "평가자·제외" },
   { to: "/admin/evaluations", label: "평가 내역" },
   { to: "/admin/likes", label: "좋아요 내역" },
   { to: "/admin/rankings", label: "순위" },

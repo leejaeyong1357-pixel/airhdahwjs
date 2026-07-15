@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { SubmissionActions } from "@/components/SubmissionActions";
 import { isJudgingOpen, JUDGING_PERIOD_LABEL, computeFinalScore } from "@/lib/judging";
-import { HIDDEN_FROM_JUDGES_EMP_NOS } from "@/lib/org";
+import { listBannedFromJudges } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/work/$id")({
   component: WorkPage,
@@ -51,10 +51,6 @@ function WorkPage() {
   const roles = getLocalUser()?.roles ?? [];
   const isAdmin = roles.includes("admin");
   const isJudge = roles.includes("judge") || isAdmin;
-  // 직급 M1 인원은 팀장(평가자) 평가 대상에서 제외 — 관리자는 예외
-  const authorEmpNo = (data as any)?.submission?.user_id ?? "";
-  const hiddenFromJudge = !isAdmin && HIDDEN_FROM_JUDGES_EMP_NOS.includes(authorEmpNo);
-  const canEvaluate = isJudge && !hiddenFromJudge;
   const myEvalFn = useServerFn(listMyEvaluations);
   const { data: myEvals = [] } = useQuery({
     queryKey: ["myEvals"],
@@ -62,6 +58,16 @@ function WorkPage() {
     enabled: isJudge,
   });
   const myEval = myEvals.find((e: any) => e.submission_id === id);
+  const bannedFn = useServerFn(listBannedFromJudges);
+  const { data: bannedList = [] } = useQuery({
+    queryKey: ["bannedFromJudges"],
+    queryFn: () => bannedFn(),
+    enabled: isJudge,
+  });
+  // 평가 제외(밴) 대상은 팀장(평가자) 평가 대상에서 제외 — 관리자는 예외
+  const authorEmpNo = (data as any)?.submission?.user_id ?? "";
+  const hiddenFromJudge = !isAdmin && bannedList.includes(authorEmpNo);
+  const canEvaluate = isJudge && !hiddenFromJudge;
 
   const likeMut = useMutation({
     mutationFn: () => like({ data: { submissionId: id } }),

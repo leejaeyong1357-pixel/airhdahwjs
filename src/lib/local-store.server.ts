@@ -26,9 +26,17 @@ export type Store = {
   passwords: Record<string, string>;
   /** 사번 → 개인정보 동의 시각(ISO) */
   consents: Record<string, string>;
+  /** 팀장(평가자) 화면에서 숨길 사번 목록 (직급 M1 등). 관리자가 밴/해제. */
+  bannedFromJudges: string[];
 };
 
-const EMPTY: Store = { submissions: [], likes: [], comments: [], evaluations: [], teams: [], passwords: {}, consents: {} };
+// 초기 밴 목록 시드 — 직급 M1 (고빛나·임보라·양선미). 기존 db.json 에도 자동 적용.
+const DEFAULT_BANNED = ["82211553", "82211017", "82210701"];
+
+const EMPTY: Store = {
+  submissions: [], likes: [], comments: [], evaluations: [], teams: [],
+  passwords: {}, consents: {}, bannedFromJudges: [...DEFAULT_BANNED],
+};
 
 function storePath() {
   return join(process.cwd(), "data", "db.json");
