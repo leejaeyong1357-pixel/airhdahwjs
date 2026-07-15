@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { SubmissionActions } from "@/components/SubmissionActions";
 import { isJudgingOpen, JUDGING_PERIOD_LABEL, computeFinalScore } from "@/lib/judging";
+import { HIDDEN_FROM_JUDGES_EMP_NOS } from "@/lib/org";
 
 export const Route = createFileRoute("/work/$id")({
   component: WorkPage,
@@ -48,7 +49,12 @@ function WorkPage() {
 
   // 심사위원/관리자면 평가 패널 표시
   const roles = getLocalUser()?.roles ?? [];
-  const isJudge = roles.includes("judge") || roles.includes("admin");
+  const isAdmin = roles.includes("admin");
+  const isJudge = roles.includes("judge") || isAdmin;
+  // 직급 M1 인원은 팀장(평가자) 평가 대상에서 제외 — 관리자는 예외
+  const authorEmpNo = (data as any)?.submission?.user_id ?? "";
+  const hiddenFromJudge = !isAdmin && HIDDEN_FROM_JUDGES_EMP_NOS.includes(authorEmpNo);
+  const canEvaluate = isJudge && !hiddenFromJudge;
   const myEvalFn = useServerFn(listMyEvaluations);
   const { data: myEvals = [] } = useQuery({
     queryKey: ["myEvals"],
@@ -195,7 +201,7 @@ function WorkPage() {
       </article>
 
       {/* 심사위원 평가 패널 */}
-      {isJudge && (
+      {canEvaluate && (
         <EvalPanel
           submissionId={id}
           title={s.title}

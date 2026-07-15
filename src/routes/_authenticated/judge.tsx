@@ -1,35 +1,38 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
+import { getLocalUser } from "@/integrations/supabase/demo";
 import { listSubmissions } from "@/lib/submissions.functions";
 import { listMyEvaluations } from "@/lib/evaluations.functions";
 import { SubmissionCard } from "@/components/SubmissionCard";
-import { AlertCircle, ClipboardList, CheckCircle2, Clock } from "lucide-react";
+import { AlertCircle, ClipboardList, CheckCircle2, Clock, ChevronDown, Building2 } from "lucide-react";
 import { isJudgingOpen, JUDGING_PERIOD_LABEL, SCORE_RULE_LABEL } from "@/lib/judging";
+import { ORG, silOfTeam, normalizeTeam, HIDDEN_FROM_JUDGES_EMP_NOS } from "@/lib/org";
 
 export const Route = createFileRoute("/_authenticated/judge")({
   component: JudgePage,
 });
 
 function JudgePage() {
-  const [role, setRole] = useState<string>("");
-  useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-      setRole((data?.[0] as any)?.role ?? "participant");
-    })();
-  }, []);
+  const localUser = getLocalUser();
+  const roles = localUser?.roles ?? [];
+  const isAdmin = roles.includes("admin");
+  const isJudge = roles.includes("judge");
 
   const listFn = useServerFn(listSubmissions);
   const myEvalFn = useServerFn(listMyEvaluations);
-  const { data: subs = [] } = useQuery({ queryKey: ["submissions"], queryFn: () => listFn() });
+  const { data: rawSubs = [] } = useQuery({ queryKey: ["submissions"], queryFn: () => listFn() });
   const { data: myEvals = [] } = useQuery({ queryKey: ["myEvals"], queryFn: () => myEvalFn() });
 
   const open = isJudgingOpen();
+
+  // 직급 M1 인원(팀장 평가 대상 제외)은 평가자에게 숨긴다. 관리자는 전부 볼 수 있다.
+  const hidden = new Set(HIDDEN_FROM_JUDGES_EMP_NOS);
+  const subs = useMemo(
+    () => (isAdmin ? rawSubs : rawSubs.filter((s: any) => !hidden.has(s.authorEmpNo))),
+    [rawSubs, isAdmin],
+  );
 
   // 내가 평가한 작품 id 집합
   const evaluatedIds = useMemo(() => new Set(myEvals.map((e: any) => e.submission_id)), [myEvals]);
@@ -46,7 +49,7 @@ function JudgePage() {
   const pending = ranked.filter((s: any) => !evaluatedIds.has(s.id));   // 아직 평가 안 함
   const completed = ranked.filter((s: any) => evaluatedIds.has(s.id));  // 평가완료
 
-  if (role && role !== "judge" && role !== "admin") {
+  if (localUser && !isJudge && !isAdmin) {
     return (
       <div className="mx-auto max-w-2xl p-12 text-center">
         <AlertCircle className="mx-auto h-10 w-10 text-destructive" />
@@ -69,6 +72,9 @@ function JudgePage() {
         <StatCard icon={CheckCircle2} tone="emerald" label="평가 완료" value={done} unit="개" />
         <StatCard icon={Clock} tone="amber" label="남은 평가" value={remaining} unit="개" />
       </div>
+
+      {/* 실별 / 팀별 접수 현황 */}
+      <OrgSubmissionPanel subs={subs} />
 
       {!open && (
         <div className="mt-6 flex items-center gap-3 rounded-2xl border-2 border-amber-400/60 bg-amber-50 px-6 py-5">
@@ -140,6 +146,103 @@ function JudgePage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** 실별 → 팀별 접수 건수. 버튼으로 실을 펼치면 팀별 건수가 보인다. */
+function OrgSubmissionPanel({ subs }: { subs: any[] }) {
+  // 팀별 접수 건수 집계
+  const teamCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of subs) {
+      const team = normalizeTeam(s.author?.team) || "미지정";
+      m.set(team, (m.get(team) ?? 0) + 1);
+    }
+    return m;
+  }, [subs]);
+
+  // 실별 합계 + 매핑되지 않은 팀은 "기타"로 모은다
+  const groups = useMemo(() => {
+    const rows = ORG.map((g) => {
+      const teams = g.teams.map((t) => ({ name: t, count: teamCounts.get(t) ?? 0 }));
+      // 실 이름 자체로 접수된 항목(실장/실 직속)도 합산해 보여준다
+      const silSelf = teamCounts.get(g.name) ?? 0;
+      if (silSelf > 0) teams.push({ name: `${g.name} 직속`, count: silSelf });
+      const total = teams.reduce((a, b) => a + b.count, 0);
+      return { name: g.name, isDept: g.isDept, teams, total };
+    });
+    // 조직도에 없는 팀 모으기
+    const known = new Set<string>();
+    for (const g of ORG) { g.teams.forEach((t) => known.add(t)); known.add(g.name); }
+    const etcTeams: { name: string; count: number }[] = [];
+    for (const [team, count] of teamCounts) {
+      if (!known.has(team) && silOfTeam(team) === null) etcTeams.push({ name: team, count });
+    }
+    if (etcTeams.length) {
+      etcTeams.sort((a, b) => b.count - a.count);
+      rows.push({ name: "기타", isDept: true, teams: etcTeams, total: etcTeams.reduce((a, b) => a + b.count, 0) });
+    }
+    return rows;
+  }, [teamCounts]);
+
+  const grandTotal = subs.length;
+  const [openSil, setOpenSil] = useState<string | null>(null);
+
+  return (
+    <div className="mt-6 rounded-2xl border border-border bg-card p-6">
+      <div className="flex items-center gap-2">
+        <Building2 className="h-5 w-5 text-primary" />
+        <h2 className="text-[17px] font-black tracking-tight">실별 · 팀별 접수 현황</h2>
+        <span className="ml-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[13px] font-bold text-primary">
+          총 {grandTotal}건
+        </span>
+      </div>
+      <p className="mt-1 text-[13px] text-muted-foreground">
+        실 이름을 누르면 팀별 접수 건수를 볼 수 있어요. (4실 · 직속 · 15개 팀)
+      </p>
+
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {groups.map((g) => {
+          const expanded = openSil === g.name;
+          return (
+            <div key={g.name} className="overflow-hidden rounded-xl border border-border">
+              <button
+                type="button"
+                onClick={() => setOpenSil(expanded ? null : g.name)}
+                className="flex w-full items-center justify-between gap-3 bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted/70"
+              >
+                <span className="flex items-center gap-2">
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+                  <span className="text-[15px] font-bold text-foreground">{g.name}</span>
+                  {g.isDept && (
+                    <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">부서</span>
+                  )}
+                </span>
+                <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-0.5 text-[13px] font-black text-primary">
+                  {g.total}건
+                </span>
+              </button>
+              {expanded && (
+                <div className="divide-y divide-border/70 border-t border-border">
+                  {g.teams.length === 0 ? (
+                    <div className="px-4 py-3 text-[13px] text-muted-foreground">소속 팀이 없습니다.</div>
+                  ) : (
+                    g.teams.map((t) => (
+                      <div key={t.name} className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-[14px] text-foreground/85">{t.name}</span>
+                        <span className={`text-[14px] font-bold ${t.count > 0 ? "text-foreground" : "text-muted-foreground/50"}`}>
+                          {t.count}건
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

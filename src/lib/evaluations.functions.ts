@@ -15,11 +15,18 @@ export const submitEvaluation = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data }) => {
-    const { readStore, writeStore, requireJudgeOrAdmin, profileOf } = await import("@/lib/local-store.server");
+    const { readStore, writeStore, requireJudgeOrAdmin, profileOf, loadRoster } = await import("@/lib/local-store.server");
     const { isJudgingOpen } = await import("@/lib/judging");
+    const { HIDDEN_FROM_JUDGES_EMP_NOS } = await import("@/lib/org");
     const judge = await requireJudgeOrAdmin();
     if (!isJudgingOpen()) throw new Error("평가 기간이 아닙니다.");
     const store = readStore();
+    // 직급 M1 인원의 작품은 팀장(평가자)이 평가할 수 없다. (관리자는 예외)
+    const isAdmin = (await loadRoster()).get(judge.empNo)?.roles.includes("admin");
+    const target = store.submissions.find((s) => s.id === data.submissionId);
+    if (!isAdmin && target && HIDDEN_FROM_JUDGES_EMP_NOS.includes(target.user_id)) {
+      throw new Error("해당 작품은 평가 대상이 아닙니다.");
+    }
     const existing = store.evaluations.find(
       (e) => e.submission_id === data.submissionId && e.judge_id === judge.empNo,
     );

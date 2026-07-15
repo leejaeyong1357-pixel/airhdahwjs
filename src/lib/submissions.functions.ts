@@ -42,6 +42,7 @@ export const listSubmissions = createServerFn({ method: "GET" })
           thumbnailUrl: mediaUrl("thumbnails", s.thumbnail_url),
           createdAt: s.created_at,
           author: { name: author.name, team: author.team, position: author.position },
+          authorEmpNo: s.user_id,
           likeCount: likeCounts.get(s.id) ?? 0,
           mine: s.user_id === user.empNo,
         };
