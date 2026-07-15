@@ -67,8 +67,3 @@ export function isSameEvalScope(judgeTeam?: string, authorTeam?: string): boolea
   if (isSilName(jt)) return silOfTeam(at) === jt; // 실장: 실 전체
   return at === jt;                                // 팀장: 같은 팀
 }
-
-// ── 평가단(팀장)에게 노출하지 않을 사람들 ─────────────────────────────
-// 직급 M1 인원은 팀장 평가 대상에서 제외한다. DB에는 M1 구분이 없어 사번으로 관리.
-//   82211553 고빛나 (매니저) · 82211017 임보라 (매니저) · 82210701 양선미 (매니저)
-export const HIDDEN_FROM_JUDGES_EMP_NOS: string[] = ["82211553", "82211017", "82210701"];

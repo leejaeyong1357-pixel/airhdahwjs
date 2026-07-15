@@ -28,25 +28,23 @@ export type Store = {
   passwords: Record<string, string>;
   /** 사번 → 개인정보 동의 시각(ISO) */
   consents: Record<string, string>;
-  /** 팀장(평가자) 화면에서 숨길 사번 목록 (직급 M1 등). 관리자가 밴/해제. */
+  /** 팀장(평가자) 화면에서 숨길 사번 목록. 기본은 없음 — 관리자가 직접 밴/해제. */
   bannedFromJudges: string[];
+  /** 과거 자동 밴 시드를 1회 비웠는지 (마이그레이션 표시) */
+  banSeedCleared?: boolean;
 };
 
-// 초기 밴 목록 시드 — 기존 db.json 에도 자동 적용.
-//   82211553 고빛나 · 82211017 임보라 · 82210701 양선미 (직급 M1)
-//   82211489 이재용 (미래성장팀, 기술 검증 = 참여 목적 작품 → 평가 제외)
-const DEFAULT_BANNED = ["82211553", "82211017", "82210701", "82211489"];
-
+// 기본 밴 없음 — 숨김은 관리자 화면에서 직접 지정한다.
 const EMPTY: Store = {
   submissions: [], likes: [], comments: [], evaluations: [], teams: [],
-  passwords: {}, consents: {}, bannedFromJudges: [...DEFAULT_BANNED],
+  passwords: {}, consents: {}, bannedFromJudges: [],
 };
 
 function storePath() {
   return join(process.cwd(), "data", "db.json");
 }
 
-let purgedStaleEvals = false;
+let migratedOnce = false;
 
 export function readStore(): Store {
   let store: Store;
@@ -56,15 +54,23 @@ export function readStore(): Store {
   } catch {
     return { ...EMPTY };
   }
-  // 평가 기간 시작 전(=테스트/오류)에 만들어진 평가는 자동으로 정리한다.
-  // 서버가 기간 외 평가를 막으므로, 기간 시작 이전 평가는 정상 데이터일 수 없다.
-  if (!purgedStaleEvals) {
-    purgedStaleEvals = true;
+  if (!migratedOnce) {
+    migratedOnce = true;
+    let dirty = false;
+    // 1) 평가 기간 시작 전(=테스트/오류)에 만들어진 평가는 자동 정리한다.
+    //    서버가 기간 외 평가를 막으므로, 기간 시작 이전 평가는 정상 데이터일 수 없다.
     const before = store.evaluations.length;
     store.evaluations = store.evaluations.filter(
       (e) => new Date(e.created_at).getTime() >= JUDGING_START_UTC_MS,
     );
-    if (store.evaluations.length !== before) writeStore(store);
+    if (store.evaluations.length !== before) dirty = true;
+    // 2) 예전에 자동으로 넣었던 밴 시드를 1회만 비운다. 이후 관리자 밴은 그대로 유지.
+    if (!store.banSeedCleared) {
+      store.bannedFromJudges = [];
+      store.banSeedCleared = true;
+      dirty = true;
+    }
+    if (dirty) writeStore(store);
   }
   return store;
 }
