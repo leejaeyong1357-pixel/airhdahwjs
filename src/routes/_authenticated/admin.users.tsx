@@ -149,12 +149,13 @@ function AdminUsers() {
         <DialogContent>
           <DialogHeader><DialogTitle>{resetOpen?.name} 비밀번호 재설정</DialogTitle></DialogHeader>
           <div className="space-y-2">
-            <Label>새 비밀번호 (사용자는 최초 로그인 시 다시 변경)</Label>
-            <Input type="text" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="6자 이상" />
+            <Label>새 비밀번호 (이 비밀번호로 바로 로그인됩니다)</Label>
+            <Input type="text" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="새 비밀번호 (4자 이상)" />
+            <p className="text-[12px] text-muted-foreground">비워두고 재설정하면 초기 비밀번호(주민번호 앞 6자리)로 돌아갑니다.</p>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setResetOpen(null)}>취소</Button>
-            <Button disabled={newPw.length < 6 || resetMut.isPending} onClick={() => resetMut.mutate()}>재설정</Button>
+            <Button disabled={(newPw.length > 0 && newPw.length < 4) || resetMut.isPending} onClick={() => resetMut.mutate()}>재설정</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

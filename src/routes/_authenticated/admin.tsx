@@ -17,6 +17,7 @@ const tabs = [
   { to: "/admin/evaluations", label: "평가 내역" },
   { to: "/admin/likes", label: "좋아요 내역" },
   { to: "/admin/rankings", label: "순위" },
+  { to: "/admin/selection", label: "30명 선발" },
   { to: "/admin/photos", label: "사진 관리" },
 ];
 

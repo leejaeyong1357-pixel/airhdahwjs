@@ -1,10 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { adminGetRankings } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
-import { Trophy, Medal, Download, ChevronDown } from "lucide-react";
+import { Trophy, Medal, Download, ChevronDown, Users } from "lucide-react";
 import { SCORE_RULE_LABEL } from "@/lib/judging";
 
 export const Route = createFileRoute("/_authenticated/admin/rankings")({
@@ -25,9 +25,14 @@ function AdminRankings() {
           최종점수 = {SCORE_RULE_LABEL}
           <span className="ml-2 font-semibold text-foreground">총 {data.length}개 작품</span>
         </div>
-        <Button onClick={() => exportExcel(data)} disabled={data.length === 0}>
-          <Download className="mr-1.5 h-4 w-4" /> 엑셀 다운로드 (순위·총점)
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline">
+            <Link to="/admin/selection"><Users className="mr-1.5 h-4 w-4" /> 30명 선발하기</Link>
+          </Button>
+          <Button onClick={() => exportExcel(data)} disabled={data.length === 0}>
+            <Download className="mr-1.5 h-4 w-4" /> 엑셀 다운로드 (순위·총점)
+          </Button>
+        </div>
       </div>
 
       {/* 스크롤 가능한 전체 순위 */}

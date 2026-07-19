@@ -32,12 +32,14 @@ export type Store = {
   bannedFromJudges: string[];
   /** 과거 자동 밴 시드를 1회 비웠는지 (마이그레이션 표시) */
   banSeedCleared?: boolean;
+  /** 본선 30명 선발 — 작품 id 목록 (본선/예비) */
+  selection?: { selected: string[]; reserve: string[] };
 };
 
 // 기본 밴 없음 — 숨김은 관리자 화면에서 직접 지정한다.
 const EMPTY: Store = {
   submissions: [], likes: [], comments: [], evaluations: [], teams: [],
-  passwords: {}, consents: {}, bannedFromJudges: [],
+  passwords: {}, consents: {}, bannedFromJudges: [], selection: { selected: [], reserve: [] },
 };
 
 function storePath() {

@@ -58,14 +58,19 @@ export const adminResetPassword = createServerFn({ method: "POST" })
     z.object({ userId: z.string(), newPassword: z.string().optional().default("") }).parse(d),
   )
   .handler(async ({ data }) => {
-    const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
+    const { readStore, writeStore, requireAdmin, hashPassword } = await import("@/lib/local-store.server");
     await requireAdmin();
-    // 초기화: 변경된 비밀번호를 삭제해 초기 비밀번호(주민번호 앞 6자리)로 되돌리고,
-    // 다음 로그인 때 다시 변경하게 만든다.
     const store = readStore();
-    delete store.passwords[data.userId];
+    const pw = (data.newPassword ?? "").trim();
+    if (pw) {
+      // 지정한 비밀번호로 설정 (해당 사용자는 이 비밀번호로 바로 로그인)
+      store.passwords[data.userId] = hashPassword(pw);
+    } else {
+      // 빈 값이면 초기화: 변경된 비밀번호 삭제 → 초기 비밀번호(주민번호 앞 6자리)로 복귀
+      delete store.passwords[data.userId];
+    }
     writeStore(store);
-    return { ok: true };
+    return { ok: true, set: !!pw };
   });
 
 export const adminDeleteUser = createServerFn({ method: "POST" })
@@ -166,6 +171,108 @@ export const adminGetRankings = createServerFn({ method: "GET" })
     });
     rows.sort((a, b) => b.final - a.final);
     return rows.map((r, i) => ({ ...r, rank: i + 1 }));
+  });
+
+// ── 본선 30명 선발 (각 팀 1명 + 예비후보) ─────────────────────────────
+
+function computeFinalOf(store: any, submissionId: string): { final: number; judgeCount: number; likeCount: number } {
+  const likeCount = store.likes.filter((l: any) => l.submission_id === submissionId).length;
+  const evs = store.evaluations.filter((e: any) => e.submission_id === submissionId);
+  const avg = evs.length
+    ? evs.reduce((a: number, e: any) => a + (e.innovation ?? 0) + (e.completeness ?? 0) + (e.utilization ?? 0), 0) / evs.length
+    : 0;
+  const final = Math.round(((avg / 100) * 80 + Math.min(likeCount, 20)) * 10) / 10;
+  return { final, judgeCount: evs.length, likeCount };
+}
+
+/** 팀별 순위 + 본선/예비 상태 보드 (관리자 전용). */
+export const adminGetSelectionBoard = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { readStore, requireAdmin, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { normalizeTeam } = await import("@/lib/org");
+    await requireAdmin();
+    const store = readStore();
+    const roster = await loadRoster();
+    const sel = new Set(store.selection?.selected ?? []);
+    const res = new Set(store.selection?.reserve ?? []);
+    const byTeam = new Map<string, any[]>();
+    for (const s of store.submissions) {
+      const a = liveProfile(roster, s.user_id, s.profiles);
+      const team = normalizeTeam(a.team) || "미지정";
+      const { final, judgeCount, likeCount } = computeFinalOf(store, s.id);
+      const status = sel.has(s.id) ? "selected" : res.has(s.id) ? "reserve" : "none";
+      const list = byTeam.get(team) ?? [];
+      list.push({
+        submissionId: s.id, title: s.title,
+        authorName: a.name, authorPosition: a.position, authorTeam: a.team,
+        final, judgeCount, likeCount, status,
+      });
+      byTeam.set(team, list);
+    }
+    const teams = [...byTeam.entries()]
+      .map(([team, subs]) => {
+        subs.sort((a, b) => b.final - a.final);
+        return {
+          team, submissions: subs,
+          selectedCount: subs.filter((x) => x.status === "selected").length,
+          reserveCount: subs.filter((x) => x.status === "reserve").length,
+        };
+      })
+      .sort((a, b) => a.team.localeCompare(b.team, "ko"));
+    return {
+      teams,
+      selectedCount: teams.reduce((a, t) => a + t.selectedCount, 0),
+      reserveCount: teams.reduce((a, t) => a + t.reserveCount, 0),
+      teamsWithoutPick: teams.filter((t) => t.selectedCount === 0).map((t) => t.team),
+    };
+  });
+
+/** 작품의 본선/예비/해제 상태 설정 (관리자 전용). */
+export const adminSetSelectionStatus = createServerFn({ method: "POST" })
+  .inputValidator((d: { submissionId: string; status: "selected" | "reserve" | "none" }) =>
+    z.object({ submissionId: z.string().uuid(), status: z.enum(["selected", "reserve", "none"]) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
+    await requireAdmin();
+    const store = readStore();
+    const cur = store.selection ?? { selected: [], reserve: [] };
+    cur.selected = cur.selected.filter((id) => id !== data.submissionId);
+    cur.reserve = cur.reserve.filter((id) => id !== data.submissionId);
+    if (data.status === "selected") cur.selected.push(data.submissionId);
+    else if (data.status === "reserve") cur.reserve.push(data.submissionId);
+    store.selection = cur;
+    writeStore(store);
+    return { ok: true };
+  });
+
+/** 각 팀 1위를 본선, 2위를 예비로 자동 선발 (기존 선택 덮어씀). */
+export const adminAutoSelectTopPerTeam = createServerFn({ method: "POST" })
+  .handler(async () => {
+    const { readStore, writeStore, requireAdmin, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { normalizeTeam } = await import("@/lib/org");
+    await requireAdmin();
+    const store = readStore();
+    const roster = await loadRoster();
+    const byTeam = new Map<string, { id: string; final: number }[]>();
+    for (const s of store.submissions) {
+      const a = liveProfile(roster, s.user_id, s.profiles);
+      const team = normalizeTeam(a.team) || "미지정";
+      const { final } = computeFinalOf(store, s.id);
+      const list = byTeam.get(team) ?? [];
+      list.push({ id: s.id, final });
+      byTeam.set(team, list);
+    }
+    const selected: string[] = [];
+    const reserve: string[] = [];
+    for (const list of byTeam.values()) {
+      list.sort((a, b) => b.final - a.final);
+      if (list[0]) selected.push(list[0].id);
+      if (list[1]) reserve.push(list[1].id);
+    }
+    store.selection = { selected, reserve };
+    writeStore(store);
+    return { ok: true, selected: selected.length, reserve: reserve.length };
   });
 
 /** All evaluations detailed (admin only). */
