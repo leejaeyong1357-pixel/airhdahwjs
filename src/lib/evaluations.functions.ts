@@ -28,6 +28,10 @@ export const submitEvaluation = createServerFn({ method: "POST" })
     if (target && (store.bannedFromJudges ?? []).includes(target.user_id)) {
       throw new Error("해당 작품은 평가 대상이 아닙니다.");
     }
+    // 본인 작품은 평가할 수 없다.
+    if (target && target.user_id === judge.empNo) {
+      throw new Error("본인 작품은 평가할 수 없습니다.");
+    }
     // 평가 범위: 본인이 속한 실의 작품만 평가할 수 있다.
     if (target) {
       const authorTeam = liveProfile(roster, target.user_id, target.profiles).team;

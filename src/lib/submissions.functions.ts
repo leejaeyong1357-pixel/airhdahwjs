@@ -67,6 +67,7 @@ export const listJudgeSubmissions = createServerFn({ method: "GET" })
     return [...store.submissions]
       .filter((s) => {
         if (banned.has(s.user_id)) return false; // 평가 제외(밴)
+        if (s.user_id === user.empNo) return false; // 본인 작품은 평가 대상 아님
         const authorTeam = liveProfile(roster, s.user_id, s.profiles).team;
         return sameSil(me?.team, authorTeam);     // 본인이 속한 실의 작품만
       })
@@ -111,7 +112,8 @@ export const getSubmission = createServerFn({ method: "GET" })
     const isJudge = !!me?.roles.includes("judge") || !!me?.roles.includes("admin");
     const authorTeam = liveProfile(roster, s.user_id, s.profiles).team;
     const isBanned = (store.bannedFromJudges ?? []).includes(s.user_id);
-    const canEvaluate = isJudge && !isBanned && sameSil(me?.team, authorTeam);
+    const isMine = s.user_id === user.empNo;
+    const canEvaluate = isJudge && !isBanned && !isMine && sameSil(me?.team, authorTeam);
 
     return {
       submission: {

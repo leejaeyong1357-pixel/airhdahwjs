@@ -118,6 +118,23 @@ export const adminGetRankings = createServerFn({ method: "GET" })
     const roster = await loadRoster();
     const likeMap = new Map<string, number>();
     for (const l of store.likes) likeMap.set(l.submission_id, (likeMap.get(l.submission_id) ?? 0) + 1);
+    // 작품별 심사위원 상세(누가 몇 점 줬는지)
+    const breakdownMap = new Map<string, any[]>();
+    for (const e of store.evaluations) {
+      const jp = liveProfile(roster, e.judge_id, e.profiles);
+      const total = (e.innovation ?? 0) + (e.completeness ?? 0) + (e.utilization ?? 0);
+      const list = breakdownMap.get(e.submission_id) ?? [];
+      list.push({
+        judgeName: jp.name || e.judge_id,
+        judgeTeam: jp.team || "",
+        judgePosition: jp.position || "",
+        innovation: e.innovation ?? 0,
+        completeness: e.completeness ?? 0,
+        utilization: e.utilization ?? 0,
+        total,
+      });
+      breakdownMap.set(e.submission_id, list);
+    }
     const evalMap = new Map<string, { total: number; count: number }>();
     for (const e of store.evaluations) {
       const total = (e.innovation ?? 0) + (e.completeness ?? 0) + (e.utilization ?? 0);
@@ -139,9 +156,12 @@ export const adminGetRankings = createServerFn({ method: "GET" })
         title: s.title,
         author: liveProfile(roster, s.user_id, s.profiles),
         judgeCount: ev?.count ?? 0,
-        judgeAvg: Math.round(judgeAvgRaw * 10) / 10,
+        judgeAvg: Math.round(judgeAvgRaw * 10) / 10,     // 0-100
+        judgeScore: Math.round(judgeScore * 10) / 10,    // 0-80 (환산)
         likeCount,
+        likeScore,                                       // 0-20
         final: Math.round(final * 10) / 10,
+        breakdown: (breakdownMap.get(s.id) ?? []).sort((a, b) => b.total - a.total),
       };
     });
     rows.sort((a, b) => b.final - a.final);
@@ -285,6 +305,57 @@ export const adminRemoveLike = createServerFn({ method: "POST" })
     if (idx >= 0) store.likes.splice(idx, 1);
     writeStore(store);
     return { ok: true };
+  });
+
+/** 평가자별 심사 진행 현황 — 누가 몇 건 중 몇 건을 심사했는지, 안 한 작품은 무엇인지. */
+export const adminJudgeProgress = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { readStore, requireAdmin, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { sameSil, silOfTeam } = await import("@/lib/org");
+    await requireAdmin();
+    const store = readStore();
+    const roster = await loadRoster();
+    const banned = new Set(store.bannedFromJudges ?? []);
+    // 작품 + 작성자 팀 캐시
+    const subs = store.submissions.map((s) => ({
+      id: s.id,
+      title: s.title,
+      author: liveProfile(roster, s.user_id, s.profiles),
+      user_id: s.user_id,
+    }));
+    // 평가자별 이미 평가한 submission id
+    const doneByJudge = new Map<string, Set<string>>();
+    for (const e of store.evaluations) {
+      const set = doneByJudge.get(e.judge_id) ?? new Set<string>();
+      set.add(e.submission_id);
+      doneByJudge.set(e.judge_id, set);
+    }
+    const judges = Array.from(roster.values()).filter((p) => p.roles.includes("judge"));
+    const rows = judges.map((j) => {
+      // 담당(본인이 속한 실) 작품 — 밴 제외, 본인 작품 제외
+      const assigned = subs.filter(
+        (s) => !banned.has(s.user_id) && s.user_id !== j.empNo && sameSil(j.team, s.author.team),
+      );
+      const done = doneByJudge.get(j.empNo) ?? new Set<string>();
+      const doneCount = assigned.filter((s) => done.has(s.id)).length;
+      const remainingWorks = assigned
+        .filter((s) => !done.has(s.id))
+        .map((s) => ({ title: s.title, authorName: s.author.name, authorTeam: s.author.team }));
+      return {
+        empNo: j.empNo,
+        name: j.name,
+        team: j.team ?? "",
+        position: j.position,
+        sil: silOfTeam(j.team) ?? "",
+        assigned: assigned.length,
+        done: doneCount,
+        remaining: assigned.length - doneCount,
+        remainingWorks,
+      };
+    });
+    // 안 한 게 많은(미완료) 순 → 이름 순
+    rows.sort((a, b) => b.remaining - a.remaining || a.name.localeCompare(b.name, "ko"));
+    return rows;
   });
 
 /** 평가자(심사위원) 명단 (관리자 전용). */
