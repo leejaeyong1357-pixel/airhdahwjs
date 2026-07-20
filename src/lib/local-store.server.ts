@@ -110,6 +110,11 @@ export function hashPassword(pw: string): string {
   return createHash("sha256").update(pw).digest("hex");
 }
 
+// 고아 작품(소속 실에 평가할 사람이 본인뿐인 작품 — 예: 직속 부서 팀장 본인 작품)을
+// 자동으로 담당하는 평가자. 관리자가 개별 지정하지 않아도 이 사람 목록에 뜬다.
+//   82211489 이재용
+export const FALLBACK_EVALUATOR_EMP_NOS = ["82211489"];
+
 /** 헤더의 역할 주장을 믿지 않고, DB 명단(서버 원본)에서 실제 역할을 재확인한다. */
 async function requireRosterRole(roles: DbRole[], message: string): Promise<StoreUser> {
   const user = requireUser();

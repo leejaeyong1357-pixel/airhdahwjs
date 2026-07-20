@@ -15,7 +15,7 @@ export const submitEvaluation = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data }) => {
-    const { readStore, writeStore, requireJudgeOrAdmin, profileOf, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { readStore, writeStore, requireJudgeOrAdmin, profileOf, loadRoster, liveProfile, FALLBACK_EVALUATOR_EMP_NOS } = await import("@/lib/local-store.server");
     const { isJudgingOpen } = await import("@/lib/judging");
     const { sameSil } = await import("@/lib/org");
     const judge = await requireJudgeOrAdmin();
@@ -32,11 +32,15 @@ export const submitEvaluation = createServerFn({ method: "POST" })
     if (target && target.user_id === judge.empNo) {
       throw new Error("본인 작품은 평가할 수 없습니다.");
     }
-    // 평가 범위: 본인이 속한 실의 작품 또는 관리자가 지정한 담당 작품만 평가할 수 있다.
+    // 평가 범위: 본인 실 작품 / 지정 담당 작품 / (담당자 없는 고아 작품 & 고아 담당자)만 평가 가능.
     if (target) {
       const assigned = (store.evalAssignments?.[judge.empNo] ?? []).includes(target.id);
       const authorTeam = liveProfile(roster, target.user_id, target.profiles).team;
-      if (!assigned && !sameSil(me?.team, authorTeam)) {
+      const isFallback = FALLBACK_EVALUATOR_EMP_NOS.includes(judge.empNo);
+      const isOrphan = !Array.from(roster.values()).some(
+        (j) => j.roles.includes("judge") && j.empNo !== target.user_id && sameSil(j.team, authorTeam),
+      );
+      if (!assigned && !sameSil(me?.team, authorTeam) && !(isFallback && isOrphan)) {
         throw new Error("본인이 속한 실 또는 지정된 담당 작품만 평가할 수 있습니다.");
       }
     }

@@ -55,7 +55,7 @@ export const listSubmissions = createServerFn({ method: "GET" })
  */
 export const listJudgeSubmissions = createServerFn({ method: "GET" })
   .handler(async () => {
-    const { readStore, requireJudgeOrAdmin, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { readStore, requireJudgeOrAdmin, mediaUrl, loadRoster, liveProfile, FALLBACK_EVALUATOR_EMP_NOS } = await import("@/lib/local-store.server");
     const { sameSil } = await import("@/lib/org");
     const user = await requireJudgeOrAdmin();
     const store = readStore();
@@ -63,6 +63,10 @@ export const listJudgeSubmissions = createServerFn({ method: "GET" })
     const me = roster.get(user.empNo);
     const banned = new Set(store.bannedFromJudges ?? []);
     const assigned = new Set(store.evalAssignments?.[user.empNo] ?? []); // 추가 담당 지정
+    const isFallback = FALLBACK_EVALUATOR_EMP_NOS.includes(user.empNo);
+    const judgeList = isFallback ? Array.from(roster.values()).filter((p) => p.roles.includes("judge")) : [];
+    const isOrphan = (authorTeam: string, authorEmp: string) =>
+      !judgeList.some((j) => j.empNo !== authorEmp && sameSil(j.team, authorTeam));
     const likeCounts = new Map<string, number>();
     for (const l of store.likes) likeCounts.set(l.submission_id, (likeCounts.get(l.submission_id) ?? 0) + 1);
     return [...store.submissions]
@@ -71,7 +75,9 @@ export const listJudgeSubmissions = createServerFn({ method: "GET" })
         if (s.user_id === user.empNo) return false; // 본인 작품은 평가 대상 아님
         if (assigned.has(s.id)) return true;      // 관리자가 지정한 추가 담당
         const authorTeam = liveProfile(roster, s.user_id, s.profiles).team;
-        return sameSil(me?.team, authorTeam);     // 본인이 속한 실의 작품만
+        if (sameSil(me?.team, authorTeam)) return true; // 본인이 속한 실의 작품
+        if (isFallback && isOrphan(authorTeam, s.user_id)) return true; // 담당자 없는(고아) 작품
+        return false;
       })
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
       .map((s) => {
@@ -93,7 +99,7 @@ export const listJudgeSubmissions = createServerFn({ method: "GET" })
 export const getSubmission = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const { readStore, requireUser, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { readStore, requireUser, mediaUrl, loadRoster, liveProfile, FALLBACK_EVALUATOR_EMP_NOS } = await import("@/lib/local-store.server");
     const { sameSil } = await import("@/lib/org");
     const user = requireUser();
     const store = readStore();
@@ -116,7 +122,12 @@ export const getSubmission = createServerFn({ method: "GET" })
     const isBanned = (store.bannedFromJudges ?? []).includes(s.user_id);
     const isMine = s.user_id === user.empNo;
     const isAssigned = (store.evalAssignments?.[user.empNo] ?? []).includes(s.id);
-    const canEvaluate = isJudge && !isBanned && !isMine && (isAssigned || sameSil(me?.team, authorTeam));
+    const isFallback = FALLBACK_EVALUATOR_EMP_NOS.includes(user.empNo);
+    const isOrphan = !Array.from(roster.values()).some(
+      (j) => j.roles.includes("judge") && j.empNo !== s.user_id && sameSil(j.team, authorTeam),
+    );
+    const canEvaluate = isJudge && !isBanned && !isMine &&
+      (isAssigned || sameSil(me?.team, authorTeam) || (isFallback && isOrphan));
 
     return {
       submission: {
