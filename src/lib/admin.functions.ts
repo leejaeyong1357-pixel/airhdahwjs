@@ -511,6 +511,67 @@ export const adminListBanRoster = createServerFn({ method: "GET" })
       );
   });
 
+/** 평가 담당 지정 보드 — 담당 평가자가 없는 작품(구조적 공백) + 현재 지정 현황. */
+export const adminGetAssignmentBoard = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { readStore, requireAdmin, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { sameSil } = await import("@/lib/org");
+    await requireAdmin();
+    const store = readStore();
+    const roster = await loadRoster();
+    const people = Array.from(roster.values());
+    const judges = people.filter((p) => p.roles.includes("judge"));
+    // 지정 가능한 평가자 = 평가자 + 관리자
+    const assignees = people
+      .filter((p) => p.roles.includes("judge") || p.roles.includes("admin"))
+      .map((p) => ({ empNo: p.empNo, name: p.name, team: p.team ?? "", position: p.position }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    // submissionId → 지정된 평가자 사번
+    const assignMap = new Map<string, string>();
+    for (const [emp, ids] of Object.entries(store.evalAssignments ?? {})) for (const id of ids) assignMap.set(id, emp);
+    const rows = store.submissions
+      .map((s) => {
+        const author = liveProfile(roster, s.user_id, s.profiles);
+        const eligible = judges.filter((j) => j.empNo !== s.user_id && sameSil(j.team, author.team)).length;
+        const assignedTo = assignMap.get(s.id) ?? null;
+        return { s, author, eligible, assignedTo };
+      })
+      .filter((r) => r.eligible === 0 || r.assignedTo) // 평가자 없는 작품 또는 이미 지정된 작품
+      .map((r) => ({
+        submissionId: r.s.id,
+        title: r.s.title,
+        author: { name: r.author.name, team: r.author.team, position: r.author.position },
+        eligibleJudges: r.eligible,
+        assignedTo: r.assignedTo,
+        assignedName: r.assignedTo ? liveProfile(roster, r.assignedTo, undefined).name || r.assignedTo : null,
+      }))
+      .sort((a, b) => a.eligibleJudges - b.eligibleJudges || a.author.team.localeCompare(b.author.team, "ko"));
+    return { rows, assignees };
+  });
+
+/** 작품의 평가 담당자 지정/해제 (관리자 전용). judgeEmpNo 가 빈 값이면 해제. */
+export const adminSetAssignment = createServerFn({ method: "POST" })
+  .inputValidator((d: { submissionId: string; judgeEmpNo: string }) =>
+    z.object({ submissionId: z.string().uuid(), judgeEmpNo: z.string().default("") }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { readStore, writeStore, requireAdmin, loadRoster } = await import("@/lib/local-store.server");
+    await requireAdmin();
+    const store = readStore();
+    const ea: Record<string, string[]> = store.evalAssignments ?? {};
+    // 기존 지정 제거
+    for (const emp of Object.keys(ea)) ea[emp] = ea[emp].filter((id) => id !== data.submissionId);
+    if (data.judgeEmpNo) {
+      const roster = await loadRoster();
+      if (!roster.get(data.judgeEmpNo)) throw new Error("존재하지 않는 평가자입니다.");
+      (ea[data.judgeEmpNo] ??= []).push(data.submissionId);
+    }
+    for (const emp of Object.keys(ea)) if (ea[emp].length === 0) delete ea[emp];
+    store.evalAssignments = ea;
+    writeStore(store);
+    return { ok: true };
+  });
+
 /** 특정 사번을 평가자 화면에서 숨기기/해제 (관리자 전용). */
 export const adminSetBan = createServerFn({ method: "POST" })
   .inputValidator((d: { empNo: string; banned: boolean }) =>

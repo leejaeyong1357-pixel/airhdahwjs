@@ -62,12 +62,14 @@ export const listJudgeSubmissions = createServerFn({ method: "GET" })
     const roster = await loadRoster();
     const me = roster.get(user.empNo);
     const banned = new Set(store.bannedFromJudges ?? []);
+    const assigned = new Set(store.evalAssignments?.[user.empNo] ?? []); // 추가 담당 지정
     const likeCounts = new Map<string, number>();
     for (const l of store.likes) likeCounts.set(l.submission_id, (likeCounts.get(l.submission_id) ?? 0) + 1);
     return [...store.submissions]
       .filter((s) => {
         if (banned.has(s.user_id)) return false; // 평가 제외(밴)
         if (s.user_id === user.empNo) return false; // 본인 작품은 평가 대상 아님
+        if (assigned.has(s.id)) return true;      // 관리자가 지정한 추가 담당
         const authorTeam = liveProfile(roster, s.user_id, s.profiles).team;
         return sameSil(me?.team, authorTeam);     // 본인이 속한 실의 작품만
       })
@@ -113,7 +115,8 @@ export const getSubmission = createServerFn({ method: "GET" })
     const authorTeam = liveProfile(roster, s.user_id, s.profiles).team;
     const isBanned = (store.bannedFromJudges ?? []).includes(s.user_id);
     const isMine = s.user_id === user.empNo;
-    const canEvaluate = isJudge && !isBanned && !isMine && sameSil(me?.team, authorTeam);
+    const isAssigned = (store.evalAssignments?.[user.empNo] ?? []).includes(s.id);
+    const canEvaluate = isJudge && !isBanned && !isMine && (isAssigned || sameSil(me?.team, authorTeam));
 
     return {
       submission: {

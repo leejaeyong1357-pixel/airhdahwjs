@@ -32,11 +32,12 @@ export const submitEvaluation = createServerFn({ method: "POST" })
     if (target && target.user_id === judge.empNo) {
       throw new Error("본인 작품은 평가할 수 없습니다.");
     }
-    // 평가 범위: 본인이 속한 실의 작품만 평가할 수 있다.
+    // 평가 범위: 본인이 속한 실의 작품 또는 관리자가 지정한 담당 작품만 평가할 수 있다.
     if (target) {
+      const assigned = (store.evalAssignments?.[judge.empNo] ?? []).includes(target.id);
       const authorTeam = liveProfile(roster, target.user_id, target.profiles).team;
-      if (!sameSil(me?.team, authorTeam)) {
-        throw new Error("본인이 속한 실의 작품만 평가할 수 있습니다.");
+      if (!assigned && !sameSil(me?.team, authorTeam)) {
+        throw new Error("본인이 속한 실 또는 지정된 담당 작품만 평가할 수 있습니다.");
       }
     }
     const existing = store.evaluations.find(

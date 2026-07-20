@@ -34,12 +34,15 @@ export type Store = {
   banSeedCleared?: boolean;
   /** 본선 30명 선발 — 작품 id 목록 (본선/예비/제외) */
   selection?: { selected: string[]; reserve: string[]; excluded?: string[] };
+  /** 추가 평가 담당 지정 — 평가자 사번 → 담당(추가) 작품 id 목록 (실 범위 밖도 평가 가능) */
+  evalAssignments?: Record<string, string[]>;
 };
 
 // 기본 밴 없음 — 숨김은 관리자 화면에서 직접 지정한다.
 const EMPTY: Store = {
   submissions: [], likes: [], comments: [], evaluations: [], teams: [],
   passwords: {}, consents: {}, bannedFromJudges: [], selection: { selected: [], reserve: [], excluded: [] },
+  evalAssignments: {},
 };
 
 function storePath() {

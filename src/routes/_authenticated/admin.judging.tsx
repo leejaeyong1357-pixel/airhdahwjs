@@ -2,10 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { adminListJudges, adminListBanRoster, adminSetBan } from "@/lib/admin.functions";
+import {
+  adminListJudges, adminListBanRoster, adminSetBan,
+  adminGetAssignmentBoard, adminSetAssignment,
+} from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Gavel, EyeOff, Eye, Search, Shield } from "lucide-react";
+import { Gavel, EyeOff, Eye, Search, Shield, UserPlus, AlertTriangle } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/judging")({
   component: AdminJudging,
@@ -20,6 +23,21 @@ function AdminJudging() {
   const { data: judges = [] } = useQuery({ queryKey: ["admin", "judges"], queryFn: () => judgesFn() });
   const { data: roster = [] } = useQuery({ queryKey: ["admin", "banRoster"], queryFn: () => rosterFn() });
   const [q, setQ] = useState("");
+
+  // 평가 담당 지정
+  const assignBoardFn = useServerFn(adminGetAssignmentBoard);
+  const setAssignFn = useServerFn(adminSetAssignment);
+  const { data: assignBoard } = useQuery({ queryKey: ["admin", "assignBoard"], queryFn: () => assignBoardFn() });
+  const setAssignMut = useMutation({
+    mutationFn: (v: { submissionId: string; judgeEmpNo: string }) => setAssignFn({ data: v }),
+    onSuccess: () => {
+      toast.success("평가 담당을 지정했습니다.");
+      qc.invalidateQueries({ queryKey: ["admin", "assignBoard"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const assignRows = assignBoard?.rows ?? [];
+  const assignees = assignBoard?.assignees ?? [];
 
   const setBanMut = useMutation({
     mutationFn: (v: { empNo: string; banned: boolean }) => setBanFn({ data: v }),
@@ -73,6 +91,58 @@ function AdminJudging() {
               ))}
               {judges.length === 0 && (
                 <tr><td colSpan={5} className="p-8 text-center text-sm text-muted-foreground">등록된 평가자가 없습니다.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* 평가 담당 지정 (평가자 없는 작품) */}
+      <section>
+        <div className="flex items-center gap-2">
+          <UserPlus className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-black tracking-tight">평가 담당 지정</h2>
+          {assignRows.some((r: any) => r.eligibleJudges === 0 && !r.assignedTo) && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[12px] font-bold text-amber-600">
+              <AlertTriangle className="h-3 w-3" /> 담당자 없는 작품 있음
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          소속 실에 평가할 사람이 없는 작품(예: 직속 부서 팀장 본인 작품)을 특정 평가자에게 지정합니다.
+          지정된 평가자는 평가 기간에 해당 작품을 평가할 수 있습니다.
+        </p>
+        <div className="mt-3 overflow-hidden rounded-xl border border-border bg-card">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-xs">
+              <tr><Th>작품</Th><Th>제출자</Th><Th className="text-center">담당 가능 평가자</Th><Th>평가 담당 지정</Th></tr>
+            </thead>
+            <tbody>
+              {assignRows.map((r: any) => (
+                <tr key={r.submissionId} className={`border-t border-border ${r.eligibleJudges === 0 && !r.assignedTo ? "bg-amber-50/60" : ""}`}>
+                  <Td className="font-semibold">{r.title}</Td>
+                  <Td className="text-xs">{r.author.team} · {r.author.name} {r.author.position}</Td>
+                  <Td className="text-center">
+                    {r.eligibleJudges === 0
+                      ? <span className="text-[12px] font-bold text-amber-600">없음</span>
+                      : <span className="text-muted-foreground">{r.eligibleJudges}명</span>}
+                  </Td>
+                  <Td>
+                    <select
+                      value={r.assignedTo ?? ""}
+                      onChange={(e) => setAssignMut.mutate({ submissionId: r.submissionId, judgeEmpNo: e.target.value })}
+                      className="w-full max-w-[240px] rounded-lg border border-border bg-background px-2 py-1.5 text-[13px]"
+                    >
+                      <option value="">— 지정 안 함 —</option>
+                      {assignees.map((a: any) => (
+                        <option key={a.empNo} value={a.empNo}>{a.name} ({a.team || a.position}) · {a.empNo}</option>
+                      ))}
+                    </select>
+                  </Td>
+                </tr>
+              ))}
+              {assignRows.length === 0 && (
+                <tr><td colSpan={4} className="p-8 text-center text-sm text-muted-foreground">담당 지정이 필요한 작품이 없습니다.</td></tr>
               )}
             </tbody>
           </table>
