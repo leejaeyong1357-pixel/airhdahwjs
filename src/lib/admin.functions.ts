@@ -195,12 +195,13 @@ export const adminGetSelectionBoard = createServerFn({ method: "GET" })
     const roster = await loadRoster();
     const sel = new Set(store.selection?.selected ?? []);
     const res = new Set(store.selection?.reserve ?? []);
+    const exc = new Set(store.selection?.excluded ?? []);
     const byTeam = new Map<string, any[]>();
     for (const s of store.submissions) {
       const a = liveProfile(roster, s.user_id, s.profiles);
       const team = normalizeTeam(a.team) || "미지정";
       const { final, judgeCount, likeCount } = computeFinalOf(store, s.id);
-      const status = sel.has(s.id) ? "selected" : res.has(s.id) ? "reserve" : "none";
+      const status = sel.has(s.id) ? "selected" : res.has(s.id) ? "reserve" : exc.has(s.id) ? "excluded" : "none";
       const list = byTeam.get(team) ?? [];
       list.push({
         submissionId: s.id, title: s.title,
@@ -223,24 +224,28 @@ export const adminGetSelectionBoard = createServerFn({ method: "GET" })
       teams,
       selectedCount: teams.reduce((a, t) => a + t.selectedCount, 0),
       reserveCount: teams.reduce((a, t) => a + t.reserveCount, 0),
+      excludedCount: exc.size,
       teamsWithoutPick: teams.filter((t) => t.selectedCount === 0).map((t) => t.team),
     };
   });
 
 /** 작품의 본선/예비/해제 상태 설정 (관리자 전용). */
 export const adminSetSelectionStatus = createServerFn({ method: "POST" })
-  .inputValidator((d: { submissionId: string; status: "selected" | "reserve" | "none" }) =>
-    z.object({ submissionId: z.string().uuid(), status: z.enum(["selected", "reserve", "none"]) }).parse(d),
+  .inputValidator((d: { submissionId: string; status: "selected" | "reserve" | "excluded" | "none" }) =>
+    z.object({ submissionId: z.string().uuid(), status: z.enum(["selected", "reserve", "excluded", "none"]) }).parse(d),
   )
   .handler(async ({ data }) => {
     const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
     await requireAdmin();
     const store = readStore();
-    const cur = store.selection ?? { selected: [], reserve: [] };
+    const cur = { selected: [], reserve: [], excluded: [], ...(store.selection ?? {}) } as
+      { selected: string[]; reserve: string[]; excluded: string[] };
     cur.selected = cur.selected.filter((id) => id !== data.submissionId);
     cur.reserve = cur.reserve.filter((id) => id !== data.submissionId);
+    cur.excluded = (cur.excluded ?? []).filter((id) => id !== data.submissionId);
     if (data.status === "selected") cur.selected.push(data.submissionId);
     else if (data.status === "reserve") cur.reserve.push(data.submissionId);
+    else if (data.status === "excluded") cur.excluded.push(data.submissionId);
     store.selection = cur;
     writeStore(store);
     return { ok: true };
@@ -270,7 +275,7 @@ export const adminAutoSelectTopPerTeam = createServerFn({ method: "POST" })
       if (list[0]) selected.push(list[0].id);
       if (list[1]) reserve.push(list[1].id);
     }
-    store.selection = { selected, reserve };
+    store.selection = { selected, reserve, excluded: store.selection?.excluded ?? [] };
     writeStore(store);
     return { ok: true, selected: selected.length, reserve: reserve.length };
   });

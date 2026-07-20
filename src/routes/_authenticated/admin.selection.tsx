@@ -24,7 +24,7 @@ function AdminSelection() {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin", "selection"] });
   const setMut = useMutation({
-    mutationFn: (v: { submissionId: string; status: "selected" | "reserve" | "none" }) => setFn({ data: v }),
+    mutationFn: (v: { submissionId: string; status: "selected" | "reserve" | "excluded" | "none" }) => setFn({ data: v }),
     onSuccess: invalidate,
     onError: (e: any) => toast.error(e.message),
   });
@@ -37,6 +37,7 @@ function AdminSelection() {
   const teams = data?.teams ?? [];
   const selectedCount = data?.selectedCount ?? 0;
   const reserveCount = data?.reserveCount ?? 0;
+  const excludedCount = data?.excludedCount ?? 0;
 
   // 전체 순위(하나의 리스트) — 총점 내림차순
   const ranking = useMemo(() => {
@@ -51,7 +52,7 @@ function AdminSelection() {
     [teams],
   );
 
-  const toggle = (s: any, kind: "selected" | "reserve") =>
+  const toggle = (s: any, kind: "selected" | "reserve" | "excluded") =>
     setMut.mutate({ submissionId: s.submissionId, status: s.status === kind ? "none" : kind });
 
   return (
@@ -77,30 +78,35 @@ function AdminSelection() {
                 <Th className="w-12">순위</Th>
                 <Th>지원자 · 작품</Th>
                 <Th className="text-right">총점</Th>
-                <Th className="w-[130px] text-center">선발</Th>
+                <Th className="w-[190px] text-center">선발 / 제외</Th>
               </tr>
             </thead>
             <tbody>
-              {ranking.map((s: any) => (
-                <tr key={s.submissionId}
-                  className={`border-t border-border ${s.status === "selected" ? "bg-primary/[0.07]" : s.status === "reserve" ? "bg-amber-500/[0.07]" : ""}`}>
-                  <Td className="font-bold tabular-nums">{s.rank}</Td>
-                  <Td>
-                    <div className="font-semibold text-foreground">
-                      {s.authorName} <span className="font-normal text-muted-foreground">{s.authorPosition}</span>
-                      <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{s.team}</span>
-                    </div>
-                    <div className="truncate text-xs text-muted-foreground">{s.title}</div>
-                  </Td>
-                  <Td className="text-right"><span className="font-black text-primary tabular-nums">{s.final}</span></Td>
-                  <Td>
-                    <div className="flex justify-center gap-1">
-                      <SegBtn active={s.status === "selected"} tone="primary" onClick={() => toggle(s, "selected")}>본선</SegBtn>
-                      <SegBtn active={s.status === "reserve"} tone="amber" onClick={() => toggle(s, "reserve")}>예비</SegBtn>
-                    </div>
-                  </Td>
-                </tr>
-              ))}
+              {ranking.map((s: any) => {
+                const excluded = s.status === "excluded";
+                const blur = excluded ? "blur-[1.6px] opacity-40 select-none" : "";
+                return (
+                  <tr key={s.submissionId}
+                    className={`border-t border-border ${s.status === "selected" ? "bg-primary/[0.07]" : s.status === "reserve" ? "bg-amber-500/[0.07]" : excluded ? "bg-muted/40" : ""}`}>
+                    <Td className={`font-bold tabular-nums ${blur}`}>{s.rank}</Td>
+                    <Td className={blur}>
+                      <div className="font-semibold text-foreground">
+                        {s.authorName} <span className="font-normal text-muted-foreground">{s.authorPosition}</span>
+                        <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{s.team}</span>
+                      </div>
+                      <div className="truncate text-xs text-muted-foreground">{s.title}</div>
+                    </Td>
+                    <Td className={`text-right ${blur}`}><span className="font-black text-primary tabular-nums">{s.final}</span></Td>
+                    <Td>
+                      <div className="flex justify-center gap-1">
+                        <SegBtn active={s.status === "selected"} tone="primary" onClick={() => toggle(s, "selected")}>본선</SegBtn>
+                        <SegBtn active={s.status === "reserve"} tone="amber" onClick={() => toggle(s, "reserve")}>예비</SegBtn>
+                        <SegBtn active={excluded} tone="slate" onClick={() => toggle(s, "excluded")}>제외</SegBtn>
+                      </div>
+                    </Td>
+                  </tr>
+                );
+              })}
               {ranking.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-sm text-muted-foreground">아직 접수된 작품이 없습니다.</td></tr>}
             </tbody>
           </table>
@@ -114,7 +120,7 @@ function AdminSelection() {
           <div className="mt-1 text-4xl font-black text-foreground tabular-nums">
             {selectedCount}<span className="text-xl text-muted-foreground"> / {TARGET}</span>
           </div>
-          <div className="mt-1 text-[13px] font-semibold text-amber-600">예비 {reserveCount}명</div>
+          <div className="mt-1 text-[13px] font-semibold text-amber-600">예비 {reserveCount}명 · <span className="text-slate-500">제외 {excludedCount}명</span></div>
           <Button className="mt-3 w-full" size="sm" onClick={() => exportExcel(teams)} disabled={selectedCount + reserveCount === 0}>
             <Download className="mr-1.5 h-4 w-4" /> 엑셀 다운로드
           </Button>
@@ -149,8 +155,11 @@ function AdminSelection() {
   );
 }
 
-function SegBtn({ active, tone, onClick, children }: { active: boolean; tone: "primary" | "amber"; onClick: () => void; children: React.ReactNode }) {
-  const on = tone === "primary" ? "bg-primary text-white border-primary" : "bg-amber-500 text-white border-amber-500";
+function SegBtn({ active, tone, onClick, children }: { active: boolean; tone: "primary" | "amber" | "slate"; onClick: () => void; children: React.ReactNode }) {
+  const on =
+    tone === "primary" ? "bg-primary text-white border-primary"
+    : tone === "amber" ? "bg-amber-500 text-white border-amber-500"
+    : "bg-slate-500 text-white border-slate-500";
   return (
     <button type="button" onClick={onClick}
       className={`rounded-md border px-2.5 py-1 text-[12px] font-bold transition-colors ${active ? on : "border-border bg-background text-muted-foreground hover:bg-muted"}`}>
