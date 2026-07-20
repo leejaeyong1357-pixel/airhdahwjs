@@ -130,10 +130,10 @@ function AdminRankings() {
 /** HTML 표 기반 .xls 다운로드 — 순위·이름·팀·직급·총점만. (라이브러리 불필요, 한글 정상) */
 function exportExcel(rows: any[]) {
   const esc = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const header = ["순위", "이름", "팀", "직급", "총점"];
+  const header = ["순위", "이름", "팀", "직급", "작품", "총점"];
   const body = rows
     .map((r) =>
-      `<tr><td>${r.rank}</td><td>${esc(r.author?.name)}</td><td>${esc(r.author?.team)}</td><td>${esc(r.author?.position)}</td><td>${r.final}</td></tr>`,
+      `<tr><td>${r.rank}</td><td>${esc(r.author?.name)}</td><td>${esc(r.author?.team)}</td><td>${esc(r.author?.position)}</td><td>${esc(r.title)}</td><td>${r.final}</td></tr>`,
     )
     .join("");
   const html =
