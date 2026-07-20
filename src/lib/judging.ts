@@ -1,9 +1,9 @@
 // 심사(평가) 기간 — 클라이언트/서버 공용 (외부 의존 없음).
 // 평가 가능: 2026-07-16(목) 06:00 ~ 2026-07-20(월) 11:00 (한국 시간, KST)
 
-export const JUDGING_START_LABEL = "2026. 7. 16 (목) 오전 6시";
-export const JUDGING_END_LABEL = "2026. 7. 20 (월) 오전 11시";
-export const JUDGING_PERIOD_LABEL = `${JUDGING_START_LABEL} ~ ${JUDGING_END_LABEL}`;
+export const JUDGING_START_LABEL = "상시";
+export const JUDGING_END_LABEL = "상시";
+export const JUDGING_PERIOD_LABEL = "상시 평가 가능 (기간 제한 없음)";
 
 // 배점 안내
 export const SCORE_RULE_LABEL =
@@ -16,8 +16,8 @@ export const JUDGING_START_UTC_MS = Date.UTC(2026, 6, 16, 6, 0) - KST_OFFSET_MS;
 export const JUDGING_END_UTC_MS = Date.UTC(2026, 6, 20, 11, 0) - KST_OFFSET_MS;  // 7/20 11:00 KST
 
 export function isJudgingOpen(): boolean {
-  const now = Date.now();
-  return now >= JUDGING_START_UTC_MS && now < JUDGING_END_UTC_MS;
+  // 평가 기간 제한 없음 — 상시 평가 가능.
+  return true;
 }
 
 // 최종 점수 계산 — 심사 raw(0-100) × 0.8 + 좋아요(1개당 1점, 최대 20)

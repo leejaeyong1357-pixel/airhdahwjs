@@ -7,8 +7,6 @@ import { dirname, join } from "node:path";
 
 import { getRequest } from "@tanstack/react-start/server";
 
-import { JUDGING_START_UTC_MS } from "@/lib/judging";
-
 export type StoreUser = {
   name: string;
   empNo: string;
@@ -62,14 +60,7 @@ export function readStore(): Store {
   if (!migratedOnce) {
     migratedOnce = true;
     let dirty = false;
-    // 1) 평가 기간 시작 전(=테스트/오류)에 만들어진 평가는 자동 정리한다.
-    //    서버가 기간 외 평가를 막으므로, 기간 시작 이전 평가는 정상 데이터일 수 없다.
-    const before = store.evaluations.length;
-    store.evaluations = store.evaluations.filter(
-      (e) => new Date(e.created_at).getTime() >= JUDGING_START_UTC_MS,
-    );
-    if (store.evaluations.length !== before) dirty = true;
-    // 2) 예전에 자동으로 넣었던 밴 시드를 1회만 비운다. 이후 관리자 밴은 그대로 유지.
+    // 예전에 자동으로 넣었던 밴 시드를 1회만 비운다. 이후 관리자 밴은 그대로 유지.
     if (!store.banSeedCleared) {
       store.bannedFromJudges = [];
       store.banSeedCleared = true;
