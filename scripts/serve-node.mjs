@@ -25,7 +25,7 @@ const handler = (await import("../dist/server/server.js")).default;
 const clientDir = join(rootDir, "dist", "client");
 // public/ 은 런타임 폴백 — 관리자 [사진 관리] 업로드(public/uploads)가 재빌드 없이 반영된다
 const publicDir = join(rootDir, "public");
-const port = Number(process.env.PORT ?? 2222);
+const port = Number(process.env.PORT ?? 7262);
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
