@@ -65,7 +65,43 @@ function makeSeed(): LiveStore {
     tech: "관리자 화면에서 기술 구현 내용을 입력하세요.",
     content: "관리자 화면에서 작품 설명을 입력하세요.",
   }));
+  importLegacyWorks(works); // 기존 사이트(data/db.json)에 작품이 있으면 자동으로 내용 채움
   return { works, stars: [], live: { workId: null, phase: "idle" } };
+}
+
+/**
+ * 기존 사내망 사이트의 data/db.json 에서 9명(사번 일치)의 작품 내용을 긁어온다.
+ * 제목·기술구현·설명·썸네일을 채운다. (data/db.json 은 gitignore 라 브랜치 전환 후에도 남아있음)
+ * 썸네일 이미지는 public/media/thumbnails 에 그대로 있으므로 /media/... 경로로 서빙된다.
+ */
+export function importLegacyWorks(works: LiveWork[]): number {
+  let matched = 0;
+  try {
+    const raw = readFileSync(join(process.cwd(), "data", "db.json"), "utf8");
+    const legacy = JSON.parse(raw) as { submissions?: any[] };
+    const byUser = new Map<string, any>();
+    for (const s of legacy.submissions ?? []) byUser.set(String(s.user_id), s);
+    for (const w of works) {
+      const s = byUser.get(w.empNo);
+      if (!s) continue;
+      matched++;
+      if (s.title) w.title = s.title;
+      const tech = [
+        s.features ? `[주요 기능]\n${s.features}` : "",
+        s.tech_stack ? `[사용 AI · 기술 · 스택]\n${s.tech_stack}` : "",
+      ].filter(Boolean).join("\n\n");
+      const content = [
+        s.description ?? "",
+        s.expected_impact ? `[기대 효과]\n${s.expected_impact}` : "",
+      ].filter(Boolean).join("\n\n");
+      if (tech) w.tech = tech;
+      if (content) w.content = content;
+      if (s.thumbnail_url) w.thumbnail = `/media/thumbnails/${s.thumbnail_url}`;
+    }
+  } catch {
+    /* 기존 데이터 없으면 무시 (자리표시자 유지) */
+  }
+  return matched;
 }
 
 function storePath() {

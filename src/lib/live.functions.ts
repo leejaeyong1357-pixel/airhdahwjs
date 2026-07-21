@@ -163,6 +163,17 @@ export const adminUpdateWork = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** 기존 사이트(data/db.json)에서 9명 작품 내용을 다시 긁어온다. */
+export const adminImportLegacy = createServerFn({ method: "POST" })
+  .handler(async () => {
+    const { readLive, writeLive, requireAdmin, importLegacyWorks } = await import("@/lib/live-store.server");
+    requireAdmin();
+    const store = readLive();
+    const matched = importLegacyWorks(store.works);
+    writeLive(store);
+    return { ok: true, matched };
+  });
+
 /** 별점 전체 초기화 (1차 점수·작품은 유지) */
 export const adminResetStars = createServerFn({ method: "POST" })
   .handler(async () => {

@@ -3,12 +3,12 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  adminGetLiveBoard, adminSetPhase, adminReorder, adminUpdateWork, adminResetStars,
+  adminGetLiveBoard, adminSetPhase, adminReorder, adminUpdateWork, adminResetStars, adminImportLegacy,
 } from "@/lib/live.functions";
 import { getLocalUser } from "@/integrations/supabase/demo";
 import { toast } from "sonner";
 import {
-  Megaphone, Play, Square, ChevronUp, ChevronDown, Pencil, Trophy, Medal, RotateCcw, Radio, Check, Star,
+  Megaphone, Play, Square, ChevronUp, ChevronDown, Pencil, Trophy, Medal, RotateCcw, Radio, Check, Star, DownloadCloud,
 } from "lucide-react";
 
 export const Route = createFileRoute("/control")({ component: Control });
@@ -40,6 +40,12 @@ function Control() {
   const resetMut = useMutation({
     mutationFn: () => resetFn(),
     onSuccess: () => { toast.success("별점을 초기화했습니다."); invalidate(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const importFn = useServerFn(adminImportLegacy);
+  const importMut = useMutation({
+    mutationFn: () => importFn(),
+    onSuccess: (r: any) => { toast.success(`기존 사이트에서 ${r.matched}개 작품 내용을 불러왔습니다.`); invalidate(); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -84,7 +90,17 @@ function Control() {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* 발표 진행 제어 */}
         <section>
-          <h2 className="mb-3 text-lg font-black tracking-tight">발표 진행 · 순서</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-black tracking-tight">발표 진행 · 순서</h2>
+            <button
+              onClick={() => importMut.mutate()}
+              disabled={importMut.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] font-bold text-foreground hover:bg-muted disabled:opacity-60"
+              title="기존 사이트의 data/db.json 에서 9명 작품 내용을 불러옵니다"
+            >
+              <DownloadCloud className="h-3.5 w-3.5" /> 기존 작품 불러오기
+            </button>
+          </div>
           <div className="space-y-2">
             {works.map((w: any, i: number) => {
               const isCur = live.workId === w.id;
