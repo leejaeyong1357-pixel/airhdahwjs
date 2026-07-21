@@ -3,12 +3,12 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  adminGetLiveBoard, adminSetPhase, adminReorder, adminUpdateWork, adminResetLiveEvals,
+  adminGetLiveBoard, adminSetPhase, adminReorder, adminUpdateWork, adminResetStars,
 } from "@/lib/live.functions";
 import { getLocalUser } from "@/integrations/supabase/demo";
 import { toast } from "sonner";
 import {
-  Megaphone, Play, Square, ChevronUp, ChevronDown, Pencil, Trophy, Medal, RotateCcw, Radio, Check,
+  Megaphone, Play, Square, ChevronUp, ChevronDown, Pencil, Trophy, Medal, RotateCcw, Radio, Check, Star,
 } from "lucide-react";
 
 export const Route = createFileRoute("/control")({ component: Control });
@@ -24,7 +24,7 @@ function Control() {
   const phaseFn = useServerFn(adminSetPhase);
   const reorderFn = useServerFn(adminReorder);
   const updateFn = useServerFn(adminUpdateWork);
-  const resetFn = useServerFn(adminResetLiveEvals);
+  const resetFn = useServerFn(adminResetStars);
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["liveBoard"], queryFn: () => boardFn(), refetchInterval: 1500 });
   const invalidate = () => qc.invalidateQueries({ queryKey: ["liveBoard"] });
@@ -39,7 +39,7 @@ function Control() {
   });
   const resetMut = useMutation({
     mutationFn: () => resetFn(),
-    onSuccess: () => { toast.success("현장 발표평가를 초기화했습니다."); invalidate(); },
+    onSuccess: () => { toast.success("별점을 초기화했습니다."); invalidate(); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -98,7 +98,7 @@ function Control() {
                     <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted text-sm font-black">{w.order}</div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-bold text-foreground">{w.name} <span className="text-xs font-normal text-muted-foreground">{w.team}</span></div>
-                      <div className="truncate text-xs text-muted-foreground">{w.title} · 1차 {w.base} · 발표평가 {w.liveCount}명</div>
+                      <div className="truncate text-xs text-muted-foreground">{w.title} · 1차 {w.base} · ⭐ {w.starCount}개</div>
                     </div>
                     <button onClick={() => setEditId(editId === w.id ? null : w.id)} className="rounded-lg border border-border p-1.5 text-muted-foreground hover:bg-muted"><Pencil className="h-3.5 w-3.5" /></button>
                   </div>
@@ -122,10 +122,10 @@ function Control() {
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-black tracking-tight">실시간 순위</h2>
             <button
-              onClick={() => { if (confirm("현장 발표평가를 전부 초기화할까요? (1차 점수·작품은 유지)")) resetMut.mutate(); }}
+              onClick={() => { if (confirm("별점을 전부 초기화할까요? (1차 점수·작품은 유지)")) resetMut.mutate(); }}
               className="inline-flex items-center gap-1 text-[12px] font-semibold text-muted-foreground hover:text-destructive"
             >
-              <RotateCcw className="h-3 w-3" /> 발표평가 초기화
+              <RotateCcw className="h-3 w-3" /> 별점 초기화
             </button>
           </div>
           <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -133,8 +133,8 @@ function Control() {
               <thead className="bg-muted/60 text-xs">
                 <tr>
                   <Th className="w-12">순위</Th><Th>발표자</Th>
-                  <Th className="text-right">1차<span className="text-muted-foreground">70%</span></Th>
-                  <Th className="text-right">발표<span className="text-muted-foreground">30%</span></Th>
+                  <Th className="text-right">1차</Th>
+                  <Th className="text-right">별점</Th>
                   <Th className="text-right">총점</Th>
                 </tr>
               </thead>
@@ -154,7 +154,10 @@ function Control() {
                       <div className="text-xs text-muted-foreground">{r.team}</div>
                     </Td>
                     <Td className="text-right tabular-nums text-muted-foreground">{r.base}</Td>
-                    <Td className="text-right tabular-nums">{r.liveAvg} <span className="text-[11px] text-muted-foreground">({r.liveCount})</span></Td>
+                    <Td className="text-right tabular-nums">
+                      <span className="inline-flex items-center gap-0.5 font-bold text-amber-500"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />{r.starCount}</span>
+                      <span className="ml-1 text-[11px] text-muted-foreground">+{r.starPoints}</span>
+                    </Td>
                     <Td className="text-right"><span className="text-lg font-black text-primary tabular-nums">{r.total}</span></Td>
                   </tr>
                 ))}
@@ -162,7 +165,7 @@ function Control() {
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-[12px] text-muted-foreground">최종 = 1차 점수 × 70% + 현장 발표평가 평균 × 30% · 1.5초마다 자동 갱신</p>
+          <p className="mt-2 text-[12px] text-muted-foreground">최종 = 1차 점수 + (별 개수 × 0.316) · 평가자당 최대 5개 · 1.5초마다 자동 갱신</p>
         </section>
       </div>
     </div>

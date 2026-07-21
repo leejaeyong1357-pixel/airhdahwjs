@@ -20,20 +20,16 @@ export type LiveWork = {
   base: number;      // 1차 사전 점수 (0-100, 최종의 70%)
 };
 
-export type LiveEval = {
+export type Star = {
   workId: string;
   judgeEmpNo: string;
   judgeName: string;
   judgeTeam: string;
-  presentation: number; // 발표 0-20
-  innovation: number;   // 혁신성 0-40
-  completeness: number; // 완성도 0-20
-  utilization: number;  // 활용도 0-20
-  updatedAt: string;
+  createdAt: string;
 };
 
 export type LiveState = { workId: string | null; phase: Phase };
-export type LiveStore = { works: LiveWork[]; evaluations: LiveEval[]; live: LiveState };
+export type LiveStore = { works: LiveWork[]; stars: Star[]; live: LiveState };
 
 // ── 로그인 규칙 ──────────────────────────────────────────────
 export const ADMIN_EMP_NO = "82211489";
@@ -42,10 +38,10 @@ export const ADMIN_PASSWORD = "Dlwodyd1357!";
 export const JUDGE_POSITIONS = ["대표이사", "상무", "실장", "팀장"];
 
 // ── 배점 ────────────────────────────────────────────────────
-// 최종 = 1차(사전) 70% + 현장 발표평가 30%
-// 현장 발표평가(0-100) = 발표20 + 혁신성40 + 완성도20 + 활용도20
-export const WEIGHT_BASE = 0.7;
-export const WEIGHT_LIVE = 0.3;
+// 최종 = 1차(사전) 점수 + 현장 별점 보너스
+// 평가자당 마음에 드는 작품 최대 5개에 별 1개씩. 별 1개 = 0.316점.
+export const STAR_POINT = 0.316;
+export const MAX_STARS = 5;
 
 // ── 9명 시드 (1차 점수 포함, 내용은 관리자에서 수정) ─────────────
 const SEED: Omit<LiveWork, "id" | "order">[] = [
@@ -69,7 +65,7 @@ function makeSeed(): LiveStore {
     tech: "관리자 화면에서 기술 구현 내용을 입력하세요.",
     content: "관리자 화면에서 작품 설명을 입력하세요.",
   }));
-  return { works, evaluations: [], live: { workId: null, phase: "idle" } };
+  return { works, stars: [], live: { workId: null, phase: "idle" } };
 }
 
 function storePath() {
@@ -85,7 +81,7 @@ export function readLive(): LiveStore {
       writeLive(seeded);
       return seeded;
     }
-    return { works: parsed.works, evaluations: parsed.evaluations ?? [], live: parsed.live ?? { workId: null, phase: "idle" } };
+    return { works: parsed.works, stars: parsed.stars ?? [], live: parsed.live ?? { workId: null, phase: "idle" } };
   } catch {
     const seeded = makeSeed();
     writeLive(seeded);
