@@ -34,13 +34,17 @@ export type Store = {
   selection?: { selected: string[]; reserve: string[]; excluded?: string[] };
   /** 추가 평가 담당 지정 — 평가자 사번 → 담당(추가) 작품 id 목록 (실 범위 밖도 평가 가능) */
   evalAssignments?: Record<string, string[]>;
+  /** AI 협의체 혁신과제 선정 — 위원 사번 + 작품 + 선정 이유 */
+  councilPicks?: { empNo: string; submissionId: string; reason: string; createdAt: string; updatedAt: string }[];
+  /** AI 협의체 정체성 — 위원 사번 → 협의체명·미션·슬로건·바램 */
+  councilIdentity?: Record<string, { councilName: string; mission: string; slogan: string; hope: string; updatedAt: string }>;
 };
 
 // 기본 밴 없음 — 숨김은 관리자 화면에서 직접 지정한다.
 const EMPTY: Store = {
   submissions: [], likes: [], comments: [], evaluations: [], teams: [],
   passwords: {}, consents: {}, bannedFromJudges: [], selection: { selected: [], reserve: [], excluded: [] },
-  evalAssignments: {},
+  evalAssignments: {}, councilPicks: [], councilIdentity: {},
 };
 
 function storePath() {

@@ -15,6 +15,8 @@ import { ChevronDown, LogOut, Upload, Gavel, Shield, User as UserIcon, Clipboard
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { openPrizePopup } from "@/components/PrizePopup";
 import { openContestGuide } from "@/components/ContestGuideModal";
+import { isCouncil } from "@/lib/council";
+import { Lightbulb } from "lucide-react";
 
 interface Me {
   profile: { name: string; team?: string | null; position?: string | null; employee_no: string } | null;
@@ -132,6 +134,15 @@ export function Header() {
               </Link>
             )}
           </nav>
+
+          {me?.profile && isCouncil(me.profile.employee_no) && (
+            <Link
+              to="/council"
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-primary to-accent px-4 py-2 text-sm font-black text-white shadow-sm transition hover:brightness-110"
+            >
+              <Lightbulb className="h-4 w-4" /> 혁신과제 선정
+            </Link>
+          )}
 
           {!ready ? null : me?.profile ? (
             <DropdownMenu>
