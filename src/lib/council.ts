@@ -21,3 +21,10 @@ export function councilMember(empNo?: string): CouncilMember | null {
 export function isCouncil(empNo?: string): boolean {
   return !!councilMember(empNo);
 }
+
+// 혁신과제 선정 '결과'만 열람 가능한 사번 (관리자 아님, 선정도 안 함 — 결과 확인 전용)
+//   82210350 김충환
+export const COUNCIL_RESULT_VIEWERS = ["82210350"];
+export function isCouncilResultViewer(empNo?: string): boolean {
+  return !!empNo && COUNCIL_RESULT_VIEWERS.includes(empNo);
+}

@@ -15,7 +15,7 @@ import { ChevronDown, LogOut, Upload, Gavel, Shield, User as UserIcon, Clipboard
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { openPrizePopup } from "@/components/PrizePopup";
 import { openContestGuide } from "@/components/ContestGuideModal";
-import { isCouncil } from "@/lib/council";
+import { isCouncil, isCouncilResultViewer } from "@/lib/council";
 import { Lightbulb } from "lucide-react";
 
 interface Me {
@@ -174,6 +174,11 @@ export function Header() {
                 {me.role === "admin" && (
                   <DropdownMenuItem onClick={() => navigate({ to: "/admin" })}>
                     <Shield className="mr-2 h-4 w-4" /> 관리자
+                  </DropdownMenuItem>
+                )}
+                {me.profile && isCouncilResultViewer(me.profile.employee_no) && (
+                  <DropdownMenuItem onClick={() => navigate({ to: "/council-results" })}>
+                    <Lightbulb className="mr-2 h-4 w-4" /> 핵심과제 확인하기
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />

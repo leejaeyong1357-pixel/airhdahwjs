@@ -116,6 +116,37 @@ export const saveCouncilIdentity = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** 혁신과제 선정 결과 열람 (관리자 또는 지정 열람자 — 김충환). 선정 내역만. */
+export const getCouncilResults = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { readStore, requireUser, loadRoster, liveProfile, mediaUrl } = await import("@/lib/local-store.server");
+    const { isCouncilResultViewer } = await import("@/lib/council");
+    const user = requireUser();
+    const roster = await loadRoster();
+    const me = roster.get(user.empNo);
+    const isAdmin = !!me?.roles.includes("admin");
+    if (!isAdmin && !isCouncilResultViewer(user.empNo)) throw new Error("열람 권한이 없습니다.");
+    const store = readStore();
+    const subMap = new Map(store.submissions.map((s) => [s.id, s]));
+    const nameOf = (empNo: string) => liveProfile(roster, empNo, undefined).name || empNo;
+    const picks = (store.councilPicks ?? [])
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      .map((p) => {
+        const s = subMap.get(p.submissionId);
+        const author = s ? liveProfile(roster, s.user_id, s.profiles) : null;
+        return {
+          councilName: nameOf(p.empNo),
+          submissionTitle: s?.title ?? "(삭제된 작품)",
+          thumbnailUrl: s ? mediaUrl("thumbnails", s.thumbnail_url) : "",
+          authorName: author?.name ?? "",
+          authorTeam: author?.team ?? "",
+          reason: p.reason,
+          createdAt: p.createdAt,
+        };
+      });
+    return { picks };
+  });
+
 /** 관리자: 누가·무엇을·왜 선정했는지 + 협의체 정체성 전체 */
 export const adminGetCouncil = createServerFn({ method: "GET" })
   .handler(async () => {
