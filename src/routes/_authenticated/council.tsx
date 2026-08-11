@@ -7,7 +7,8 @@ import {
 } from "@/lib/council.functions";
 import { getLocalUser } from "@/integrations/supabase/demo";
 import { isCouncil, COUNCIL_MAX_PICKS } from "@/lib/council";
-import { AlertCircle, Star, Heart, ChevronDown, Sparkles, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Star, Heart, Sparkles, CheckCircle2, Maximize2 } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/council")({ component: CouncilPage });
@@ -31,7 +32,7 @@ function CouncilPage() {
   const pickedCount = data?.pickedCount ?? 0;
 
   const [reasons, setReasons] = useState<Record<string, string>>({});
-  const [open, setOpen] = useState<string | null>(null);
+  const [modalWork, setModalWork] = useState<any | null>(null);
   useEffect(() => {
     // 서버의 기존 선정 이유를 로컬 편집 상태에 반영
     const init: Record<string, string> = {};
@@ -79,39 +80,34 @@ function CouncilPage() {
 
       {/* 작품 목록 */}
       <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-        {works.map((w: any) => {
-          const expanded = open === w.id;
+        {works.map((w: any, idx: number) => {
           const reason = reasons[w.id] ?? "";
           return (
             <div key={w.id} className={`overflow-hidden rounded-2xl border bg-card ${w.picked ? "border-amber-400 ring-2 ring-amber-300/60" : "border-border"}`}>
-              <div className="flex gap-4 p-4">
-                <div className="aspect-video w-40 shrink-0 overflow-hidden rounded-xl bg-muted">
+              {/* 큰 썸네일 (클릭하면 팝업으로 더 크게) */}
+              <button onClick={() => setModalWork(w)} className="group relative block w-full overflow-hidden bg-muted">
+                <div className="aspect-video w-full overflow-hidden">
                   {w.thumbnailUrl
-                    ? <img src={w.thumbnailUrl} alt={w.title} className="h-full w-full object-cover" />
-                    : <div className="grid h-full w-full place-items-center bg-hyundai-gradient text-[11px] text-white/70">No image</div>}
+                    ? <img src={w.thumbnailUrl} alt={w.title} className="h-full w-full object-cover transition group-hover:scale-[1.03]" />
+                    : <div className="grid h-full w-full place-items-center bg-hyundai-gradient text-sm text-white/70">이미지 없음</div>}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[16px] font-black leading-snug text-foreground">{w.title}</div>
-                  <div className="mt-1 text-[13px] text-muted-foreground">{w.author.team} · {w.author.name} {w.author.position}</div>
-                  <div className="mt-1.5 inline-flex items-center gap-1 text-[12px] text-muted-foreground">
-                    <Heart className="h-3 w-3 fill-rose-500 text-rose-500" /> {w.likeCount}
-                  </div>
-                  <button onClick={() => setOpen(expanded ? null : w.id)} className="mt-1 block text-[12px] font-semibold text-primary">
-                    {expanded ? "설명 접기 ▴" : "작품 설명 보기 ▾"}
-                  </button>
+                <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur">
+                  <Maximize2 className="h-3 w-3" /> 크게 보기
+                </span>
+                {idx < 3 && (
+                  <span className="absolute left-2 top-2 rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-black text-white">인기 {idx + 1}위</span>
+                )}
+              </button>
+              <div className="px-4 pt-3">
+                <div className="text-[16px] font-black leading-snug text-foreground">{w.title}</div>
+                <div className="mt-1 text-[13px] text-muted-foreground">{w.author.team} · {w.author.name} {w.author.position}</div>
+                <div className="mt-1.5 flex items-center gap-3 text-[12px] text-muted-foreground">
+                  <span className="inline-flex items-center gap-1"><Heart className="h-3.5 w-3.5 fill-rose-500 text-rose-500" /> {w.likeCount}</span>
+                  <button onClick={() => setModalWork(w)} className="font-semibold text-primary">작품 설명 · 썸네일 크게 보기</button>
                 </div>
               </div>
 
-              {expanded && (
-                <div className="space-y-3 border-t border-border bg-muted/20 px-4 py-3">
-                  <Detail label="주요 기능">{w.features}</Detail>
-                  <Detail label="작품 설명">{w.description}</Detail>
-                  <Detail label="사용 AI · 기술 · 스택">{w.techStack}</Detail>
-                  <Detail label="기대 효과">{w.expectedImpact}</Detail>
-                </div>
-              )}
-
-              <div className="border-t border-border p-4">
+              <div className="mt-3 border-t border-border p-4">
                 {w.picked ? (
                   <div className="space-y-2">
                     <label className="block text-[13px] font-bold text-foreground">선정 이유</label>
@@ -162,6 +158,34 @@ function CouncilPage() {
 
       {/* AI 협의체 정체성 */}
       <IdentitySection identity={identity} onSave={(v) => saveIdFn({ data: v }).then(() => { toast.success("저장되었습니다."); qc.invalidateQueries({ queryKey: ["council", "identity"] }); }).catch((e) => toast.error(e.message))} />
+
+      {/* 작품 상세 팝업 — 썸네일 크게 + 전체 설명 */}
+      <Dialog open={!!modalWork} onOpenChange={(o) => !o && setModalWork(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+          {modalWork && (
+            <div>
+              <div className="w-full overflow-hidden rounded-t-lg bg-black">
+                {modalWork.thumbnailUrl
+                  ? <img src={modalWork.thumbnailUrl} alt={modalWork.title} className="max-h-[60vh] w-full object-contain" />
+                  : <div className="grid aspect-video w-full place-items-center bg-hyundai-gradient text-white/70">이미지 없음</div>}
+              </div>
+              <div className="p-6">
+                <h3 className="text-2xl font-black tracking-tight text-foreground">{modalWork.title}</h3>
+                <div className="mt-1 flex flex-wrap items-center gap-3 text-[14px] text-muted-foreground">
+                  <span>{modalWork.author.team} · {modalWork.author.name} {modalWork.author.position}</span>
+                  <span className="inline-flex items-center gap-1"><Heart className="h-4 w-4 fill-rose-500 text-rose-500" /> {modalWork.likeCount}</span>
+                </div>
+                <div className="mt-5 space-y-4">
+                  <Detail label="주요 기능">{modalWork.features}</Detail>
+                  <Detail label="작품 설명">{modalWork.description}</Detail>
+                  <Detail label="사용 AI · 기술 · 스택">{modalWork.techStack}</Detail>
+                  <Detail label="기대 효과">{modalWork.expectedImpact}</Detail>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

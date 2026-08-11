@@ -20,9 +20,10 @@ export const listCouncilWorks = createServerFn({ method: "GET" })
     const reasonMap = new Map(myPicks.map((p) => [p.submissionId, p.reason]));
     const teams = new Set(member.teams);
     const works = store.submissions
-      .map((s) => ({ s, author: liveProfile(roster, s.user_id, s.profiles) }))
+      .map((s) => ({ s, author: liveProfile(roster, s.user_id, s.profiles), likes: likeCounts.get(s.id) ?? 0 }))
       .filter(({ author }) => teams.has(normalizeTeam(author.team)))
-      .sort((a, b) => (a.author.team + a.s.title).localeCompare(b.author.team + b.s.title, "ko"))
+      // 좋아요 많은 순 (동점은 최신순)
+      .sort((a, b) => b.likes - a.likes || (a.s.created_at < b.s.created_at ? 1 : -1))
       .map(({ s, author }) => ({
         id: s.id,
         title: s.title,
