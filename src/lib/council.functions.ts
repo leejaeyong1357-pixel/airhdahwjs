@@ -150,23 +150,28 @@ export const getCouncilResults = createServerFn({ method: "GET" })
 /** 관리자: 누가·무엇을·왜 선정했는지 + 협의체 정체성 전체 */
 export const adminGetCouncil = createServerFn({ method: "GET" })
   .handler(async () => {
-    const { readStore, requireAdmin, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { readStore, requireAdmin, loadRoster, liveProfile, mediaUrl } = await import("@/lib/local-store.server");
     const { COUNCIL } = await import("@/lib/council");
     await requireAdmin();
     const store = readStore();
     const roster = await loadRoster();
-    const titleMap = new Map(store.submissions.map((s) => [s.id, s.title]));
-    const authorMap = new Map(store.submissions.map((s) => [s.id, liveProfile(roster, s.user_id, s.profiles)]));
+    const subMap = new Map(store.submissions.map((s) => [s.id, s]));
     const nameOf = (empNo: string) => liveProfile(roster, empNo, undefined).name || empNo;
 
     const picks = (store.councilPicks ?? [])
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
       .map((p) => {
-        const author = authorMap.get(p.submissionId);
+        const s = subMap.get(p.submissionId);
+        const author = s ? liveProfile(roster, s.user_id, s.profiles) : null;
         return {
           councilName: nameOf(p.empNo),
           councilEmpNo: p.empNo,
-          submissionTitle: titleMap.get(p.submissionId) ?? "(삭제된 작품)",
+          submissionTitle: s?.title ?? "(삭제된 작품)",
+          thumbnailUrl: s ? mediaUrl("thumbnails", s.thumbnail_url) : "",
+          features: s?.features ?? "",
+          description: s?.description ?? "",
+          techStack: s?.tech_stack ?? "",
+          expectedImpact: s?.expected_impact ?? "",
           authorName: author?.name ?? "",
           authorTeam: author?.team ?? "",
           reason: p.reason,
