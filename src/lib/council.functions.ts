@@ -126,6 +126,7 @@ export const getCouncilResults = createServerFn({ method: "GET" })
     const me = roster.get(user.empNo);
     const isAdmin = !!me?.roles.includes("admin");
     if (!isAdmin && !isCouncilResultViewer(user.empNo)) throw new Error("열람 권한이 없습니다.");
+    const { COUNCIL } = await import("@/lib/council");
     const store = readStore();
     const subMap = new Map(store.submissions.map((s) => [s.id, s]));
     const nameOf = (empNo: string) => liveProfile(roster, empNo, undefined).name || empNo;
@@ -135,16 +136,27 @@ export const getCouncilResults = createServerFn({ method: "GET" })
         const s = subMap.get(p.submissionId);
         const author = s ? liveProfile(roster, s.user_id, s.profiles) : null;
         return {
+          councilEmpNo: p.empNo,
           councilName: nameOf(p.empNo),
           submissionTitle: s?.title ?? "(삭제된 작품)",
           thumbnailUrl: s ? mediaUrl("thumbnails", s.thumbnail_url) : "",
+          features: s?.features ?? "",
+          description: s?.description ?? "",
+          techStack: s?.tech_stack ?? "",
+          expectedImpact: s?.expected_impact ?? "",
           authorName: author?.name ?? "",
           authorTeam: author?.team ?? "",
           reason: p.reason,
           createdAt: p.createdAt,
         };
       });
-    return { picks };
+    const identity = store.councilIdentity ?? {};
+    const members = COUNCIL.map((m) => ({
+      empNo: m.empNo, name: m.name, scope: m.scope,
+      pickCount: (store.councilPicks ?? []).filter((p) => p.empNo === m.empNo).length,
+      ...(identity[m.empNo] ?? { councilName: "", mission: "", slogan: "", hope: "" }),
+    }));
+    return { picks, members };
   });
 
 /** 관리자: 누가·무엇을·왜 선정했는지 + 협의체 정체성 전체 */
