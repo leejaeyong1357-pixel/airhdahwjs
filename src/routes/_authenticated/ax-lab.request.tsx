@@ -18,8 +18,9 @@ export const Route = createFileRoute("/_authenticated/ax-lab/request")({ compone
 
 const STAGE_LABEL: Record<number, { label: string; tone: string }> = {
   1: { label: "1단계 · 제외·보류", tone: "bg-muted text-muted-foreground" },
-  2: { label: "2단계 · 고도화 대상", tone: "bg-amber-400/15 text-amber-600" },
-  3: { label: "3단계 · 즉시 적용", tone: "bg-emerald-500/15 text-emerald-600" },
+  2: { label: "2단계 · 보완 대상", tone: "bg-amber-400/15 text-amber-600" },
+  3: { label: "3단계 · 고도화 대상", tone: "bg-sky-500/15 text-sky-600" },
+  4: { label: "4단계 · 적용중", tone: "bg-emerald-500/15 text-emerald-600" },
 };
 
 const IMPROVEMENT_TYPES = ["기능 보완", "업무 프로세스 연결", "사용성 개선", "보안 검토"];
@@ -261,7 +262,7 @@ function AxRequestWizard() {
                   <ul className="mt-2 space-y-1.5 text-[13.5px] text-foreground/85">
                     <li className="flex items-start gap-1.5"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> 아이디어 단계의 작품도 신청할 수 있습니다.</li>
                     <li className="flex items-start gap-1.5"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> 신청 후 AX협의체가 고도화 방향을 함께 검토합니다.</li>
-                    <li className="flex items-start gap-1.5"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> 3단계 작품도 보안검증과 최종 승인을 거쳐 등록됩니다.</li>
+                    <li className="flex items-start gap-1.5"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> 고도화 대상(3단계) 작품도 보안검증과 최종 승인을 거쳐 등록됩니다.</li>
                   </ul>
                 </div>
               </>

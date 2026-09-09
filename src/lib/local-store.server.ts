@@ -38,8 +38,8 @@ export type Store = {
   councilPicks?: { empNo: string; submissionId: string; reason: string; createdAt: string; updatedAt: string }[];
   /** AI 협의체 정체성 — 위원 사번 → 협의체명·미션·슬로건·바램 */
   councilIdentity?: Record<string, { councilName: string; mission: string; slogan: string; hope: string; updatedAt: string }>;
-  /** AX LAB — 경진대회 작품(및 신규 등록작)의 1/2/3단계 분류. key = 작품 id */
-  axStage?: Record<string, 1 | 2 | 3>;
+  /** AX LAB — 경진대회 작품(및 신규 등록작)의 1/2/3/4단계 분류. key = 작품 id */
+  axStage?: Record<string, 1 | 2 | 3 | 4>;
   /** AX LAB — 실별 고도화 목표 건수. key = 실 이름(직속 포함) */
   axGoals?: Record<string, number>;
   /** AX LAB — 경진대회 이후 새로 등록한 아이디어(1인당 여러 개 가능) */

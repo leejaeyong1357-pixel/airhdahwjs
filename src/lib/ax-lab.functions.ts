@@ -5,7 +5,7 @@ import { z } from "zod";
 // 구성원이 직접 고도화를 신청 → AX협의체 검토 → 보안검증 → 승인 → SaaS 등록까지
 // 이어지는 파이프라인. 저장은 기존 data/db.json (local-store.server.ts) 그대로 사용.
 
-const STAGE = z.union([z.literal(1), z.literal(2), z.literal(3)]);
+const STAGE = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]);
 const STATUS = z.enum(["requested", "reviewing", "security", "approved", "saas", "rejected"]);
 
 // ── 공용 헬퍼 ────────────────────────────────────────────────
@@ -47,7 +47,7 @@ export const axGetOverview = createServerFn({ method: "GET" })
     const stage = store.axStage ?? {};
     const requests = store.axRequests ?? [];
     const totalContestWorks = store.submissions.length;
-    const advancementTargetCount = Object.values(stage).filter((s) => s === 2).length;
+    const advancementTargetCount = Object.values(stage).filter((s) => s === 3).length;
     const requestedCount = requests.length;
     const saasApprovedCount = requests.filter((r) => r.status === "saas").length;
     return { totalContestWorks, advancementTargetCount, requestedCount, saasApprovedCount };
@@ -80,9 +80,10 @@ export const axGetOrgBoard = createServerFn({ method: "GET" })
         const c1 = contestInTeam.filter((s: any) => stage[s.id] === 1).length;
         const c2 = contestInTeam.filter((s: any) => stage[s.id] === 2).length;
         const c3 = contestInTeam.filter((s: any) => stage[s.id] === 3).length;
+        const c4 = contestInTeam.filter((s: any) => stage[s.id] === 4).length;
         const reqInTeam = requests.filter((r) => teamOfWork.get(r.workId) === team);
         const approvedInTeam = reqInTeam.filter((r) => r.status === "approved" || r.status === "saas").length;
-        return { team, total: contestInTeam.length, stage1: c1, stage2: c2, stage3: c3, requested: reqInTeam.length, approved: approvedInTeam };
+        return { team, total: contestInTeam.length, stage1: c1, stage2: c2, stage3: c3, stage4: c4, requested: reqInTeam.length, approved: approvedInTeam };
       });
       const contestInSil = store.submissions.filter((s: any) => silOfWork.get(s.id) === g.name);
       const reqInSil = requests.filter((r) => silOfWork.get(r.workId) === g.name);
@@ -93,6 +94,7 @@ export const axGetOrgBoard = createServerFn({ method: "GET" })
         stage1: contestInSil.filter((s: any) => stage[s.id] === 1).length,
         stage2: contestInSil.filter((s: any) => stage[s.id] === 2).length,
         stage3: contestInSil.filter((s: any) => stage[s.id] === 3).length,
+        stage4: contestInSil.filter((s: any) => stage[s.id] === 4).length,
         goal: goals[g.name] ?? 0,
         requested: reqInSil.length,
         approved: reqInSil.filter((r) => r.status === "approved" || r.status === "saas").length,
@@ -274,7 +276,7 @@ export const axAdminListWorks = createServerFn({ method: "GET" })
   });
 
 export const axAdminSetStage = createServerFn({ method: "POST" })
-  .inputValidator((d: { workId: string; stage: 1 | 2 | 3 | null }) =>
+  .inputValidator((d: { workId: string; stage: 1 | 2 | 3 | 4 | null }) =>
     z.object({ workId: z.string().min(1), stage: STAGE.nullable() }).parse(d),
   )
   .handler(async ({ data }) => {

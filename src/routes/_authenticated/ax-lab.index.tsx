@@ -14,8 +14,9 @@ export const Route = createFileRoute("/_authenticated/ax-lab/")({ component: AxL
 
 const STAGE_LABEL: Record<number, { label: string; tone: string }> = {
   1: { label: "1단계 · 제외·보류", tone: "bg-muted text-muted-foreground" },
-  2: { label: "2단계 · 고도화 대상", tone: "bg-amber-400/15 text-amber-600" },
-  3: { label: "3단계 · 즉시 적용", tone: "bg-emerald-500/15 text-emerald-600" },
+  2: { label: "2단계 · 보완 대상", tone: "bg-amber-400/15 text-amber-600" },
+  3: { label: "3단계 · 고도화 대상", tone: "bg-sky-500/15 text-sky-600" },
+  4: { label: "4단계 · 적용중", tone: "bg-emerald-500/15 text-emerald-600" },
 };
 const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   requested: { label: "신청 완료", tone: "bg-primary/10 text-primary" },
@@ -87,7 +88,7 @@ function AxLabPage() {
       {/* 상단 통계 */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard icon={Rocket} tone="slate" label="경진대회 작품" value={overview?.totalContestWorks ?? 0} />
-        <StatCard icon={Sparkles} tone="amber" label="고도화 대상 · 2단계" value={overview?.advancementTargetCount ?? 0} />
+        <StatCard icon={Sparkles} tone="amber" label="고도화 대상 · 3단계" value={overview?.advancementTargetCount ?? 0} />
         <StatCard icon={Send} tone="primary" label="고도화 신청" value={overview?.requestedCount ?? 0} />
         <StatCard icon={ShieldCheck} tone="emerald" label="SaaS 승인" value={overview?.saasApprovedCount ?? 0} />
       </div>
@@ -143,11 +144,11 @@ function AxLabPage() {
 
         <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
           {tab === "sil" ? (
-            <table className="w-full min-w-[820px] text-sm">
+            <table className="w-full min-w-[900px] text-sm">
               <thead className="bg-muted/50 text-xs">
                 <tr>
                   <Th></Th><Th>실</Th><Th className="text-right">전체 작품</Th>
-                  <Th className="text-right">1단계</Th><Th className="text-right">2단계</Th><Th className="text-right">3단계</Th>
+                  <Th className="text-right">1단계</Th><Th className="text-right">2단계</Th><Th className="text-right">3단계</Th><Th className="text-right">4단계</Th>
                   <Th className="text-right">고도화 목표</Th><Th className="text-right">신청</Th><Th className="text-right">승인</Th>
                   <Th className="w-[160px]">목표 대비 신청</Th>
                 </tr>
@@ -164,7 +165,8 @@ function AxLabPage() {
                         <Td className="text-right tabular-nums">{g.total}</Td>
                         <Td className="text-right tabular-nums text-muted-foreground">{g.stage1}</Td>
                         <Td className="text-right tabular-nums text-amber-600 font-semibold">{g.stage2}</Td>
-                        <Td className="text-right tabular-nums text-emerald-600 font-semibold">{g.stage3}</Td>
+                        <Td className="text-right tabular-nums text-sky-600 font-semibold">{g.stage3}</Td>
+                        <Td className="text-right tabular-nums text-emerald-600 font-semibold">{g.stage4}</Td>
                         <Td className="text-right tabular-nums">{g.goal}</Td>
                         <Td className="text-right tabular-nums font-bold text-primary">{g.requested}</Td>
                         <Td className="text-right tabular-nums font-bold text-emerald-600">{g.approved}</Td>
@@ -177,7 +179,8 @@ function AxLabPage() {
                           <Td className="text-right tabular-nums">{t.total}</Td>
                           <Td className="text-right tabular-nums text-muted-foreground">{t.stage1}</Td>
                           <Td className="text-right tabular-nums text-amber-600">{t.stage2}</Td>
-                          <Td className="text-right tabular-nums text-emerald-600">{t.stage3}</Td>
+                          <Td className="text-right tabular-nums text-sky-600">{t.stage3}</Td>
+                          <Td className="text-right tabular-nums text-emerald-600">{t.stage4}</Td>
                           <Td className="text-right text-muted-foreground">—</Td>
                           <Td className="text-right tabular-nums text-primary">{t.requested}</Td>
                           <Td className="text-right tabular-nums text-emerald-600">{t.approved}</Td>
@@ -187,15 +190,15 @@ function AxLabPage() {
                     </Fragment>
                   );
                 })}
-                {visibleSils.length === 0 && <tr><td colSpan={10} className="p-8 text-center text-sm text-muted-foreground">데이터가 없습니다.</td></tr>}
+                {visibleSils.length === 0 && <tr><td colSpan={11} className="p-8 text-center text-sm text-muted-foreground">데이터가 없습니다.</td></tr>}
               </tbody>
             </table>
           ) : (
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[780px] text-sm">
               <thead className="bg-muted/50 text-xs">
                 <tr>
                   <Th>소속 실</Th><Th>팀</Th><Th className="text-right">전체</Th>
-                  <Th className="text-right">1단계</Th><Th className="text-right">2단계</Th><Th className="text-right">3단계</Th>
+                  <Th className="text-right">1단계</Th><Th className="text-right">2단계</Th><Th className="text-right">3단계</Th><Th className="text-right">4단계</Th>
                   <Th className="text-right">신청</Th><Th className="text-right">승인</Th>
                 </tr>
               </thead>
@@ -207,12 +210,13 @@ function AxLabPage() {
                     <Td className="text-right tabular-nums">{t.total}</Td>
                     <Td className="text-right tabular-nums text-muted-foreground">{t.stage1}</Td>
                     <Td className="text-right tabular-nums text-amber-600">{t.stage2}</Td>
-                    <Td className="text-right tabular-nums text-emerald-600">{t.stage3}</Td>
+                    <Td className="text-right tabular-nums text-sky-600">{t.stage3}</Td>
+                    <Td className="text-right tabular-nums text-emerald-600">{t.stage4}</Td>
                     <Td className="text-right tabular-nums text-primary font-bold">{t.requested}</Td>
                     <Td className="text-right tabular-nums text-emerald-600 font-bold">{t.approved}</Td>
                   </tr>
                 ))}
-                {visibleTeams.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-sm text-muted-foreground">데이터가 없습니다.</td></tr>}
+                {visibleTeams.length === 0 && <tr><td colSpan={9} className="p-8 text-center text-sm text-muted-foreground">데이터가 없습니다.</td></tr>}
               </tbody>
             </table>
           )}

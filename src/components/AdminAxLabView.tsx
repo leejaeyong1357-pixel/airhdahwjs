@@ -28,14 +28,19 @@ const STATUS_TONE: Record<string, string> = {
   saas: "bg-blue-500/15 text-blue-600", rejected: "bg-destructive/10 text-destructive",
 };
 const STAGE_TONE: Record<number, string> = {
-  1: "bg-slate-400 text-white", 2: "bg-amber-500 text-white", 3: "bg-emerald-500 text-white",
+  1: "bg-slate-400 text-white", 2: "bg-amber-500 text-white", 3: "bg-sky-500 text-white", 4: "bg-emerald-500 text-white",
 };
 const STAGE_TONE_SOFT: Record<number, string> = {
-  1: "bg-muted text-muted-foreground", 2: "bg-amber-400/15 text-amber-600", 3: "bg-emerald-500/15 text-emerald-600",
+  1: "bg-muted text-muted-foreground", 2: "bg-amber-400/15 text-amber-600", 3: "bg-sky-500/15 text-sky-600", 4: "bg-emerald-500/15 text-emerald-600",
 };
-const STAGE_TEXT: Record<number, string> = { 1: "1단계 · 제외·보류", 2: "2단계 · 고도화 대상", 3: "3단계 · 즉시 적용" };
+const STAGE_TEXT: Record<number, string> = {
+  1: "1단계 · 제외·보류", 2: "2단계 · 보완 대상", 3: "3단계 · 고도화 대상", 4: "4단계 · 적용중",
+};
 const STAGE_DESC: Record<number, string> = {
-  1: "추가 고도화 없이 보관", 2: "기능·보안·사용성 보완", 3: "보안 및 최종 승인 후 SaaS 등록",
+  1: "추가 고도화 없이 보관",
+  2: "기능·보안·사용성 등 보완이 필요한 작품",
+  3: "AX협의체 검토를 거쳐 고도화를 진행할 작품",
+  4: "SaaS 등록·전사 확산되어 실제 업무에 적용 중",
 };
 
 const REVIEW_TABS = [
@@ -66,7 +71,7 @@ export function AdminAxLabView() {
     onSuccess: invalidate, onError: (e: any) => toast.error(e.message),
   });
   const stageMut = useMutation({
-    mutationFn: (v: { workId: string; stage: 1 | 2 | 3 | null }) => setStageFn({ data: v }),
+    mutationFn: (v: { workId: string; stage: 1 | 2 | 3 | 4 | null }) => setStageFn({ data: v }),
     onSuccess: (_r, v) => { toast.success(v.stage ? `${STAGE_TEXT[v.stage]}(으)로 분류했습니다.` : "분류를 해제했습니다."); invalidate(); },
     onError: (e: any) => toast.error(e.message),
   });
@@ -136,7 +141,7 @@ export function AdminAxLabView() {
       {/* 통계 */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard icon={Rocket} tone="slate" label="경진대회 작품" value={overview?.totalContestWorks ?? 0} />
-        <StatCard icon={Sparkles} tone="amber" label="고도화 대상 · 2단계" value={overview?.advancementTargetCount ?? 0} />
+        <StatCard icon={Sparkles} tone="amber" label="고도화 대상 · 3단계" value={overview?.advancementTargetCount ?? 0} />
         <StatCard icon={Send} tone="primary" label="고도화 신청" value={overview?.requestedCount ?? 0} />
         <StatCard icon={ShieldCheck} tone="emerald" label="SaaS 승인" value={overview?.saasApprovedCount ?? 0} />
       </div>
@@ -160,11 +165,11 @@ export function AdminAxLabView() {
         </div>
         <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
           {tab === "sil" ? (
-            <table className="w-full min-w-[860px] text-sm">
+            <table className="w-full min-w-[940px] text-sm">
               <thead className="bg-muted/50 text-xs">
                 <tr>
                   <Th></Th><Th>실</Th><Th className="text-right">전체</Th><Th className="text-right">1단계</Th>
-                  <Th className="text-right">2단계</Th><Th className="text-right">3단계</Th><Th className="text-right">목표</Th>
+                  <Th className="text-right">2단계</Th><Th className="text-right">3단계</Th><Th className="text-right">4단계</Th><Th className="text-right">목표</Th>
                   <Th className="text-right">신청</Th><Th className="text-right">승인</Th><Th className="w-[160px]">목표 대비 신청</Th>
                 </tr>
               </thead>
@@ -180,7 +185,8 @@ export function AdminAxLabView() {
                         <Td className="text-right tabular-nums">{g.total}</Td>
                         <Td className="text-right tabular-nums text-muted-foreground">{g.stage1}</Td>
                         <Td className="text-right tabular-nums text-amber-600 font-semibold">{g.stage2}</Td>
-                        <Td className="text-right tabular-nums text-emerald-600 font-semibold">{g.stage3}</Td>
+                        <Td className="text-right tabular-nums text-sky-600 font-semibold">{g.stage3}</Td>
+                        <Td className="text-right tabular-nums text-emerald-600 font-semibold">{g.stage4}</Td>
                         <Td className="text-right tabular-nums">{g.goal}</Td>
                         <Td className="text-right tabular-nums font-bold text-primary">{g.requested}</Td>
                         <Td className="text-right tabular-nums font-bold text-emerald-600">{g.approved}</Td>
@@ -193,7 +199,8 @@ export function AdminAxLabView() {
                           <Td className="text-right tabular-nums">{t.total}</Td>
                           <Td className="text-right tabular-nums text-muted-foreground">{t.stage1}</Td>
                           <Td className="text-right tabular-nums text-amber-600">{t.stage2}</Td>
-                          <Td className="text-right tabular-nums text-emerald-600">{t.stage3}</Td>
+                          <Td className="text-right tabular-nums text-sky-600">{t.stage3}</Td>
+                          <Td className="text-right tabular-nums text-emerald-600">{t.stage4}</Td>
                           <Td className="text-right text-muted-foreground">—</Td>
                           <Td className="text-right tabular-nums text-primary">{t.requested}</Td>
                           <Td className="text-right tabular-nums text-emerald-600">{t.approved}</Td>
@@ -209,6 +216,7 @@ export function AdminAxLabView() {
                   <Td className="text-right tabular-nums">{board.reduce((a: number, g: any) => a + g.stage1, 0)}</Td>
                   <Td className="text-right tabular-nums">{board.reduce((a: number, g: any) => a + g.stage2, 0)}</Td>
                   <Td className="text-right tabular-nums">{board.reduce((a: number, g: any) => a + g.stage3, 0)}</Td>
+                  <Td className="text-right tabular-nums">{board.reduce((a: number, g: any) => a + g.stage4, 0)}</Td>
                   <Td className="text-right tabular-nums">{board.reduce((a: number, g: any) => a + g.goal, 0)}</Td>
                   <Td className="text-right tabular-nums text-primary">{board.reduce((a: number, g: any) => a + g.requested, 0)}</Td>
                   <Td className="text-right tabular-nums text-emerald-600">{board.reduce((a: number, g: any) => a + g.approved, 0)}</Td>
@@ -217,9 +225,9 @@ export function AdminAxLabView() {
               </tbody>
             </table>
           ) : (
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[800px] text-sm">
               <thead className="bg-muted/50 text-xs">
-                <tr><Th>소속 실</Th><Th>팀</Th><Th className="text-right">전체</Th><Th className="text-right">1단계</Th><Th className="text-right">2단계</Th><Th className="text-right">3단계</Th><Th className="text-right">신청</Th><Th className="text-right">승인</Th></tr>
+                <tr><Th>소속 실</Th><Th>팀</Th><Th className="text-right">전체</Th><Th className="text-right">1단계</Th><Th className="text-right">2단계</Th><Th className="text-right">3단계</Th><Th className="text-right">4단계</Th><Th className="text-right">신청</Th><Th className="text-right">승인</Th></tr>
               </thead>
               <tbody>
                 {visibleTeams.map((t: any) => (
@@ -229,7 +237,8 @@ export function AdminAxLabView() {
                     <Td className="text-right tabular-nums">{t.total}</Td>
                     <Td className="text-right tabular-nums text-muted-foreground">{t.stage1}</Td>
                     <Td className="text-right tabular-nums text-amber-600">{t.stage2}</Td>
-                    <Td className="text-right tabular-nums text-emerald-600">{t.stage3}</Td>
+                    <Td className="text-right tabular-nums text-sky-600">{t.stage3}</Td>
+                    <Td className="text-right tabular-nums text-emerald-600">{t.stage4}</Td>
                     <Td className="text-right tabular-nums text-primary font-bold">{t.requested}</Td>
                     <Td className="text-right tabular-nums text-emerald-600 font-bold">{t.approved}</Td>
                   </tr>
@@ -288,11 +297,12 @@ export function AdminAxLabView() {
           </div>
         </div>
 
-        {/* 1/2/3단계가 뭔지 크고 또렷하게 */}
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {/* 1/2/3/4단계가 뭔지 크고 또렷하게 */}
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StageLegendCard stage={1} />
           <StageLegendCard stage={2} />
           <StageLegendCard stage={3} />
+          <StageLegendCard stage={4} />
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -331,10 +341,13 @@ export function AdminAxLabView() {
                   <span className="mr-2 h-2.5 w-2.5 rounded-full bg-slate-400" /> 1단계 · 제외·보류
                 </ContextMenuItem>
                 <ContextMenuItem onClick={() => stageMut.mutate({ workId: w.id, stage: 2 })}>
-                  <span className="mr-2 h-2.5 w-2.5 rounded-full bg-amber-500" /> 2단계 · 고도화 대상
+                  <span className="mr-2 h-2.5 w-2.5 rounded-full bg-amber-500" /> 2단계 · 보완 대상
                 </ContextMenuItem>
                 <ContextMenuItem onClick={() => stageMut.mutate({ workId: w.id, stage: 3 })}>
-                  <span className="mr-2 h-2.5 w-2.5 rounded-full bg-emerald-500" /> 3단계 · 즉시 적용
+                  <span className="mr-2 h-2.5 w-2.5 rounded-full bg-sky-500" /> 3단계 · 고도화 대상
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => stageMut.mutate({ workId: w.id, stage: 4 })}>
+                  <span className="mr-2 h-2.5 w-2.5 rounded-full bg-emerald-500" /> 4단계 · 적용중
                 </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem onClick={() => stageMut.mutate({ workId: w.id, stage: null })}>미분류로 변경</ContextMenuItem>
@@ -409,11 +422,16 @@ export function AdminAxLabView() {
   );
 }
 
-function StageLegendCard({ stage }: { stage: 1 | 2 | 3 }) {
+const STAGE_LEGEND_CARD_TONE: Record<number, string> = {
+  1: "border-slate-300 bg-slate-50",
+  2: "border-amber-300 bg-amber-50",
+  3: "border-sky-300 bg-sky-50",
+  4: "border-emerald-300 bg-emerald-50",
+};
+
+function StageLegendCard({ stage }: { stage: 1 | 2 | 3 | 4 }) {
   return (
-    <div className={`flex items-center gap-3 rounded-2xl border-2 p-4 ${
-      stage === 1 ? "border-slate-300 bg-slate-50" : stage === 2 ? "border-amber-300 bg-amber-50" : "border-emerald-300 bg-emerald-50"
-    }`}>
+    <div className={`flex items-center gap-3 rounded-2xl border-2 p-4 ${STAGE_LEGEND_CARD_TONE[stage]}`}>
       <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-[15px] font-black text-white ${STAGE_TONE[stage]}`}>{stage}</span>
       <div>
         <div className="text-[15px] font-black text-foreground">{STAGE_TEXT[stage]}</div>
