@@ -16,7 +16,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { openPrizePopup } from "@/components/PrizePopup";
 import { openContestGuide } from "@/components/ContestGuideModal";
 import { isCouncil, isCouncilResultViewer } from "@/lib/council";
-import { Lightbulb } from "lucide-react";
+import { isAxLabAdminViewer } from "@/lib/ax-lab";
+import { Lightbulb, FlaskConical } from "lucide-react";
 
 interface Me {
   profile: { name: string; team?: string | null; position?: string | null; employee_no: string } | null;
@@ -184,6 +185,11 @@ export function Header() {
                 {me.profile && isCouncilResultViewer(me.profile.employee_no) && (
                   <DropdownMenuItem onClick={() => navigate({ to: "/council-results" })}>
                     <Lightbulb className="mr-2 h-4 w-4" /> 핵심과제 확인하기
+                  </DropdownMenuItem>
+                )}
+                {me.profile && isAxLabAdminViewer(me.profile.employee_no) && (
+                  <DropdownMenuItem onClick={() => navigate({ to: "/ax-lab/manage" })}>
+                    <FlaskConical className="mr-2 h-4 w-4" /> AX LAB 관리
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />

@@ -9,6 +9,19 @@ const STAGE = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 const STATUS = z.enum(["requested", "reviewing", "security", "approved", "saas", "rejected"]);
 
 // ── 공용 헬퍼 ────────────────────────────────────────────────
+/** AX LAB 관리 기능 접근 — 정식 관리자 또는 AX LAB 전용 뷰어(김충환)만 허용. */
+async function requireAxLabAdmin() {
+  const { requireUser, loadRoster } = await import("@/lib/local-store.server");
+  const { isAxLabAdminViewer } = await import("@/lib/ax-lab");
+  const user = requireUser();
+  if (isAxLabAdminViewer(user.empNo)) return user;
+  const roster = await loadRoster();
+  if (!roster.get(user.empNo)?.roles.includes("admin")) {
+    throw new Error("AX LAB 관리자만 접근할 수 있습니다.");
+  }
+  return user;
+}
+
 async function resolveWork(store: any, roster: any, workId: string) {
   const c = store.submissions.find((s: any) => s.id === workId);
   if (c) {
@@ -232,8 +245,8 @@ export const axRequestAdvancement = createServerFn({ method: "POST" })
 // ── 관리자: 전체 작품 분류 ───────────────────────────────────
 export const axAdminListWorks = createServerFn({ method: "GET" })
   .handler(async () => {
-    const { readStore, requireAdmin, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
-    await requireAdmin();
+    const { readStore, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    await requireAxLabAdmin();
     const store = readStore();
     const roster = await loadRoster();
     const stage = store.axStage ?? {};
@@ -265,8 +278,8 @@ export const axAdminSetStage = createServerFn({ method: "POST" })
     z.object({ workId: z.string().min(1), stage: STAGE.nullable() }).parse(d),
   )
   .handler(async ({ data }) => {
-    const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
-    await requireAdmin();
+    const { readStore, writeStore } = await import("@/lib/local-store.server");
+    await requireAxLabAdmin();
     const store = readStore();
     store.axStage ??= {};
     if (data.stage === null) delete store.axStage[data.workId];
@@ -280,8 +293,8 @@ export const axAdminSetGoal = createServerFn({ method: "POST" })
     z.object({ sil: z.string().min(1), goal: z.number().int().min(0).max(999) }).parse(d),
   )
   .handler(async ({ data }) => {
-    const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
-    await requireAdmin();
+    const { readStore, writeStore } = await import("@/lib/local-store.server");
+    await requireAxLabAdmin();
     const store = readStore();
     store.axGoals ??= {};
     store.axGoals[data.sil] = data.goal;
@@ -292,8 +305,8 @@ export const axAdminSetGoal = createServerFn({ method: "POST" })
 /** 관리자: 전체 고도화 신청 목록 (검토용). */
 export const axAdminListRequests = createServerFn({ method: "GET" })
   .handler(async () => {
-    const { readStore, requireAdmin, loadRoster } = await import("@/lib/local-store.server");
-    await requireAdmin();
+    const { readStore, loadRoster } = await import("@/lib/local-store.server");
+    await requireAxLabAdmin();
     const store = readStore();
     const roster = await loadRoster();
     const stage = store.axStage ?? {};
@@ -318,8 +331,8 @@ export const axAdminSetRequestStatus = createServerFn({ method: "POST" })
     z.object({ requestId: z.string().min(1), status: STATUS }).parse(d),
   )
   .handler(async ({ data }) => {
-    const { readStore, writeStore, requireAdmin } = await import("@/lib/local-store.server");
-    await requireAdmin();
+    const { readStore, writeStore } = await import("@/lib/local-store.server");
+    await requireAxLabAdmin();
     const store = readStore();
     const r = (store.axRequests ?? []).find((x) => x.id === data.requestId);
     if (!r) throw new Error("신청 내역을 찾을 수 없습니다.");
