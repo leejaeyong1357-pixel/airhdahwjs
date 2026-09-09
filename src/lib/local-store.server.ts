@@ -55,6 +55,18 @@ export type Store = {
     status: "requested" | "reviewing" | "security" | "approved" | "saas" | "rejected";
     createdAt: string;
     updatedAt: string;
+    /** 신청서 상세 내용 */
+    form?: {
+      painPoint: string;            // 1. 활용할 업무와 현재의 불편함
+      improvementTypes: string[];   // 2. 고도화하고 싶은 내용(유형) — 기능보완/업무프로세스연결/사용성개선/보안검토
+      improvementDetail: string;    // 2. 상세 설명
+      expectedUsers: string;        // 4. 예상 사용자 수
+      expectedImpact: string;       // 5. 기대 효과
+      dataTypes: string[];          // 6. 사용 데이터 — 개인정보/회사내부정보/공개데이터/아직미정
+      referenceLink: string;        // 7. 프로그램·문서 링크
+      attachmentPath?: string;      // 8. 소개 자료 첨부 (선택)
+      attachmentName?: string;
+    };
   }[];
 };
 

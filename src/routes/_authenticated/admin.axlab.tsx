@@ -1,14 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  axGetOrgBoard, axAdminSetGoal, axAdminListWorks, axAdminSetStage, axAdminListRequests, axAdminSetRequestStatus,
+  axGetOverview, axGetOrgBoard, axAdminSetGoal, axAdminListWorks, axAdminSetStage,
+  axAdminListRequests, axAdminSetRequestStatus,
 } from "@/lib/ax-lab.functions";
+import { AxPipelineStepper, AxProgressBar } from "@/components/AxPipelineStepper";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
-import { Target, ListChecks, ClipboardList, Search } from "lucide-react";
+import {
+  Target, ListChecks, ClipboardList, Search, Rocket, Sparkles, Send, ShieldCheck,
+  ChevronDown, ChevronRight, Users2, FileText, ArrowRight,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/axlab")({ component: AdminAxLab });
 
@@ -16,9 +22,26 @@ const STATUS_LABEL: Record<string, string> = {
   requested: "신청 완료", reviewing: "AX협의체 검토중", security: "보안검증중",
   approved: "승인", saas: "SaaS 등록 완료", rejected: "반려",
 };
+const STATUS_TONE: Record<string, string> = {
+  requested: "bg-primary/10 text-primary", reviewing: "bg-amber-400/15 text-amber-600",
+  security: "bg-orange-400/15 text-orange-600", approved: "bg-emerald-500/15 text-emerald-600",
+  saas: "bg-blue-500/15 text-blue-600", rejected: "bg-destructive/10 text-destructive",
+};
+const STAGE_TONE: Record<number, string> = {
+  1: "bg-muted text-muted-foreground", 2: "bg-amber-400/15 text-amber-600", 3: "bg-emerald-500/15 text-emerald-600",
+};
+const STAGE_TEXT: Record<number, string> = { 1: "1단계 · 제외·보류", 2: "2단계 · 고도화 대상", 3: "3단계 · 즉시 적용" };
+
+const REVIEW_TABS = [
+  { key: "all", label: "전체", match: (s: string) => s !== "saas" && s !== "rejected" },
+  { key: "review", label: "AX 검토", match: (s: string) => s === "requested" || s === "reviewing" },
+  { key: "security", label: "보안검증", match: (s: string) => s === "security" },
+  { key: "approved", label: "승인 대기", match: (s: string) => s === "approved" },
+] as const;
 
 function AdminAxLab() {
   const qc = useQueryClient();
+  const overviewFn = useServerFn(axGetOverview);
   const boardFn = useServerFn(axGetOrgBoard);
   const setGoalFn = useServerFn(axAdminSetGoal);
   const worksFn = useServerFn(axAdminListWorks);
@@ -26,6 +49,7 @@ function AdminAxLab() {
   const reqFn = useServerFn(axAdminListRequests);
   const setReqStatusFn = useServerFn(axAdminSetRequestStatus);
 
+  const { data: overview } = useQuery({ queryKey: ["admin", "ax", "overview"], queryFn: () => overviewFn() });
   const { data: board = [] } = useQuery({ queryKey: ["admin", "ax", "board"], queryFn: () => boardFn() });
   const { data: works = [] } = useQuery({ queryKey: ["admin", "ax", "works"], queryFn: () => worksFn() });
   const { data: requests = [] } = useQuery({ queryKey: ["admin", "ax", "requests"], queryFn: () => reqFn() });
@@ -44,6 +68,35 @@ function AdminAxLab() {
     onSuccess: invalidate, onError: (e: any) => toast.error(e.message),
   });
 
+  // 실별/팀별 현황 표시 상태
+  const [tab, setTab] = useState<"sil" | "team">("sil");
+  const [silFilter, setSilFilter] = useState("전체 실");
+  const [openSil, setOpenSil] = useState<string | null>(null);
+  const flatTeams = useMemo(() => board.flatMap((g: any) => g.teams.map((t: any) => ({ ...t, sil: g.sil }))), [board]);
+  const visibleSils = silFilter === "전체 실" ? board : board.filter((g: any) => g.sil === silFilter);
+  const visibleTeams = silFilter === "전체 실" ? flatTeams : flatTeams.filter((t: any) => t.sil === silFilter);
+
+  // 목표 편집 다이얼로그
+  const [goalOpen, setGoalOpen] = useState(false);
+  const [goalDraft, setGoalDraft] = useState<Record<string, number>>({});
+  const openGoalDialog = () => {
+    setGoalDraft(Object.fromEntries(board.map((g: any) => [g.sil, g.goal])));
+    setGoalOpen(true);
+  };
+  const saveGoals = async () => {
+    await Promise.all(board.map((g: any) => (goalDraft[g.sil] !== g.goal ? goalMut.mutateAsync({ sil: g.sil, goal: goalDraft[g.sil] ?? 0 }) : null)));
+    toast.success("실별 고도화 목표를 저장했습니다.");
+    setGoalOpen(false);
+  };
+
+  // 검토가 필요한 작품
+  const [reviewTab, setReviewTab] = useState<(typeof REVIEW_TABS)[number]["key"]>("all");
+  const reviewFiltered = useMemo(() => {
+    const matcher = REVIEW_TABS.find((t) => t.key === reviewTab)!.match;
+    return requests.filter((r: any) => matcher(r.status));
+  }, [requests, reviewTab]);
+
+  // 작품 단계 분류 검색
   const [q, setQ] = useState("");
   const filteredWorks = useMemo(() => {
     const k = q.trim().toLowerCase();
@@ -52,50 +105,180 @@ function AdminAxLab() {
   }, [works, q]);
 
   return (
-    <div className="space-y-12">
-      {/* 실별 고도화 목표 */}
-      <section>
-        <div className="flex items-center gap-2">
-          <Target className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-black tracking-tight">실별 고도화 목표 관리</h2>
+    <div className="space-y-10">
+      {/* 헤더 */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-[11px] font-black uppercase tracking-widest text-accent">AX LAB · 관리자</div>
+          <h1 className="mt-1 text-2xl font-black tracking-tight">104개의 아이디어, 실제 업무의 변화로</h1>
         </div>
-        <p className="mt-1 text-[13px] text-muted-foreground">실별 전체 작품·단계별 분류·신청·승인 현황과 함께, 고도화 목표 건수를 직접 입력합니다.</p>
+        <Button variant="outline" onClick={openGoalDialog}><Target className="mr-1.5 h-4 w-4" /> 목표 편집</Button>
+      </div>
+
+      {/* 배너 */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10"><Users2 className="h-5 w-5 text-primary" /></span>
+          <div>
+            <div className="text-[15px] font-black text-foreground">AX협의체와 함께하는 AX 고도화 프로젝트</div>
+            <div className="text-[13px] text-muted-foreground">작품을 선별하고 고도화하여, 사내 SaaS로 연결합니다.</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 통계 */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard icon={Rocket} tone="slate" label="경진대회 작품" value={overview?.totalContestWorks ?? 0} />
+        <StatCard icon={Sparkles} tone="amber" label="고도화 대상 · 2단계" value={overview?.advancementTargetCount ?? 0} />
+        <StatCard icon={Send} tone="primary" label="고도화 신청" value={overview?.requestedCount ?? 0} />
+        <StatCard icon={ShieldCheck} tone="emerald" label="SaaS 승인" value={overview?.saasApprovedCount ?? 0} />
+      </div>
+
+      <AxPipelineStepper />
+
+      {/* 실별 고도화 현황 */}
+      <section>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-black tracking-tight">실별 고도화 현황</h2>
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1 rounded-lg bg-muted p-1">
+              <button onClick={() => setTab("sil")} className={`rounded-md px-3 py-1.5 text-[13px] font-bold transition ${tab === "sil" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}>실별 현황</button>
+              <button onClick={() => setTab("team")} className={`rounded-md px-3 py-1.5 text-[13px] font-bold transition ${tab === "team" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}>팀별 현황</button>
+            </div>
+            <select value={silFilter} onChange={(e) => setSilFilter(e.target.value)} className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-[13px]">
+              <option>전체 실</option>
+              {board.map((g: any) => <option key={g.sil}>{g.sil}</option>)}
+            </select>
+          </div>
+        </div>
         <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-muted/50 text-xs">
-              <tr>
-                <Th>실</Th><Th className="text-right">전체</Th><Th className="text-right">1단계</Th>
-                <Th className="text-right">2단계</Th><Th className="text-right">3단계</Th>
-                <Th className="text-right">목표</Th><Th className="text-right">신청</Th><Th className="text-right">승인</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {board.map((g: any) => (
-                <tr key={g.sil} className="border-t border-border">
-                  <Td className="font-bold">{g.sil}{g.isDept && <span className="ml-1.5 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">부서</span>}</Td>
-                  <Td className="text-right tabular-nums">{g.total}</Td>
-                  <Td className="text-right tabular-nums text-muted-foreground">{g.stage1}</Td>
-                  <Td className="text-right tabular-nums text-amber-600 font-semibold">{g.stage2}</Td>
-                  <Td className="text-right tabular-nums text-emerald-600 font-semibold">{g.stage3}</Td>
-                  <Td className="text-right">
-                    <input
-                      type="number" min={0} defaultValue={g.goal}
-                      onBlur={(e) => { const v = Number(e.target.value) || 0; if (v !== g.goal) goalMut.mutate({ sil: g.sil, goal: v }); }}
-                      className="w-16 rounded-lg border border-border bg-background px-2 py-1 text-right text-sm"
-                    />
-                  </Td>
-                  <Td className="text-right tabular-nums font-bold text-primary">{g.requested}</Td>
-                  <Td className="text-right tabular-nums font-bold text-emerald-600">{g.approved}</Td>
+          {tab === "sil" ? (
+            <table className="w-full min-w-[860px] text-sm">
+              <thead className="bg-muted/50 text-xs">
+                <tr>
+                  <Th></Th><Th>실</Th><Th className="text-right">전체</Th><Th className="text-right">1단계</Th>
+                  <Th className="text-right">2단계</Th><Th className="text-right">3단계</Th><Th className="text-right">목표</Th>
+                  <Th className="text-right">신청</Th><Th className="text-right">승인</Th><Th className="w-[160px]">목표 대비 신청</Th>
                 </tr>
-              ))}
-              {board.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-sm text-muted-foreground">데이터가 없습니다.</td></tr>}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visibleSils.map((g: any) => {
+                  const expanded = openSil === g.sil;
+                  const pct = g.goal > 0 ? Math.min(100, Math.round((g.requested / g.goal) * 100)) : 0;
+                  return (
+                    <Fragment key={g.sil}>
+                      <tr className="cursor-pointer border-t border-border hover:bg-muted/40" onClick={() => setOpenSil(expanded ? null : g.sil)}>
+                        <Td className="w-8">{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</Td>
+                        <Td className="font-bold">{g.sil}{g.isDept && <span className="ml-1.5 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">부서</span>}</Td>
+                        <Td className="text-right tabular-nums">{g.total}</Td>
+                        <Td className="text-right tabular-nums text-muted-foreground">{g.stage1}</Td>
+                        <Td className="text-right tabular-nums text-amber-600 font-semibold">{g.stage2}</Td>
+                        <Td className="text-right tabular-nums text-emerald-600 font-semibold">{g.stage3}</Td>
+                        <Td className="text-right tabular-nums">{g.goal}</Td>
+                        <Td className="text-right tabular-nums font-bold text-primary">{g.requested}</Td>
+                        <Td className="text-right tabular-nums font-bold text-emerald-600">{g.approved}</Td>
+                        <Td><AxProgressBar pct={pct} /></Td>
+                      </tr>
+                      {expanded && g.teams.map((t: any) => (
+                        <tr key={g.sil + t.team} className="border-t border-border/60 bg-muted/20 text-[13px]">
+                          <Td></Td>
+                          <Td className="pl-6 text-foreground/80">└ {t.team}</Td>
+                          <Td className="text-right tabular-nums">{t.total}</Td>
+                          <Td className="text-right tabular-nums text-muted-foreground">{t.stage1}</Td>
+                          <Td className="text-right tabular-nums text-amber-600">{t.stage2}</Td>
+                          <Td className="text-right tabular-nums text-emerald-600">{t.stage3}</Td>
+                          <Td className="text-right text-muted-foreground">—</Td>
+                          <Td className="text-right tabular-nums text-primary">{t.requested}</Td>
+                          <Td className="text-right tabular-nums text-emerald-600">{t.approved}</Td>
+                          <Td></Td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  );
+                })}
+                <tr className="border-t-2 border-border bg-muted/40 font-black">
+                  <Td></Td><Td>합계</Td>
+                  <Td className="text-right tabular-nums">{board.reduce((a: number, g: any) => a + g.total, 0)}</Td>
+                  <Td className="text-right tabular-nums">{board.reduce((a: number, g: any) => a + g.stage1, 0)}</Td>
+                  <Td className="text-right tabular-nums">{board.reduce((a: number, g: any) => a + g.stage2, 0)}</Td>
+                  <Td className="text-right tabular-nums">{board.reduce((a: number, g: any) => a + g.stage3, 0)}</Td>
+                  <Td className="text-right tabular-nums">{board.reduce((a: number, g: any) => a + g.goal, 0)}</Td>
+                  <Td className="text-right tabular-nums text-primary">{board.reduce((a: number, g: any) => a + g.requested, 0)}</Td>
+                  <Td className="text-right tabular-nums text-emerald-600">{board.reduce((a: number, g: any) => a + g.approved, 0)}</Td>
+                  <Td></Td>
+                </tr>
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="bg-muted/50 text-xs">
+                <tr><Th>소속 실</Th><Th>팀</Th><Th className="text-right">전체</Th><Th className="text-right">1단계</Th><Th className="text-right">2단계</Th><Th className="text-right">3단계</Th><Th className="text-right">신청</Th><Th className="text-right">승인</Th></tr>
+              </thead>
+              <tbody>
+                {visibleTeams.map((t: any) => (
+                  <tr key={t.sil + t.team} className="border-t border-border">
+                    <Td className="text-muted-foreground">{t.sil}</Td>
+                    <Td className="font-bold">{t.team}</Td>
+                    <Td className="text-right tabular-nums">{t.total}</Td>
+                    <Td className="text-right tabular-nums text-muted-foreground">{t.stage1}</Td>
+                    <Td className="text-right tabular-nums text-amber-600">{t.stage2}</Td>
+                    <Td className="text-right tabular-nums text-emerald-600">{t.stage3}</Td>
+                    <Td className="text-right tabular-nums text-primary font-bold">{t.requested}</Td>
+                    <Td className="text-right tabular-nums text-emerald-600 font-bold">{t.approved}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </section>
 
-      {/* 작품 1/2/3단계 분류 */}
-      <section>
+      {/* 검토가 필요한 작품 + 작품 분류 기준 */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
+        <section>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-black tracking-tight">검토가 필요한 작품</h2>
+            <a href="#requests-table" className="inline-flex items-center gap-1 text-[13px] font-semibold text-primary">전체 작품 보기 <ArrowRight className="h-3.5 w-3.5" /></a>
+          </div>
+          <div className="mt-2 flex gap-1 rounded-lg bg-muted p-1 w-fit">
+            {REVIEW_TABS.map((t) => (
+              <button key={t.key} onClick={() => setReviewTab(t.key)} className={`rounded-md px-3 py-1.5 text-[13px] font-bold transition ${reviewTab === t.key ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}>{t.label}</button>
+            ))}
+          </div>
+          <div className="mt-3 space-y-2">
+            {reviewFiltered.slice(0, 6).map((r: any) => (
+              <div key={r.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3.5">
+                <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14.5px] font-bold text-foreground">{r.title}</div>
+                  <div className="text-[12px] text-muted-foreground">{r.authorTeam} · {r.authorName}</div>
+                </div>
+                {r.stage && <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${STAGE_TONE[r.stage]}`}>{STAGE_TEXT[r.stage]}</span>}
+                <select
+                  value={r.status}
+                  onChange={(e) => statusMut.mutate({ requestId: r.id, status: e.target.value })}
+                  className={`shrink-0 rounded-full border-0 px-2.5 py-1 text-[12px] font-bold ${STATUS_TONE[r.status]}`}
+                >
+                  {Object.entries(STATUS_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                </select>
+              </div>
+            ))}
+            {reviewFiltered.length === 0 && <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">해당하는 작품이 없습니다.</div>}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-black tracking-tight">작품 분류 기준</h2>
+          <div className="mt-3 space-y-3 rounded-xl border border-border bg-card p-4">
+            <LegendRow color="bg-slate-400" title="1단계 · 제외·보류" desc="추가 고도화 없이 보관" />
+            <LegendRow color="bg-amber-400" title="2단계 · 고도화 대상" desc="기능·보안·사용성 보완" />
+            <LegendRow color="bg-emerald-500" title="3단계 · 즉시 적용" desc="보안 및 최종 승인 후 SaaS 등록" />
+          </div>
+        </section>
+      </div>
+
+      {/* 작품 단계 분류 (전체) */}
+      <section id="classify">
         <div className="flex flex-wrap items-center gap-2">
           <ListChecks className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-black tracking-tight">작품 단계 분류</h2>
@@ -136,11 +319,11 @@ function AdminAxLab() {
         </div>
       </section>
 
-      {/* 고도화 신청 검토 */}
-      <section>
+      {/* 고도화 신청 검토 (전체) */}
+      <section id="requests-table">
         <div className="flex items-center gap-2">
           <ClipboardList className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-black tracking-tight">고도화 신청 검토</h2>
+          <h2 className="text-lg font-black tracking-tight">고도화 신청 검토 — 전체</h2>
           <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[13px] font-bold text-primary">총 {requests.length}건</span>
         </div>
         <div className="mt-3 overflow-hidden rounded-xl border border-border bg-card">
@@ -170,6 +353,57 @@ function AdminAxLab() {
           </table>
         </div>
       </section>
+
+      {/* 목표 편집 다이얼로그 */}
+      <Dialog open={goalOpen} onOpenChange={setGoalOpen}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>실별 고도화 목표 편집</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            {board.map((g: any) => (
+              <div key={g.sil} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+                <span className="font-semibold text-foreground">{g.sil}</span>
+                <input
+                  type="number" min={0}
+                  value={goalDraft[g.sil] ?? 0}
+                  onChange={(e) => setGoalDraft((d) => ({ ...d, [g.sil]: Number(e.target.value) || 0 }))}
+                  className="w-24 rounded-lg border border-border bg-background px-2 py-1.5 text-right text-sm"
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setGoalOpen(false)}>취소</Button>
+            <Button onClick={saveGoals} disabled={goalMut.isPending}>저장</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function LegendRow({ color, title, desc }: { color: string; title: string; desc: string }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${color}`} />
+      <div>
+        <div className="text-[13.5px] font-bold text-foreground">{title}</div>
+        <div className="text-[12.5px] text-muted-foreground">{desc}</div>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ icon: Icon, tone, label, value }: { icon: any; tone: "slate" | "amber" | "primary" | "emerald"; label: string; value: number }) {
+  const tones: Record<string, string> = {
+    slate: "border-border bg-muted/40 text-foreground",
+    amber: "border-amber-500/20 bg-amber-500/5 text-amber-600",
+    primary: "border-primary/20 bg-primary/5 text-primary",
+    emerald: "border-emerald-500/20 bg-emerald-500/5 text-emerald-600",
+  };
+  return (
+    <div className={`rounded-2xl border p-4 ${tones[tone]}`}>
+      <div className="flex items-center gap-1.5 text-[13px] font-bold"><Icon className="h-4 w-4" /> {label}</div>
+      <div className="mt-1 text-3xl font-black text-foreground tabular-nums">{value}</div>
     </div>
   );
 }

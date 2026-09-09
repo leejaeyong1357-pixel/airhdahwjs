@@ -128,27 +128,36 @@ export const axListTeamWorks = createServerFn({ method: "GET" })
   });
 
 // ── 구성원: 내 작품 + 고도화 신청 ────────────────────────────
+/** 신청 위저드용 — 내가 신청 가능한 작품 목록 (경진대회 출품작 + 신규 등록작). */
 export const axGetMyWorks = createServerFn({ method: "GET" })
   .handler(async () => {
-    const { readStore, requireUser } = await import("@/lib/local-store.server");
+    const { readStore, requireUser, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { silOfTeam } = await import("@/lib/org");
     const user = requireUser();
     const store = readStore();
+    const roster = await loadRoster();
+    const me = liveProfile(roster, user.empNo, undefined);
     const stage = store.axStage ?? {};
     const requests = store.axRequests ?? [];
     const reqByWork = new Map(requests.map((r) => [r.workId, r]));
+    const sil = silOfTeam(me.team);
+    const orgLabel = me.team ? (sil && sil !== me.team ? `${sil} > ${me.team}` : me.team) : "미지정";
 
     const contestWork = store.submissions.find((s: any) => s.user_id === user.empNo);
     const myNewWorks = (store.axNewWorks ?? []).filter((w: any) => w.user_id === user.empNo);
 
     return {
+      authorName: me.name, authorTeam: me.team, orgLabel,
       contestWork: contestWork
         ? {
-            id: contestWork.id, title: contestWork.title, stage: stage[contestWork.id] ?? null,
+            id: contestWork.id, source: "contest" as const, title: contestWork.title,
+            description: contestWork.description ?? "",
+            stage: stage[contestWork.id] ?? null,
             request: reqByWork.get(contestWork.id) ?? null,
           }
         : null,
       newWorks: myNewWorks.map((w: any) => ({
-        id: w.id, title: w.title, description: w.description, techStack: w.techStack,
+        id: w.id, source: "new" as const, title: w.title, description: w.description, techStack: w.techStack,
         stage: stage[w.id] ?? null, request: reqByWork.get(w.id) ?? null,
       })),
     };
@@ -177,10 +186,24 @@ export const axRegisterNewWork = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** 고도화 신청 (경진대회 작품 또는 신규 등록작 대상). 본인 작품만 가능. */
+/** 고도화 신청서 제출 (경진대회 작품 또는 신규 등록작 대상). 본인 작품만 가능. */
 export const axRequestAdvancement = createServerFn({ method: "POST" })
-  .inputValidator((d: { workId: string; workSource: "contest" | "new" }) =>
-    z.object({ workId: z.string().min(1), workSource: z.enum(["contest", "new"]) }).parse(d),
+  .inputValidator((d: unknown) =>
+    z.object({
+      workId: z.string().min(1),
+      workSource: z.enum(["contest", "new"]),
+      form: z.object({
+        painPoint: z.string().trim().max(500),
+        improvementTypes: z.array(z.string()).max(10),
+        improvementDetail: z.string().trim().max(500),
+        expectedUsers: z.string().trim().max(50),
+        expectedImpact: z.string().trim().max(500),
+        dataTypes: z.array(z.string()).max(10),
+        referenceLink: z.string().trim().max(500),
+        attachmentPath: z.string().max(500).optional(),
+        attachmentName: z.string().max(200).optional(),
+      }).optional(),
+    }).parse(d),
   )
   .handler(async ({ data }) => {
     const { readStore, writeStore, requireUser } = await import("@/lib/local-store.server");
@@ -200,6 +223,7 @@ export const axRequestAdvancement = createServerFn({ method: "POST" })
     store.axRequests.push({
       id: crypto.randomUUID(), workId: data.workId, workSource: data.workSource,
       user_id: user.empNo, status: "requested", createdAt: now, updatedAt: now,
+      form: data.form,
     });
     writeStore(store);
     return { ok: true };
@@ -272,6 +296,7 @@ export const axAdminListRequests = createServerFn({ method: "GET" })
     await requireAdmin();
     const store = readStore();
     const roster = await loadRoster();
+    const stage = store.axStage ?? {};
     const rows = [];
     for (const r of store.axRequests ?? []) {
       const work = await resolveWork(store, roster, r.workId);
@@ -279,7 +304,9 @@ export const axAdminListRequests = createServerFn({ method: "GET" })
         id: r.id, workId: r.workId, workSource: r.workSource,
         title: work?.title ?? "(삭제된 작품)",
         authorName: work?.author?.name ?? "", authorTeam: work?.author?.team ?? "",
+        stage: stage[r.workId] ?? null,
         status: r.status, createdAt: r.createdAt, updatedAt: r.updatedAt,
+        form: r.form ?? null,
       });
     }
     rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
