@@ -257,6 +257,24 @@ function Home() {
         </div>
       </section>
 
+      {/* AX LAB 배너 */}
+      <section className="mx-auto max-w-6xl px-6 pt-10">
+        <Link
+          to="/ax-lab"
+          className="group flex flex-col gap-4 overflow-hidden rounded-3xl bg-hyundai-gradient px-7 py-7 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <div className="text-[12px] font-black uppercase tracking-widest text-white/70">AX LAB</div>
+            <div className="mt-1 text-[20px] font-black leading-snug text-white sm:text-[24px]">
+              104개의 아이디어, 이제 실제 업무로 연결합니다.
+            </div>
+            <div className="mt-1 text-[14px] text-white/75">AX협의체와 함께하는 AX 고도화 프로젝트</div>
+          </div>
+          <div className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-5 py-3 text-[14px] font-black text-primary transition group-hover:brightness-95">
+            내 작품 고도화 신청하기 <ArrowRight className="h-4 w-4" />
+          </div>
+        </Link>
+      </section>
 
       {/* GALLERY */}
       <section id="gallery" className="mx-auto max-w-6xl px-6 pt-16 pb-12 scroll-mt-28">

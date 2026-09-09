@@ -19,6 +19,7 @@ const tabs = [
   { to: "/admin/rankings", label: "순위" },
   { to: "/admin/selection", label: "30명 선발" },
   { to: "/admin/council", label: "혁신과제 선정" },
+  { to: "/admin/axlab", label: "AX LAB" },
   { to: "/admin/photos", label: "사진 관리" },
 ];
 

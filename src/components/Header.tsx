@@ -133,6 +133,11 @@ export function Header() {
                 작품 제출
               </Link>
             )}
+            {me && (
+              <Link to="/ax-lab" className="px-3 py-2 text-sm font-semibold text-muted-foreground hover:text-primary transition-colors">
+                AX LAB
+              </Link>
+            )}
           </nav>
 
           {me?.profile && isCouncil(me.profile.employee_no) && (
