@@ -129,13 +129,14 @@ export const axListTeamWorks = createServerFn({ method: "GET" })
         request: reqByWork.get(s.id) ?? null,
         description: s.description ?? "", features: s.features ?? "",
         techStack: s.tech_stack ?? "", expectedImpact: s.expected_impact ?? "",
+        files: (s.files ?? []).map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) })),
       }));
 
     const news = (store.axNewWorks ?? [])
       .map((w: any) => ({ w, author: liveProfile(roster, w.user_id, undefined) }))
       .filter(({ author }) => normalizeTeam(author.team) === data.team)
       .map(({ w, author }) => ({
-        id: w.id, source: "new" as const, title: w.title, thumbnailUrl: "",
+        id: w.id, source: "new" as const, title: w.title, thumbnailUrl: "", files: [],
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stage[w.id] ?? null,
         request: reqByWork.get(w.id) ?? null,
@@ -268,12 +269,13 @@ export const axAdminListWorks = createServerFn({ method: "GET" })
         stage: stage[s.id] ?? null, request: reqByWork.get(s.id) ?? null,
         description: s.description ?? "", features: s.features ?? "",
         techStack: s.tech_stack ?? "", expectedImpact: s.expected_impact ?? "",
+        files: (s.files ?? []).map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) })),
       };
     });
     const news = (store.axNewWorks ?? []).map((w: any) => {
       const author = liveProfile(roster, w.user_id, undefined);
       return {
-        id: w.id, source: "new" as const, title: w.title, thumbnailUrl: "",
+        id: w.id, source: "new" as const, title: w.title, thumbnailUrl: "", files: [],
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stage[w.id] ?? null, request: reqByWork.get(w.id) ?? null,
         description: w.description ?? "", features: "",

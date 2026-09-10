@@ -15,7 +15,7 @@ import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Target, ListChecks, ClipboardList, Search, Rocket, Sparkles, Send, ShieldCheck,
-  ChevronDown, ChevronRight, Users2, FileText, ArrowRight, MousePointerClick,
+  ChevronDown, ChevronRight, Users2, FileText, ArrowRight, MousePointerClick, Download, Paperclip,
 } from "lucide-react";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -366,6 +366,11 @@ export function AdminAxLabView() {
                         <span className="rounded-full bg-black/60 px-2 py-1 text-[11px] font-bold text-white backdrop-blur">미분류</span>
                       )}
                     </div>
+                    {w.files?.length > 0 && (
+                      <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[11px] font-bold text-white backdrop-blur">
+                        <Paperclip className="h-3 w-3" /> {w.files.length}
+                      </div>
+                    )}
                   </div>
                   <div className="px-1 pt-3">
                     <h3 className="line-clamp-2 text-[15px] font-bold leading-snug text-foreground">{w.title}</h3>
@@ -491,6 +496,28 @@ export function AdminAxLabView() {
                   {detailWork.techStack && <Detail label="사용 AI · 기술 · 스택">{detailWork.techStack}</Detail>}
                   {detailWork.expectedImpact && <Detail label="기대 효과">{detailWork.expectedImpact}</Detail>}
                 </div>
+                {detailWork.files?.length > 0 && (
+                  <div className="mt-5 border-t border-border pt-4">
+                    <div className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-widest text-muted-foreground">
+                      <Paperclip className="h-3.5 w-3.5" /> 첨부 파일 ({detailWork.files.length})
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {detailWork.files.map((f: any, i: number) => (
+                        <a
+                          key={i}
+                          href={f.signedUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download={f.file_name}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3.5 py-2.5 text-[13px] hover:border-primary/40 hover:bg-muted/50"
+                        >
+                          <span className="truncate font-medium">{f.file_name}</span>
+                          <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -522,6 +549,11 @@ export function AdminAxLabView() {
                       <span className="rounded-full bg-black/60 px-2 py-1 text-[11px] font-bold text-white backdrop-blur">미분류</span>
                     )}
                   </div>
+                  {w.files?.length > 0 && (
+                    <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[11px] font-bold text-white backdrop-blur">
+                      <Paperclip className="h-3 w-3" /> {w.files.length}
+                    </div>
+                  )}
                 </div>
                 <div className="px-0.5 pt-2">
                   <h4 className="line-clamp-2 text-[14px] font-bold leading-snug text-foreground">{w.title}</h4>
