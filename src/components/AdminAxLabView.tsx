@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   axGetOverview, axGetOrgBoard, axAdminSetGoal, axAdminListWorks, axAdminSetStage,
-  axAdminListRequests, axAdminSetRequestStatus,
+  axAdminListRequests, axAdminSetRequestStatus, axListTeamWorks,
 } from "@/lib/ax-lab.functions";
 import { AxPipelineStepper, AxProgressBar } from "@/components/AxPipelineStepper";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,7 @@ export function AdminAxLabView() {
   const setStageFn = useServerFn(axAdminSetStage);
   const reqFn = useServerFn(axAdminListRequests);
   const setReqStatusFn = useServerFn(axAdminSetRequestStatus);
+  const teamWorksFn = useServerFn(axListTeamWorks);
 
   const { data: overview } = useQuery({ queryKey: ["admin", "ax", "overview"], queryFn: () => overviewFn() });
   const { data: board = [] } = useQuery({ queryKey: ["admin", "ax", "board"], queryFn: () => boardFn() });
@@ -83,10 +84,25 @@ export function AdminAxLabView() {
   // 실별/팀별 현황 표시 상태
   const [tab, setTab] = useState<"sil" | "team">("sil");
   const [silFilter, setSilFilter] = useState("전체 실");
-  const [openSil, setOpenSil] = useState<string | null>(null);
+  const [openSils, setOpenSils] = useState<Set<string>>(new Set());
+  const toggleSil = (sil: string) =>
+    setOpenSils((prev) => {
+      const next = new Set(prev);
+      if (next.has(sil)) next.delete(sil);
+      else next.add(sil);
+      return next;
+    });
   const flatTeams = useMemo(() => board.flatMap((g: any) => g.teams.map((t: any) => ({ ...t, sil: g.sil }))), [board]);
   const visibleSils = silFilter === "전체 실" ? board : board.filter((g: any) => g.sil === silFilter);
   const visibleTeams = silFilter === "전체 실" ? flatTeams : flatTeams.filter((t: any) => t.sil === silFilter);
+
+  // 팀 작품 목록 팝업 (썸네일 포함)
+  const [teamSel, setTeamSel] = useState<string | null>(null);
+  const { data: teamWorks = [] } = useQuery({
+    queryKey: ["admin", "ax", "teamWorks", teamSel],
+    queryFn: () => teamWorksFn({ data: { team: teamSel! } }),
+    enabled: !!teamSel,
+  });
 
   // 목표 편집 다이얼로그
   const [goalOpen, setGoalOpen] = useState(false);
@@ -160,7 +176,10 @@ export function AdminAxLabView() {
       {/* 실별 고도화 현황 */}
       <section>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-black tracking-tight">실별 고도화 현황</h2>
+          <div>
+            <h2 className="text-lg font-black tracking-tight">실별 고도화 현황</h2>
+            <p className="mt-0.5 text-[12.5px] text-muted-foreground">실을 클릭하면 팀별로 펼쳐지고, 팀을 클릭하면 작품 목록을 볼 수 있습니다.</p>
+          </div>
           <div className="flex items-center gap-2">
             <div className="flex gap-1 rounded-lg bg-muted p-1">
               <button onClick={() => setTab("sil")} className={`rounded-md px-3 py-1.5 text-[13px] font-bold transition ${tab === "sil" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}>실별 현황</button>
@@ -184,11 +203,11 @@ export function AdminAxLabView() {
               </thead>
               <tbody>
                 {visibleSils.map((g: any) => {
-                  const expanded = openSil === g.sil;
+                  const expanded = openSils.has(g.sil);
                   const pct = g.goal > 0 ? Math.min(100, Math.round((g.requested / g.goal) * 100)) : 0;
                   return (
                     <Fragment key={g.sil}>
-                      <tr className="cursor-pointer border-t border-border hover:bg-muted/40" onClick={() => setOpenSil(expanded ? null : g.sil)}>
+                      <tr className="cursor-pointer border-t border-border hover:bg-muted/40" onClick={() => toggleSil(g.sil)}>
                         <Td className="w-8">{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</Td>
                         <Td className="font-bold">{g.sil}{g.isDept && <span className="ml-1.5 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">부서</span>}</Td>
                         <Td className="text-right tabular-nums">{g.total}</Td>
@@ -202,7 +221,7 @@ export function AdminAxLabView() {
                         <Td><AxProgressBar pct={pct} /></Td>
                       </tr>
                       {expanded && g.teams.map((t: any) => (
-                        <tr key={g.sil + t.team} className="border-t border-border/60 bg-muted/20 text-[13px]">
+                        <tr key={g.sil + t.team} className="cursor-pointer border-t border-border/60 bg-muted/20 text-[13px] hover:bg-muted/40" onClick={(e) => { e.stopPropagation(); setTeamSel(t.team); }}>
                           <Td></Td>
                           <Td className="pl-6 text-foreground/80">└ {t.team}</Td>
                           <Td className="text-right tabular-nums">{t.total}</Td>
@@ -240,7 +259,7 @@ export function AdminAxLabView() {
               </thead>
               <tbody>
                 {visibleTeams.map((t: any) => (
-                  <tr key={t.sil + t.team} className="border-t border-border">
+                  <tr key={t.sil + t.team} className="cursor-pointer border-t border-border hover:bg-muted/40" onClick={() => setTeamSel(t.team)}>
                     <Td className="text-muted-foreground">{t.sil}</Td>
                     <Td className="font-bold">{t.team}</Td>
                     <Td className="text-right tabular-nums">{t.total}</Td>
@@ -448,11 +467,11 @@ export function AdminAxLabView() {
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto p-0">
           {detailWork && (
             <div>
-              <div className="w-full overflow-hidden rounded-t-lg bg-black">
+              <div className="relative aspect-video w-full overflow-hidden rounded-t-lg bg-black">
                 {detailWork.thumbnailUrl ? (
-                  <img src={detailWork.thumbnailUrl} alt={detailWork.title} className="max-h-[46vh] w-full object-contain" />
+                  <img src={detailWork.thumbnailUrl} alt={detailWork.title} className="absolute inset-0 h-full w-full object-contain" />
                 ) : (
-                  <div className="grid aspect-video w-full place-items-center bg-hyundai-gradient text-sm text-white/70">No thumbnail</div>
+                  <div className="grid h-full w-full place-items-center bg-hyundai-gradient text-sm text-white/70">No thumbnail</div>
                 )}
               </div>
               <div className="p-6">
@@ -475,6 +494,44 @@ export function AdminAxLabView() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 팀 작품 목록 팝업 (썸네일 포함) */}
+      <Dialog open={!!teamSel} onOpenChange={(o) => !o && setTeamSel(null)}>
+        <DialogContent className="max-h-[80vh] max-w-3xl overflow-y-auto">
+          <DialogHeader><DialogTitle>{teamSel} 작품 목록</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3">
+            {teamWorks.map((w: any) => (
+              <button
+                key={w.id}
+                type="button"
+                className="text-left"
+                onClick={() => { setTeamSel(null); setDetailWork(w); }}
+              >
+                <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
+                  {w.thumbnailUrl ? (
+                    <img src={w.thumbnailUrl} alt={w.title} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-hyundai-gradient text-xs text-white/60">No thumbnail</div>
+                  )}
+                  <div className="absolute left-2 top-2">
+                    {w.stage ? (
+                      <span className={`rounded-full px-2 py-1 text-[11px] font-black shadow ${STAGE_TONE[w.stage]}`}>{STAGE_TEXT[w.stage]}</span>
+                    ) : (
+                      <span className="rounded-full bg-black/60 px-2 py-1 text-[11px] font-bold text-white backdrop-blur">미분류</span>
+                    )}
+                  </div>
+                </div>
+                <div className="px-0.5 pt-2">
+                  <h4 className="line-clamp-2 text-[14px] font-bold leading-snug text-foreground">{w.title}</h4>
+                  <div className="mt-1 text-xs text-muted-foreground">{w.authorName} {w.authorPosition} {w.source === "new" && "· 신규 등록"}</div>
+                  {w.request && <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS_TONE[w.request.status]}`}>{STATUS_LABEL[w.request.status]}</span>}
+                </div>
+              </button>
+            ))}
+            {teamWorks.length === 0 && <div className="col-span-full p-6 text-center text-sm text-muted-foreground">작품이 없습니다.</div>}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

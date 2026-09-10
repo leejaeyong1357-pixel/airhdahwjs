@@ -39,7 +39,14 @@ function AxLabPage() {
 
   const [tab, setTab] = useState<"sil" | "team">("sil");
   const [silFilter, setSilFilter] = useState<string>("전체 실");
-  const [openSil, setOpenSil] = useState<string | null>(null);
+  const [openSils, setOpenSils] = useState<Set<string>>(new Set());
+  const toggleSil = (sil: string) =>
+    setOpenSils((prev) => {
+      const next = new Set(prev);
+      if (next.has(sil)) next.delete(sil);
+      else next.add(sil);
+      return next;
+    });
   const [teamSel, setTeamSel] = useState<string | null>(null);
   const { data: teamWorks = [] } = useQuery({
     queryKey: ["ax", "teamWorks", teamSel],
@@ -155,11 +162,11 @@ function AxLabPage() {
               </thead>
               <tbody>
                 {visibleSils.map((g: any) => {
-                  const expanded = openSil === g.sil;
+                  const expanded = openSils.has(g.sil);
                   const pct = g.goal > 0 ? Math.min(100, Math.round((g.requested / g.goal) * 100)) : 0;
                   return (
                     <Fragment key={g.sil}>
-                      <tr className="cursor-pointer border-t border-border hover:bg-muted/40" onClick={() => setOpenSil(expanded ? null : g.sil)}>
+                      <tr className="cursor-pointer border-t border-border hover:bg-muted/40" onClick={() => toggleSil(g.sil)}>
                         <Td className="w-8">{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</Td>
                         <Td className="font-bold">{g.sil}{g.isDept && <span className="ml-1.5 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">부서</span>}</Td>
                         <Td className="text-right tabular-nums">{g.total}</Td>
@@ -225,22 +232,33 @@ function AxLabPage() {
 
       {/* 팀 작품 목록 팝업 */}
       <Dialog open={!!teamSel} onOpenChange={(o) => !o && setTeamSel(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{teamSel} 작품 목록</DialogTitle></DialogHeader>
-          <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3">
             {teamWorks.map((w: any) => (
-              <div key={w.id} className="flex items-center gap-3 rounded-xl border border-border p-3">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] font-bold text-foreground">{w.title}</div>
-                  <div className="text-xs text-muted-foreground">{w.authorName} {w.authorPosition} {w.source === "new" && "· 신규 등록"}</div>
+              <div key={w.id}>
+                <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
+                  {w.thumbnailUrl ? (
+                    <img src={w.thumbnailUrl} alt={w.title} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-hyundai-gradient text-xs text-white/60">No thumbnail</div>
+                  )}
+                  <div className="absolute left-2 top-2">
+                    {w.stage ? (
+                      <span className={`rounded-full px-2 py-1 text-[11px] font-black shadow ${STAGE_LABEL[w.stage].tone}`}>{STAGE_LABEL[w.stage].label}</span>
+                    ) : (
+                      <span className="rounded-full bg-black/60 px-2 py-1 text-[11px] font-bold text-white backdrop-blur">미분류</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  {w.stage && <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STAGE_LABEL[w.stage].tone}`}>{STAGE_LABEL[w.stage].label}</span>}
-                  {w.request && <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS_LABEL[w.request.status].tone}`}>{STATUS_LABEL[w.request.status].label}</span>}
+                <div className="px-0.5 pt-2">
+                  <h4 className="line-clamp-2 text-[14px] font-bold leading-snug text-foreground">{w.title}</h4>
+                  <div className="mt-1 text-xs text-muted-foreground">{w.authorName} {w.authorPosition} {w.source === "new" && "· 신규 등록"}</div>
+                  {w.request && <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS_LABEL[w.request.status].tone}`}>{STATUS_LABEL[w.request.status].label}</span>}
                 </div>
               </div>
             ))}
-            {teamWorks.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">작품이 없습니다.</div>}
+            {teamWorks.length === 0 && <div className="col-span-full p-6 text-center text-sm text-muted-foreground">작품이 없습니다.</div>}
           </div>
         </DialogContent>
       </Dialog>

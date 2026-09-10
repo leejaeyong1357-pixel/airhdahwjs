@@ -127,6 +127,8 @@ export const axListTeamWorks = createServerFn({ method: "GET" })
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stage[s.id] ?? null,
         request: reqByWork.get(s.id) ?? null,
+        description: s.description ?? "", features: s.features ?? "",
+        techStack: s.tech_stack ?? "", expectedImpact: s.expected_impact ?? "",
       }));
 
     const news = (store.axNewWorks ?? [])
@@ -137,6 +139,8 @@ export const axListTeamWorks = createServerFn({ method: "GET" })
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stage[w.id] ?? null,
         request: reqByWork.get(w.id) ?? null,
+        description: w.description ?? "", features: "",
+        techStack: w.techStack ?? "", expectedImpact: "",
       }));
 
     return [...contest, ...news];
