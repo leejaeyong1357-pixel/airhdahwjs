@@ -1,0 +1,230 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Pretendard — 셀프호스팅 (내부망용). 폰트 파일은 public/fonts/ 에 두세요.
+ * scripts/fetch-assets.sh 실행 시 자동으로 받아집니다. 파일이 없으면 시스템 폰트로 대체됩니다.
+ */
+@font-face {
+  font-family: "Pretendard";
+  src: url("/fonts/PretendardVariable.woff2") format("woff2-variations");
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+ * GmarketSans — 사이트 기본 서체 (기하학적 고딕).
+ * Medium은 레포에 포함(public/fonts/GmarketSansMedium.woff).
+ * Light/Bold는 scripts/fetch-assets.sh 로 받으며, 없으면 Medium으로 대체된다.
+ */
+@font-face {
+  font-family: "GmarketSans";
+  src: url("/fonts/GmarketSansLight.woff") format("woff"),
+       url("/fonts/GmarketSansMedium.woff") format("woff");
+  font-weight: 100 350;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "GmarketSans";
+  src: url("/fonts/GmarketSansMedium.woff") format("woff");
+  font-weight: 351 550;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "GmarketSans";
+  src: url("/fonts/GmarketSansBold.woff") format("woff"),
+       url("/fonts/GmarketSansMedium.woff") format("woff");
+  font-weight: 551 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+ * TECZEN 2026 AI Competition — Hyundai-inspired design system.
+ * Deep navy, chromed silver, precision typography.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-hyundai: var(--hyundai);
+  --color-hyundai-light: var(--hyundai-light);
+  --color-steel: var(--steel);
+  --color-silver: var(--silver);
+
+  --font-display: "GmarketSans", "Pretendard", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: "GmarketSans", "Pretendard", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  --radius: 0.5rem;
+
+  /* Hyundai brand */
+  --hyundai: oklch(0.28 0.09 258);          /* #002C5F deep navy */
+  --hyundai-light: oklch(0.42 0.14 250);
+  --steel: oklch(0.58 0.05 240);
+  --silver: oklch(0.86 0.005 240);
+
+  --background: oklch(0.99 0.002 240);
+  --foreground: oklch(0.18 0.02 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.02 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.02 250);
+  --primary: oklch(0.28 0.09 258);
+  --primary-foreground: oklch(0.99 0.002 240);
+  --secondary: oklch(0.95 0.005 240);
+  --secondary-foreground: oklch(0.28 0.09 258);
+  --muted: oklch(0.96 0.003 240);
+  --muted-foreground: oklch(0.48 0.02 250);
+  --accent: oklch(0.55 0.16 250);
+  --accent-foreground: oklch(0.99 0.002 240);
+  --destructive: oklch(0.58 0.22 27);
+  --destructive-foreground: oklch(0.99 0.002 240);
+  --border: oklch(0.9 0.005 240);
+  --input: oklch(0.94 0.005 240);
+  --ring: oklch(0.42 0.14 250);
+}
+
+.dark {
+  --background: oklch(0.13 0.02 258);
+  --foreground: oklch(0.98 0.002 240);
+  --card: oklch(0.18 0.03 258);
+  --card-foreground: oklch(0.98 0.002 240);
+  --popover: oklch(0.18 0.03 258);
+  --popover-foreground: oklch(0.98 0.002 240);
+  --primary: oklch(0.65 0.16 250);
+  --primary-foreground: oklch(0.13 0.02 258);
+  --secondary: oklch(0.24 0.04 258);
+  --secondary-foreground: oklch(0.98 0.002 240);
+  --muted: oklch(0.22 0.03 258);
+  --muted-foreground: oklch(0.7 0.02 240);
+  --accent: oklch(0.55 0.16 250);
+  --accent-foreground: oklch(0.98 0.002 240);
+  --destructive: oklch(0.6 0.22 27);
+  --destructive-foreground: oklch(0.98 0.002 240);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.55 0.16 250);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv01";
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { letter-spacing: -0.02em; font-weight: 700; }
+}
+
+/* Hyundai chrome gradient */
+@utility bg-hyundai-gradient {
+  background-image: linear-gradient(135deg, oklch(0.22 0.08 258) 0%, oklch(0.32 0.11 250) 60%, oklch(0.5 0.16 245) 100%);
+}
+@utility bg-chrome {
+  background-image: linear-gradient(180deg, oklch(0.98 0.002 240) 0%, oklch(0.88 0.005 240) 50%, oklch(0.98 0.002 240) 100%);
+}
+@utility text-gradient-hyundai {
+  background-image: linear-gradient(135deg, oklch(0.28 0.09 258), oklch(0.55 0.16 250));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+@utility ring-accent-glow {
+  box-shadow: 0 0 0 1px oklch(0.55 0.16 250 / 0.25), 0 20px 40px -20px oklch(0.28 0.09 258 / 0.35);
+}
+@utility card-hover {
+  transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 240ms;
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 24px 50px -20px oklch(0.28 0.09 258 / 0.28);
+  }
+}
+
+/* 히어로 반딧불 효과 */
+@keyframes firefly-drift {
+  0%   { transform: translate(0, 0); opacity: 0; }
+  8%   { opacity: 0.9; }
+  45%  { opacity: 0.35; }
+  70%  { opacity: 0.85; }
+  100% { transform: translate(var(--fx), var(--fy)); opacity: 0; }
+}
+.firefly {
+  position: absolute;
+  border-radius: 9999px;
+  background: #7fb5ff;
+  box-shadow:
+    0 0 6px 2px rgba(110, 170, 255, 0.65),
+    0 0 16px 6px rgba(110, 170, 255, 0.3);
+  animation: firefly-drift linear infinite;
+  will-change: transform, opacity;
+}
+
+/* 커스텀 마우스 포인터 */
+@media (pointer: fine) {
+  .custom-cursor,
+  .custom-cursor * {
+    cursor: none !important;
+  }
+}
+.cursor-dot,
+.cursor-ring {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 9999px;
+  opacity: 0;
+  will-change: transform;
+}
+.cursor-dot {
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  z-index: 10000;
+  background: linear-gradient(120deg, #5ea1ff, #a97bff);
+  box-shadow: 0 0 10px rgba(110, 160, 255, 0.9), 0 0 22px rgba(150, 120, 255, 0.5);
+}
+.cursor-ring {
+  left: -17px;
+  top: -17px;
+  width: 34px;
+  height: 34px;
+  z-index: 9999;
+  border: 1.5px solid rgba(120, 165, 255, 0.7);
+  box-shadow: 0 0 16px rgba(110, 160, 255, 0.3);
+  transition: opacity 0.2s;
+}
