@@ -19,7 +19,7 @@ export type OrgGroup = {
 };
 
 export const ORG: OrgGroup[] = [
-  { name: "직속 (부서)", isDept: true, teams: ["재경팀", "사업기획팀"] },
+  { name: "직속", isDept: true, teams: ["재경팀", "사업기획팀"] },
   { name: "경영지원실", teams: ["미래성장팀", "비즈니스솔루션팀"] },
   { name: "PT생산실", teams: ["PT생산1팀", "PT생산2팀", "PT생산관리팀"] },
   { name: "엔진생산실", teams: ["엔진생산1팀", "엔진생산2팀", "엔진생산3팀", "엔진생산관리팀", "엔진보전팀"] },
@@ -43,7 +43,7 @@ export function isSilName(rawTeam?: string): boolean {
   return SIL_NAMES.has(normalizeTeam(rawTeam));
 }
 
-/** 팀 → 소속 실(또는 "직속 (부서)") 이름. 매핑에 없으면 null. */
+/** 팀 → 소속 실(또는 "직속") 이름. 매핑에 없으면 null. */
 export function silOfTeam(rawTeam?: string): string | null {
   const team = normalizeTeam(rawTeam);
   if (!team) return null;

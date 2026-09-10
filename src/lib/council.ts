@@ -2,7 +2,7 @@
 export type CouncilMember = { empNo: string; name: string; scope: string; teams: string[] };
 
 export const COUNCIL: CouncilMember[] = [
-  { empNo: "82211494", name: "정지운", scope: "직속 (부서)", teams: ["재경팀", "사업기획팀"] },
+  { empNo: "82211494", name: "정지운", scope: "직속", teams: ["재경팀", "사업기획팀"] },
   { empNo: "82210857", name: "이상욱", scope: "경영지원실", teams: ["미래성장팀", "비즈니스솔루션팀"] },
   { empNo: "82210813", name: "윤혁진", scope: "PT생산실", teams: ["PT생산1팀", "PT생산2팀", "PT생산관리팀"] },
   { empNo: "82211504", name: "박근호", scope: "엔진생산실", teams: ["엔진생산관리팀", "엔진생산1팀", "엔진생산2팀", "엔진생산3팀", "엔진보전팀"] },
