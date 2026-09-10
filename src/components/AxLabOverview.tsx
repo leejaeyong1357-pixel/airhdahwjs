@@ -5,9 +5,9 @@ import { axGetOverview, axGetOrgBoard, axGetMyWorks } from "@/lib/ax-lab.functio
 import { AxPipelineStepper } from "@/components/AxPipelineStepper";
 import { AxOrgBoard } from "@/components/AxOrgBoard";
 import { SiteImage } from "@/components/SiteImage";
-import { AX_STAGES, AX_STATUS } from "@/lib/ax-stages";
+import { AX_STAGES, AX_STAGE_LIST, AX_STATUS } from "@/lib/ax-stages";
 import axlabHero from "@/assets/axlab-hero.png";
-import { Rocket, TrendingUp, Send, CheckCircle2, ArrowUpRight, ArrowRight } from "lucide-react";
+import { Rocket, CheckCircle2, ArrowUpRight, ArrowRight } from "lucide-react";
 
 /** AX LAB 메인 화면 — 메인페이지(/)와 /ax-lab 이 함께 쓴다. */
 export function AxLabOverview() {
@@ -74,13 +74,34 @@ export function AxLabOverview() {
         </div>
       </section>
 
-      {/* 통계 — 한 줄 카드 */}
+      {/* 통계 — 전체 작품 + 단계별 건수 */}
       <section className="rounded-2xl border border-slate-200 bg-white px-2 py-5 sm:px-4">
-        <div className="grid grid-cols-2 gap-y-6 lg:grid-cols-4">
-          <Stat icon={Rocket} tone="blue" label="경진대회 작품" value={overview?.totalContestWorks ?? 0} />
-          <Stat icon={TrendingUp} tone="orange" label="고도화 대상 · 3단계" value={overview?.advancementTargetCount ?? 0} divider />
-          <Stat icon={Send} tone="blue" label="고도화 신청" value={overview?.requestedCount ?? 0} divider />
-          <Stat icon={CheckCircle2} tone="emerald" label="SaaS 승인" value={overview?.saasApprovedCount ?? 0} divider />
+        <div className="grid grid-cols-2 gap-y-6 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="flex items-center gap-4 px-5">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-600">
+              <Rocket className="h-[22px] w-[22px]" />
+            </span>
+            <div>
+              <div className="text-[14px] font-bold text-slate-500">경진대회 작품</div>
+              <div className="mt-0.5 text-[32px] font-black leading-none tabular-nums text-slate-900">
+                {overview?.totalContestWorks ?? 0}
+              </div>
+            </div>
+          </div>
+          {AX_STAGE_LIST.map((st) => (
+            <div key={st} className="flex items-center gap-4 px-5 lg:border-l lg:border-slate-200">
+              <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-[17px] font-black ${AX_STAGES[st].solid}`}>
+                {st}
+              </span>
+              <div className="min-w-0">
+                <div className="text-[14px] font-bold text-slate-900">{st}단계 · {AX_STAGES[st].name}</div>
+                <div className="break-keep text-[11.5px] leading-tight text-slate-400">{AX_STAGES[st].desc}</div>
+                <div className="mt-1.5 text-[30px] font-black leading-none tabular-nums text-slate-900">
+                  {overview?.stageCounts?.[st] ?? 0}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -127,23 +148,3 @@ export function AxLabOverview() {
   );
 }
 
-function Stat({ icon: Icon, tone, label, value, divider }: {
-  icon: any; tone: "blue" | "orange" | "emerald"; label: string; value: number; divider?: boolean;
-}) {
-  const tones = {
-    blue: { circle: "bg-blue-50 text-blue-600", label: "text-slate-500" },
-    orange: { circle: "bg-orange-50 text-orange-500", label: "text-orange-500" },
-    emerald: { circle: "bg-emerald-50 text-emerald-500", label: "text-slate-500" },
-  }[tone];
-  return (
-    <div className={`flex items-center gap-4 px-5 ${divider ? "lg:border-l lg:border-slate-200" : ""}`}>
-      <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-full ${tones.circle}`}>
-        <Icon className="h-[22px] w-[22px]" />
-      </span>
-      <div>
-        <div className={`text-[14px] font-bold ${tones.label}`}>{label}</div>
-        <div className="mt-0.5 text-[32px] font-black leading-none tabular-nums text-slate-900">{value}</div>
-      </div>
-    </div>
-  );
-}

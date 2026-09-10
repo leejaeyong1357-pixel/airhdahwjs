@@ -50,7 +50,13 @@ export const axGetOverview = createServerFn({ method: "GET" })
     const advancementTargetCount = Object.values(stage).filter((s) => s === 3).length;
     const requestedCount = requests.length;
     const saasApprovedCount = requests.filter((r) => r.status === "saas").length;
-    return { totalContestWorks, advancementTargetCount, requestedCount, saasApprovedCount };
+    // 단계별 건수 — 실별 현황 표와 같은 기준(경진대회 출품작)으로 센다.
+    const stageCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    for (const s of store.submissions) {
+      const v = stage[s.id];
+      if (v) stageCounts[v] += 1;
+    }
+    return { totalContestWorks, advancementTargetCount, requestedCount, saasApprovedCount, stageCounts };
   });
 
 // ── 실별·팀별 현황 보드 ──────────────────────────────────────
