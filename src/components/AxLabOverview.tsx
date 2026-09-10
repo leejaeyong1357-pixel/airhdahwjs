@@ -61,14 +61,14 @@ export function AxLabOverview() {
 
         {/* 우측 상단 문구 */}
         <div className="pointer-events-none absolute right-6 top-8 hidden text-right xl:block">
-          <p className="text-[16px] italic leading-relaxed text-slate-500" style={{ fontFamily: "cursive, ui-serif" }}>
+          <p className="text-[15px] font-semibold leading-relaxed text-slate-500">
             AI로
             <br />더 스마트한
             <br />오늘, 더 큰 내일
           </p>
           <div className="ml-auto mt-2.5 h-px w-14 bg-slate-300" />
           <div className="mt-2 text-[11px] font-bold uppercase leading-relaxed tracking-[0.2em] text-slate-400">
-            TECHZEN
+            TECZEN
             <br />AX LAB
           </div>
         </div>
