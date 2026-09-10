@@ -10,6 +10,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Header } from "@/components/Header";
+import { isStaleBundleError, reloadForStaleBundle } from "@/lib/stale-bundle";
 import { FloatingVideo } from "@/components/FloatingVideo";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -124,7 +125,30 @@ function NotFound() {
 }
 
 function ErrorPage({ error }: { error: Error }) {
-  useEffect(() => console.error(error), [error]);
+  const stale = isStaleBundleError(error);
+  useEffect(() => {
+    console.error(error);
+    if (stale) reloadForStaleBundle();
+  }, [error, stale]);
+
+  // 새 버전이 올라가 예전 청크가 사라진 경우 — 자동으로 다시 불러온다.
+  if (stale) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 text-center">
+        <div className="text-lg font-semibold">새 버전을 불러오는 중입니다</div>
+        <div className="mt-2 text-sm text-muted-foreground">
+          화면이 자동으로 새로고침됩니다. 잠시 후에도 그대로면 아래 버튼을 눌러주세요.
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-6 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+        >
+          새로고침
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 text-center">
       <div className="text-lg font-semibold">문제가 발생했습니다</div>
