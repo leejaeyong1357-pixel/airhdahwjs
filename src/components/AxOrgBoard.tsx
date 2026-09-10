@@ -2,7 +2,6 @@ import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { axListWorksBy } from "@/lib/ax-lab.functions";
-import { AxProgressBar } from "@/components/AxPipelineStepper";
 import { AxWorkCard, AxWorkDetailDialog } from "@/components/AxWorkDetailDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AX_STAGES, AX_STAGE_LIST } from "@/lib/ax-stages";
@@ -58,14 +57,14 @@ export function AxOrgBoard({ board }: { board: any[] }) {
     ));
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2 className="text-[20px] font-black tracking-tight text-slate-900">실별 고도화 현황</h2>
+          <h2 className="text-[19px] font-black tracking-tight text-slate-900">실별 고도화 현황</h2>
           <p className="text-[13px] text-slate-500">실을 선택하면 팀별 현황과 작품을 확인할 수 있습니다.</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+          <div className="flex gap-1 rounded-xl bg-[#eef4fd] p-1">
             {(["sil", "team"] as const).map((k) => (
               <button
                 key={k}
@@ -95,7 +94,7 @@ export function AxOrgBoard({ board }: { board: any[] }) {
 
       <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
         {tab === "sil" ? (
-          <table className="w-full min-w-[980px] text-sm">
+          <table className="w-full min-w-[860px] text-sm">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <Th className="w-8"></Th>
@@ -105,13 +104,11 @@ export function AxOrgBoard({ board }: { board: any[] }) {
                 <Th>고도화 목표</Th>
                 <Th>신청</Th>
                 <Th>승인</Th>
-                <Th className="w-[170px]">목표 대비 진행</Th>
               </tr>
             </thead>
             <tbody>
               {visibleSils.map((g: any) => {
                 const expanded = openSils.has(g.sil);
-                const pct = g.goal > 0 ? Math.min(100, Math.round((g.requested / g.goal) * 100)) : 0;
                 return (
                   <Fragment key={g.sil}>
                     <tr className="cursor-pointer border-t border-slate-200 hover:bg-slate-50/80" onClick={() => toggleSil(g.sil)}>
@@ -124,7 +121,6 @@ export function AxOrgBoard({ board }: { board: any[] }) {
                       <NumCell value={g.goal} />
                       <NumCell value={g.requested} onPick={() => open("sil", g.sil, "requested", "고도화 신청")} />
                       <NumCell value={g.approved} tone="text-emerald-600" onPick={() => open("sil", g.sil, "approved", "승인")} />
-                      <Td><AxProgressBar pct={pct} /></Td>
                     </tr>
                     {expanded && g.teams.map((t: any) => (
                       <tr key={g.sil + t.team} className="border-t border-slate-100 bg-slate-50/50 text-[13px]">
@@ -142,14 +138,13 @@ export function AxOrgBoard({ board }: { board: any[] }) {
                         <Td className="text-center text-slate-300">—</Td>
                         <NumCell value={t.requested} onPick={() => open("team", t.team, "requested", "고도화 신청")} />
                         <NumCell value={t.approved} tone="text-emerald-600" onPick={() => open("team", t.team, "approved", "승인")} />
-                        <Td></Td>
                       </tr>
                     ))}
                   </Fragment>
                 );
               })}
               {visibleSils.length === 0 && (
-                <tr><td colSpan={11} className="p-8 text-center text-sm text-slate-400">데이터가 없습니다.</td></tr>
+                <tr><td colSpan={10} className="p-8 text-center text-sm text-slate-400">데이터가 없습니다.</td></tr>
               )}
               <tr className="border-t-2 border-slate-200 bg-slate-50">
                 <Td></Td>
@@ -159,7 +154,6 @@ export function AxOrgBoard({ board }: { board: any[] }) {
                 <TotalCell value={sum(visibleSils, "goal")} />
                 <TotalCell value={sum(visibleSils, "requested")} />
                 <TotalCell value={sum(visibleSils, "approved")} tone="text-emerald-600" />
-                <Td></Td>
               </tr>
             </tbody>
           </table>

@@ -9,6 +9,7 @@ import { z } from "zod";
 
 export const SITE_IMAGE_SLOTS = [
   { slot: "hero", label: "메인 AI 헤드 이미지" },
+  { slot: "axlab-hero", label: "AX LAB 메인 일러스트" },
   { slot: "prize-1", label: "경품 — 1등 대상" },
   { slot: "prize-2", label: "경품 — 2등 최우수상" },
   { slot: "prize-3", label: "경품 — 3등 우수상" },

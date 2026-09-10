@@ -24,27 +24,25 @@ const ROW_2: Step[] = [
 function StepCard({ s }: { s: Step }) {
   return (
     <div
-      className={`flex flex-1 flex-col gap-2 rounded-2xl border p-4 transition ${
-        s.highlight ? "border-blue-600 bg-blue-600 shadow-md shadow-blue-600/20" : "border-slate-200 bg-white"
+      className={`flex flex-1 flex-col gap-1.5 rounded-xl border px-3.5 py-3 ${
+        s.highlight ? "border-blue-600 bg-blue-600 shadow-md shadow-blue-600/25" : "border-slate-200 bg-white"
       }`}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2">
         <span
-          className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[12px] font-black ${
+          className={`grid h-6 w-7 shrink-0 place-items-center rounded-md text-[12px] font-black ${
             s.highlight ? "bg-white/20 text-white" : "bg-blue-50 text-blue-600"
           }`}
         >
           {s.n}
         </span>
-        <s.icon className={`h-4 w-4 shrink-0 ${s.highlight ? "text-white" : "text-slate-500"}`} />
-      </div>
-      <div>
-        <div className={`text-[14px] font-black leading-snug ${s.highlight ? "text-white" : "text-slate-900"}`}>
+        <s.icon className={`mt-0.5 h-[17px] w-[17px] shrink-0 ${s.highlight ? "text-white" : "text-blue-500"}`} />
+        <span className={`break-keep text-[13.5px] font-black leading-tight ${s.highlight ? "text-white" : "text-slate-900"}`}>
           {s.title}
-        </div>
-        <div className={`mt-1 text-[12px] leading-snug ${s.highlight ? "text-white/80" : "text-slate-500"}`}>
-          {s.desc}
-        </div>
+        </span>
+      </div>
+      <div className={`break-keep text-[12px] leading-snug ${s.highlight ? "text-white/85" : "text-slate-500"}`}>
+        {s.desc}
       </div>
     </div>
   );
@@ -68,11 +66,11 @@ function StepRow({ steps }: { steps: Step[] }) {
 /** 아이디어 제안부터 전사 확산까지 10단계 흐름. */
 export function AxPipelineStepper() {
   return (
-    <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
-      <h2 className="text-[20px] font-black tracking-tight text-slate-900">아이디어에서 업무 적용까지</h2>
-      <p className="mt-1 text-[13.5px] text-slate-500">
-        개발로 끝나지 않고, 현장 검증과 업무 적용을 거쳐 전사로 확산합니다.
-      </p>
+    <section className="rounded-2xl border border-slate-200 bg-[#f7faff] p-5 sm:p-6">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="text-[19px] font-black tracking-tight text-slate-900">아이디어에서 업무 적용까지</h2>
+        <p className="text-[13px] text-slate-500">개발로 끝나지 않고, 현장 검증과 업무 적용을 거쳐 전사로 확산합니다.</p>
+      </div>
 
       <div className="mt-4">
         <StepRow steps={ROW_1} />
@@ -87,18 +85,6 @@ export function AxPipelineStepper() {
         <StepRow steps={ROW_2} />
       </div>
     </section>
-  );
-}
-
-/** 목표 대비 진행 비율 진행 바 (0-100%). */
-export function AxProgressBar({ pct }: { pct: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200">
-        <div className="h-full rounded-full bg-blue-600" style={{ width: `${pct}%` }} />
-      </div>
-      <span className="w-9 shrink-0 text-right text-[12px] font-bold text-muted-foreground">{pct}%</span>
-    </div>
   );
 }
 
