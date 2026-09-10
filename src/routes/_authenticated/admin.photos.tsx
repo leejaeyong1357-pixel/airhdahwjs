@@ -8,7 +8,7 @@ import { SiteImage, bumpSiteImageVersion } from "@/components/SiteImage";
 import { Button } from "@/components/ui/button";
 
 import heroDefault from "@/assets/ai-head-v2.png";
-import axlabHeroDefault from "@/assets/ai-hero.png";
+import axlabHeroDefault from "@/assets/axlab-hero.png";
 import prize1Default from "@/assets/prize-claude.jpg";
 import prize2Default from "@/assets/prize-keyboard.jpg";
 import prize3Default from "@/assets/prize-mouse.jpg";

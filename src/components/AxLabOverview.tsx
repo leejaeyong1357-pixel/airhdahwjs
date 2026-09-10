@@ -6,7 +6,7 @@ import { AxPipelineStepper } from "@/components/AxPipelineStepper";
 import { AxOrgBoard } from "@/components/AxOrgBoard";
 import { SiteImage } from "@/components/SiteImage";
 import { AX_STAGES, AX_STATUS } from "@/lib/ax-stages";
-import axlabHero from "@/assets/ai-hero.png";
+import axlabHero from "@/assets/axlab-hero.png";
 import { Rocket, TrendingUp, Send, CheckCircle2, ArrowUpRight, ArrowRight } from "lucide-react";
 
 /** AX LAB 메인 화면 — 메인페이지(/)와 /ax-lab 이 함께 쓴다. */
@@ -27,7 +27,7 @@ export function AxLabOverview() {
   return (
     <div className="space-y-5">
       {/* 히어로 */}
-      <section className="relative overflow-hidden rounded-2xl bg-[linear-gradient(120deg,#ffffff_0%,#eef4fd_55%,#e3edfb_100%)] px-6 py-8 sm:px-10 sm:py-10">
+      <section className="relative overflow-hidden rounded-2xl bg-[linear-gradient(115deg,#ffffff_0%,#f6fafe_46%,#eff6fd_100%)] px-6 py-8 sm:px-10 sm:py-10 xl:pr-32">
         <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
           <div className="relative z-10">
             <div className="text-[13px] font-black uppercase tracking-[0.25em] text-blue-600">AX LAB</div>
@@ -49,26 +49,27 @@ export function AxLabOverview() {
             </Link>
           </div>
 
-          <div className="flex flex-col items-end">
-            {/* 우측 상단 문구 */}
-            <div className="mb-1 hidden text-right sm:block">
-              <p className="text-[16px] italic leading-relaxed text-slate-500" style={{ fontFamily: "cursive, ui-serif" }}>
-                AI로
-                <br />더 스마트한
-                <br />오늘, 더 큰 내일
-              </p>
-              <div className="ml-auto mt-2.5 h-px w-14 bg-slate-300" />
-              <div className="mt-2 text-[11px] font-bold uppercase leading-relaxed tracking-[0.2em] text-slate-400">
-                TECHZEN
-                <br />AX LAB
-              </div>
-            </div>
+          <div>
             <SiteImage
               slot="axlab-hero"
               fallback={axlabHero}
               alt="AX LAB"
-              className="h-auto w-full max-w-[560px] object-contain"
+              className="ml-auto h-auto w-full max-w-[560px] object-contain"
             />
+          </div>
+        </div>
+
+        {/* 우측 상단 문구 */}
+        <div className="pointer-events-none absolute right-6 top-8 hidden text-right xl:block">
+          <p className="text-[16px] italic leading-relaxed text-slate-500" style={{ fontFamily: "cursive, ui-serif" }}>
+            AI로
+            <br />더 스마트한
+            <br />오늘, 더 큰 내일
+          </p>
+          <div className="ml-auto mt-2.5 h-px w-14 bg-slate-300" />
+          <div className="mt-2 text-[11px] font-bold uppercase leading-relaxed tracking-[0.2em] text-slate-400">
+            TECHZEN
+            <br />AX LAB
           </div>
         </div>
       </section>
