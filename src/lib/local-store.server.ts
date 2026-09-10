@@ -60,6 +60,7 @@ export type Store = {
       painPoint: string;            // 1. 활용할 업무와 현재의 불편함
       improvementTypes: string[];   // 2. 고도화하고 싶은 내용(유형) — 기능보완/업무프로세스연결/사용성개선/보안검토
       improvementDetail: string;    // 2. 상세 설명
+      neededSupport?: string;       // 3. 고도화에 필요한 지원 (본인이 고도화하며 필요한 것)
       expectedUsers: string;        // 4. 예상 사용자 수
       expectedImpact: string;       // 5. 기대 효과
       dataTypes: string[];          // 6. 사용 데이터 — 개인정보/회사내부정보/공개데이터/아직미정

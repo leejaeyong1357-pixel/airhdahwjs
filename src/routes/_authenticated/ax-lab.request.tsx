@@ -59,6 +59,7 @@ function AxRequestWizard() {
   const [painPoint, setPainPoint] = useState("");
   const [improvementTypes, setImprovementTypes] = useState<string[]>([]);
   const [improvementDetail, setImprovementDetail] = useState("");
+  const [neededSupport, setNeededSupport] = useState("");
   const [expectedUsers, setExpectedUsers] = useState("");
   const [expectedImpact, setExpectedImpact] = useState("");
   const [dataTypes, setDataTypes] = useState<string[]>([]);
@@ -76,7 +77,8 @@ function AxRequestWizard() {
       if (!raw) return;
       const d = JSON.parse(raw);
       setPainPoint(d.painPoint ?? ""); setImprovementTypes(d.improvementTypes ?? []);
-      setImprovementDetail(d.improvementDetail ?? ""); setExpectedUsers(d.expectedUsers ?? "");
+      setImprovementDetail(d.improvementDetail ?? ""); setNeededSupport(d.neededSupport ?? "");
+      setExpectedUsers(d.expectedUsers ?? "");
       setExpectedImpact(d.expectedImpact ?? ""); setDataTypes(d.dataTypes ?? []);
       setReferenceLink(d.referenceLink ?? "");
     } catch { /* ignore */ }
@@ -89,7 +91,7 @@ function AxRequestWizard() {
   function saveDraft() {
     if (!selected) return;
     localStorage.setItem(`ax-draft-${selected.id}`, JSON.stringify({
-      painPoint, improvementTypes, improvementDetail, expectedUsers, expectedImpact, dataTypes, referenceLink,
+      painPoint, improvementTypes, improvementDetail, neededSupport, expectedUsers, expectedImpact, dataTypes, referenceLink,
     }));
     toast.success("임시 저장되었습니다.");
   }
@@ -120,7 +122,7 @@ function AxRequestWizard() {
         data: {
           workId: selected!.id, workSource: selected!.source,
           form: {
-            painPoint, improvementTypes, improvementDetail, expectedUsers, expectedImpact, dataTypes, referenceLink,
+            painPoint, improvementTypes, improvementDetail, neededSupport, expectedUsers, expectedImpact, dataTypes, referenceLink,
             attachmentPath: attachmentPath || undefined, attachmentName: attachment?.name,
           },
         },
@@ -295,22 +297,27 @@ function AxRequestWizard() {
                     <CharCount v={improvementDetail} />
                   </Field>
 
+                  <Field n={3} label="고도화에 필요한 지원" hint="고도화는 작품을 만든 본인이 진행합니다. 진행하면서 필요한 것이 있으면 적어주세요.">
+                    <Textarea rows={3} maxLength={500} value={neededSupport} onChange={(e) => setNeededSupport(e.target.value)} placeholder="예: 사내 데이터 접근 권한, API 사용료, 서버·계정, 교육, AX협의체 기술 자문 등" />
+                    <CharCount v={neededSupport} />
+                  </Field>
+
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field n={3} label="사용 예정 조직" required>
+                    <Field n={4} label="사용 예정 조직" required>
                       <div className="rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-[14px] text-foreground/80">{myWorks?.orgLabel}</div>
                       <div className="mt-1 text-[11px] text-muted-foreground">기존 조직 정보가 자동 반영됩니다.</div>
                     </Field>
-                    <Field n={4} label="예상 사용자 수">
+                    <Field n={5} label="예상 사용자 수">
                       <Input value={expectedUsers} onChange={(e) => setExpectedUsers(e.target.value)} placeholder="예: 10명" />
                     </Field>
                   </div>
 
-                  <Field n={5} label="기대 효과">
+                  <Field n={6} label="기대 효과">
                     <Textarea rows={2} maxLength={500} value={expectedImpact} onChange={(e) => setExpectedImpact(e.target.value)} placeholder="예: 작성 시간을 줄이고, 입력 오류를 예방합니다." />
                     <CharCount v={expectedImpact} />
                   </Field>
 
-                  <Field n={6} label="사용 데이터" required hint="해당하는 항목을 모두 선택해 주세요.">
+                  <Field n={7} label="사용 데이터" required hint="해당하는 항목을 모두 선택해 주세요.">
                     <div className="flex flex-wrap gap-2">
                       {DATA_TYPES.map((t) => (
                         <Chip key={t} active={dataTypes.includes(t)} onClick={() => toggle(dataTypes, setDataTypes, t)}>{t}</Chip>
@@ -324,10 +331,10 @@ function AxRequestWizard() {
                   </Field>
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field n={7} label="프로그램 · 문서 링크">
+                    <Field n={8} label="프로그램 · 문서 링크">
                       <Input value={referenceLink} onChange={(e) => setReferenceLink(e.target.value)} placeholder="https://" />
                     </Field>
-                    <Field n={8} label="소개 자료 첨부">
+                    <Field n={9} label="소개 자료 첨부">
                       <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-center text-[12.5px] text-muted-foreground hover:border-primary/40">
                         <Paperclip className="h-4 w-4" />
                         {attachment ? attachment.name : uploading ? "업로드 중…" : "파일을 클릭하여 첨부하세요. (선택)"}

@@ -282,6 +282,7 @@ export const axRequestAdvancement = createServerFn({ method: "POST" })
         painPoint: z.string().trim().max(500),
         improvementTypes: z.array(z.string()).max(10),
         improvementDetail: z.string().trim().max(500),
+        neededSupport: z.string().trim().max(500).optional().default(""),
         expectedUsers: z.string().trim().max(50),
         expectedImpact: z.string().trim().max(500),
         dataTypes: z.array(z.string()).max(10),

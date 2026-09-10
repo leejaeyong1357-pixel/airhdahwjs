@@ -10,6 +10,8 @@ export const AX_STAGES: Record<AxStage, {
   /** 배지·안내용 — "1단계 · 보류" */
   label: string;
   desc: string;
+  /** 단계 안내 카드에만 덧붙는 부연 설명 */
+  note?: string;
   /** 표 숫자 색 */
   num: string;
   /** 연한 배지 */
@@ -41,7 +43,8 @@ export const AX_STAGES: Record<AxStage, {
   },
   4: {
     stage: 4, name: "적용완료", head: "4단계 (적용완료)", label: "4단계 · 적용완료",
-    desc: "실제 업무에 적용 중",
+    desc: "사용 중 · 선승인 후 고도화",
+    note: "이미 업무에 적용해 쓰고 있는 작품입니다. 전사 확산 전에 보안검증과 고도화를 거쳐야 하므로 '선승인 후 고도화'로 진행합니다.",
     num: "text-emerald-600", soft: "bg-emerald-500/15 text-emerald-600", solid: "bg-emerald-500 text-white",
     card: "border-emerald-300 bg-emerald-50", dot: "bg-emerald-500",
   },
