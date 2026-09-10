@@ -262,6 +262,8 @@ export const axAdminListWorks = createServerFn({ method: "GET" })
         thumbnailUrl: mediaUrl("thumbnails", s.thumbnail_url),
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stage[s.id] ?? null, request: reqByWork.get(s.id) ?? null,
+        description: s.description ?? "", features: s.features ?? "",
+        techStack: s.tech_stack ?? "", expectedImpact: s.expected_impact ?? "",
       };
     });
     const news = (store.axNewWorks ?? []).map((w: any) => {
@@ -270,6 +272,8 @@ export const axAdminListWorks = createServerFn({ method: "GET" })
         id: w.id, source: "new" as const, title: w.title, thumbnailUrl: "",
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stage[w.id] ?? null, request: reqByWork.get(w.id) ?? null,
+        description: w.description ?? "", features: "",
+        techStack: w.techStack ?? "", expectedImpact: "",
       };
     });
     return [...contest, ...news];

@@ -108,13 +108,22 @@ export function AdminAxLabView() {
     return requests.filter((r: any) => matcher(r.status));
   }, [requests, reviewTab]);
 
-  // 작품 단계 분류 검색
+  // 작품 단계 분류 검색 · 단계 필터
   const [q, setQ] = useState("");
+  const [stageFilter, setStageFilter] = useState<"all" | "none" | 1 | 2 | 3 | 4>("all");
   const filteredWorks = useMemo(() => {
     const k = q.trim().toLowerCase();
-    if (!k) return works;
-    return works.filter((w: any) => `${w.title} ${w.authorName} ${w.authorTeam}`.toLowerCase().includes(k));
-  }, [works, q]);
+    return works
+      .filter((w: any) => (k ? `${w.title} ${w.authorName} ${w.authorTeam}`.toLowerCase().includes(k) : true))
+      .filter((w: any) => {
+        if (stageFilter === "all") return true;
+        if (stageFilter === "none") return !w.stage;
+        return w.stage === stageFilter;
+      });
+  }, [works, q, stageFilter]);
+
+  // 작품 상세 보기
+  const [detailWork, setDetailWork] = useState<any | null>(null);
 
   return (
     <div className="space-y-10">
@@ -289,7 +298,7 @@ export function AdminAxLabView() {
           <h2 className="text-lg font-black tracking-tight">작품 단계 분류</h2>
           <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[13px] font-bold text-primary">총 {works.length}건</span>
           <span className="ml-1 inline-flex items-center gap-1 text-[12px] font-semibold text-muted-foreground">
-            <MousePointerClick className="h-3.5 w-3.5" /> 작품을 우클릭해서 단계를 지정하세요
+            <MousePointerClick className="h-3.5 w-3.5" /> 클릭하면 상세보기 · 우클릭하면 단계를 지정하세요
           </span>
           <div className="relative ml-auto">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -305,11 +314,26 @@ export function AdminAxLabView() {
           <StageLegendCard stage={4} />
         </div>
 
+        {/* 단계별 필터 */}
+        <div className="mt-4 flex flex-wrap items-center gap-1.5">
+          <FilterPill active={stageFilter === "all"} onClick={() => setStageFilter("all")} label={`전체 ${works.length}`} />
+          <FilterPill active={stageFilter === "none"} onClick={() => setStageFilter("none")} label={`미분류 ${works.filter((w: any) => !w.stage).length}`} />
+          {[1, 2, 3, 4].map((s) => (
+            <FilterPill
+              key={s}
+              active={stageFilter === s}
+              onClick={() => setStageFilter(s as 1 | 2 | 3 | 4)}
+              label={`${STAGE_TEXT[s]} ${works.filter((w: any) => w.stage === s).length}`}
+              tone={STAGE_TONE_SOFT[s]}
+            />
+          ))}
+        </div>
+
         <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {filteredWorks.map((w: any) => (
             <ContextMenu key={w.id}>
               <ContextMenuTrigger asChild>
-                <div className="cursor-context-menu select-none">
+                <div className="cursor-pointer select-none" onClick={() => setDetailWork(w)}>
                   <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
                     {w.thumbnailUrl ? (
                       <img src={w.thumbnailUrl} alt={w.title} className="h-full w-full object-cover" />
@@ -418,6 +442,41 @@ export function AdminAxLabView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 작품 상세보기 다이얼로그 */}
+      <Dialog open={!!detailWork} onOpenChange={(o) => !o && setDetailWork(null)}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto p-0">
+          {detailWork && (
+            <div>
+              <div className="w-full overflow-hidden rounded-t-lg bg-black">
+                {detailWork.thumbnailUrl ? (
+                  <img src={detailWork.thumbnailUrl} alt={detailWork.title} className="max-h-[46vh] w-full object-contain" />
+                ) : (
+                  <div className="grid aspect-video w-full place-items-center bg-hyundai-gradient text-sm text-white/70">No thumbnail</div>
+                )}
+              </div>
+              <div className="p-6">
+                <div className="flex flex-wrap items-center gap-2">
+                  {detailWork.stage ? (
+                    <span className={`rounded-full px-2.5 py-1 text-[12px] font-black ${STAGE_TONE_SOFT[detailWork.stage]}`}>{STAGE_TEXT[detailWork.stage]}</span>
+                  ) : (
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-[12px] font-bold text-muted-foreground">미분류</span>
+                  )}
+                  <span className="text-[12px] text-muted-foreground">{detailWork.source === "contest" ? "경진대회 출품작" : "신규 등록"}</span>
+                </div>
+                <h3 className="mt-2 text-[24px] font-black tracking-tight text-foreground">{detailWork.title}</h3>
+                <div className="mt-1 text-[14px] text-muted-foreground">{detailWork.authorTeam} · {detailWork.authorName} {detailWork.authorPosition}</div>
+                <div className="mt-5 space-y-4">
+                  <Detail label="작품 설명">{detailWork.description}</Detail>
+                  {detailWork.features && <Detail label="주요 기능">{detailWork.features}</Detail>}
+                  {detailWork.techStack && <Detail label="사용 AI · 기술 · 스택">{detailWork.techStack}</Detail>}
+                  {detailWork.expectedImpact && <Detail label="기대 효과">{detailWork.expectedImpact}</Detail>}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -452,6 +511,27 @@ function StatCard({ icon: Icon, tone, label, value }: { icon: any; tone: "slate"
     <div className={`rounded-2xl border p-4 ${tones[tone]}`}>
       <div className="flex items-center gap-1.5 text-[13px] font-bold"><Icon className="h-4 w-4" /> {label}</div>
       <div className="mt-1 text-3xl font-black text-foreground tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function FilterPill({ active, onClick, label, tone }: { active: boolean; onClick: () => void; label: string; tone?: string }) {
+  const inactiveClass = tone ? `border-transparent ${tone}` : "border-border bg-card text-foreground/80 hover:border-primary/40";
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1.5 text-[12.5px] font-bold transition ${active ? "border-primary bg-primary text-primary-foreground" : inactiveClass}`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function Detail({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[12px] font-bold uppercase tracking-widest text-muted-foreground">{label}</div>
+      <p className="mt-0.5 whitespace-pre-wrap text-[15px] leading-relaxed text-foreground/90">{children || "—"}</p>
     </div>
   );
 }
