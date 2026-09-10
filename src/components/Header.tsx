@@ -67,7 +67,7 @@ export function Header() {
         <Link to="/" className="flex items-center gap-3 shrink-0">
           <img src={teczenLogo} alt="TECZEN" className="h-9 w-auto object-contain" />
           <span className="hidden sm:block text-base md:text-lg font-black tracking-tight text-primary">
-            제 1회 테크젠 사내 AI 경진대회
+            104개의 아이디어, 실제 업무의 변화로
           </span>
         </Link>
 
