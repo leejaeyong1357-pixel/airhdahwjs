@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { SiteImage } from "@/components/SiteImage";
 import prizeClaude from "@/assets/prize-claude.jpg";
 import prizeKeyboard from "@/assets/prize-keyboard.jpg";
 import prizeMouse from "@/assets/prize-mouse.jpg";
-
-const STORAGE_KEY = "teczen-popup-hide-until";
 
 const prizes = [
   { rank: "1등 대상", name: "Claude AI 1년 구독권", slot: "prize-1", image: prizeClaude, tint: "from-amber-100 to-orange-50" },
@@ -23,17 +20,8 @@ export function openPrizePopup() {
 
 export function PrizePopup() {
   const [open, setOpen] = useState(false);
-  const [dontShow, setDontShow] = useState(false);
 
-  useEffect(() => {
-    const hideUntil = localStorage.getItem(STORAGE_KEY);
-    const shouldAutoShow = !(hideUntil && Date.now() < Number(hideUntil));
-    if (shouldAutoShow) {
-      const t = setTimeout(() => setOpen(true), 600);
-      return () => clearTimeout(t);
-    }
-  }, []);
-
+  // 메인 화면이 AX LAB 으로 바뀌면서 자동으로 뜨지 않는다 — 헤더 [시상 내역] 으로만 연다.
   useEffect(() => {
     function onOpen() { setOpen(true); }
     window.addEventListener("teczen:open-prize-popup", onOpen);
@@ -41,11 +29,6 @@ export function PrizePopup() {
   }, []);
 
   function close() {
-    if (dontShow) {
-      const next = new Date();
-      next.setHours(24, 0, 0, 0);
-      localStorage.setItem(STORAGE_KEY, String(next.getTime()));
-    }
     setOpen(false);
   }
 
@@ -128,11 +111,7 @@ export function PrizePopup() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-3">
-          <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-            <Checkbox checked={dontShow} onCheckedChange={(v) => setDontShow(!!v)} />
-            오늘 하루 창 열지 않기
-          </label>
+        <div className="flex items-center justify-end border-t border-slate-200 bg-slate-50 px-6 py-3">
           <button onClick={close} className="rounded-full bg-primary px-5 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90">
             확인
           </button>

@@ -147,6 +147,66 @@ export const axListTeamWorks = createServerFn({ method: "GET" })
     return [...contest, ...news];
   });
 
+/**
+ * 실별/팀별 현황 표의 숫자를 눌렀을 때 그 숫자에 해당하는 작품만 보여주기 위한 목록.
+ * 집계(axGetOrgBoard)와 개수가 어긋나지 않도록 같은 기준을 쓴다 —
+ * 전체·단계는 경진대회 출품작 기준, 신청·승인은 신규 등록작까지 포함.
+ */
+export const axListWorksBy = createServerFn({ method: "GET" })
+  .inputValidator((d: { scope: "sil" | "team"; name: string; filter: string }) =>
+    z.object({
+      scope: z.enum(["sil", "team"]),
+      name: z.string().min(1),
+      filter: z.enum(["all", "stage1", "stage2", "stage3", "stage4", "requested", "approved"]),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { readStore, requireUser, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { normalizeTeam, silOfTeam } = await import("@/lib/org");
+    requireUser();
+    const store = readStore();
+    const roster = await loadRoster();
+    const stage = store.axStage ?? {};
+    const reqByWork = new Map((store.axRequests ?? []).map((r) => [r.workId, r]));
+
+    const contest = store.submissions.map((s: any) => {
+      const author = liveProfile(roster, s.user_id, s.profiles);
+      return {
+        id: s.id, source: "contest" as const, title: s.title,
+        thumbnailUrl: mediaUrl("thumbnails", s.thumbnail_url),
+        authorName: author.name, authorTeam: author.team, authorPosition: author.position,
+        stage: stage[s.id] ?? null, request: reqByWork.get(s.id) ?? null,
+        description: s.description ?? "", features: s.features ?? "",
+        techStack: s.tech_stack ?? "", expectedImpact: s.expected_impact ?? "",
+        files: (s.files ?? []).map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) })),
+      };
+    });
+    const news = (store.axNewWorks ?? []).map((w: any) => {
+      const author = liveProfile(roster, w.user_id, undefined);
+      return {
+        id: w.id, source: "new" as const, title: w.title, thumbnailUrl: "", files: [],
+        authorName: author.name, authorTeam: author.team, authorPosition: author.position,
+        stage: stage[w.id] ?? null, request: reqByWork.get(w.id) ?? null,
+        description: w.description ?? "", features: "",
+        techStack: w.techStack ?? "", expectedImpact: "",
+      };
+    });
+
+    const inScope = (rows: any[]) =>
+      rows.filter((r) =>
+        data.scope === "team" ? normalizeTeam(r.authorTeam) === data.name : silOfTeam(r.authorTeam) === data.name,
+      );
+
+    if (data.filter === "requested") return inScope([...contest, ...news]).filter((r) => !!r.request);
+    if (data.filter === "approved") {
+      return inScope([...contest, ...news]).filter((r) => r.request?.status === "approved" || r.request?.status === "saas");
+    }
+    const scoped = inScope(contest);
+    if (data.filter === "all") return scoped;
+    const want = Number(data.filter.replace("stage", ""));
+    return scoped.filter((r) => r.stage === want);
+  });
+
 // ── 구성원: 내 작품 + 고도화 신청 ────────────────────────────
 /** 신청 위저드용 — 내가 신청 가능한 작품 목록 (경진대회 출품작 + 신규 등록작). */
 export const axGetMyWorks = createServerFn({ method: "GET" })

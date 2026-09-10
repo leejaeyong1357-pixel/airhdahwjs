@@ -7,9 +7,9 @@ import { useNavigate } from "@tanstack/react-router";
 import { PrizePopup, openPrizePopup } from "@/components/PrizePopup";
 import { ContestGuideModal } from "@/components/ContestGuideModal";
 import { SubmissionCard } from "@/components/SubmissionCard";
+import { AxLabOverview } from "@/components/AxLabOverview";
 import { listSubmissions } from "@/lib/submissions.functions";
-import { ExternalLink, ArrowRight, Heart } from "lucide-react";
-import heroScene from "@/assets/ai-head-v2.png";
+import { ExternalLink, Heart } from "lucide-react";
 import { SiteImage } from "@/components/SiteImage";
 import { getLocalUser } from "@/integrations/supabase/demo";
 import video1 from "@/assets/video-1.jpg";
@@ -44,57 +44,6 @@ const VIDEOS = [
 ];
 
 
-// 히어로 반딧불 효과 — 파란 불빛이 은은하게 떠다닌다 (고정 시드, hydration 안전)
-const FIREFLIES = [
-  { left: "6%",  top: "72%", size: 5, dur: 14, delay: 0,    fx: "38vw",  fy: "-46vh" },
-  { left: "16%", top: "88%", size: 4, dur: 18, delay: 2.5,  fx: "30vw",  fy: "-60vh" },
-  { left: "28%", top: "64%", size: 6, dur: 15, delay: 5,    fx: "24vw",  fy: "-38vh" },
-  { left: "38%", top: "92%", size: 4, dur: 20, delay: 1.2,  fx: "18vw",  fy: "-64vh" },
-  { left: "50%", top: "78%", size: 5, dur: 16, delay: 7,    fx: "-14vw", fy: "-52vh" },
-  { left: "58%", top: "86%", size: 3, dur: 13, delay: 3.8,  fx: "16vw",  fy: "-48vh" },
-  { left: "68%", top: "70%", size: 6, dur: 17, delay: 9,    fx: "-20vw", fy: "-42vh" },
-  { left: "76%", top: "90%", size: 4, dur: 21, delay: 0.6,  fx: "-12vw", fy: "-58vh" },
-  { left: "86%", top: "76%", size: 5, dur: 15, delay: 6.2,  fx: "-22vw", fy: "-50vh" },
-  { left: "92%", top: "62%", size: 4, dur: 19, delay: 4.4,  fx: "-28vw", fy: "-36vh" },
-  { left: "12%", top: "55%", size: 3, dur: 22, delay: 8.5,  fx: "26vw",  fy: "-40vh" },
-  { left: "44%", top: "60%", size: 3, dur: 18, delay: 11,   fx: "10vw",  fy: "-44vh" },
-];
-
-function Fireflies() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      {FIREFLIES.map((f, i) => (
-        <span
-          key={i}
-          className="firefly"
-          style={{
-            left: f.left,
-            top: f.top,
-            width: f.size,
-            height: f.size,
-            animationDuration: `${f.dur}s`,
-            animationDelay: `${f.delay}s`,
-            ["--fx" as any]: f.fx,
-            ["--fy" as any]: f.fy,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-const HERO = {
-  eyebrow: "제 1회",
-  title1: "테크젠 사내",
-  title2: "AI 경진대회",
-  info: [
-    { label: "대회 기간", value: "7. 8 (수) ~ 7. 15 (수)" },
-    { label: "참가 대상", value: "전 관리직" },
-    { label: "주제", value: "자유주제", sub: "(업무·비업무 모두 허용, 게임은 지양)" },
-    { label: "결과 발표일", value: "7. 20 (월)" },
-  ],
-};
-
 export const Route = createFileRoute("/")({
   ssr: false,
   beforeLoad: async () => {
@@ -126,154 +75,13 @@ function Home() {
   }, [nav]);
 
   return (
-    <div className="pb-32 bg-white">
+    <div className="pb-10 bg-white">
       <PrizePopup />
       <ContestGuideModal />
 
-      {/* HERO — Hyundai navy + cream */}
-      <section
-        className="relative overflow-hidden"
-        style={{
-          background:
-            "radial-gradient(1100px 700px at 78% 45%, #E4ECF7 0%, rgba(228,236,247,0) 60%), linear-gradient(180deg, #FAF6F2 0%, #F2EDE6 100%)",
-        }}
-      >
-        <Fireflies />
-        <div className="mx-auto max-w-[1400px] px-6 md:px-12 pt-16 pb-20 min-h-[640px]">
-          <div className="grid grid-cols-1 md:grid-cols-[1.05fr_1fr] gap-10 items-center">
-            {/* Left copy */}
-            <div className="relative z-10 animate-[fadeUp_0.7s_ease-out_both]">
-              <div className="text-[18px] md:text-[20px] font-semibold text-[#1A1A1A]/85">
-                {HERO.eyebrow}
-              </div>
-              <h1
-                className="mt-4 font-extrabold text-[#1A1A1A] leading-[1.1]"
-                style={{ fontSize: "clamp(44px, 6.2vw, 72px)", letterSpacing: "-0.02em" }}
-              >
-                {HERO.title1}
-              </h1>
-              <h2
-                className="mt-1 font-extrabold leading-[1.1] inline-block"
-                style={{
-                  fontSize: "clamp(44px, 6.2vw, 72px)",
-                  letterSpacing: "-0.02em",
-                  color: "#002C5F",
-                  background: "linear-gradient(transparent 68%, #FFE27A 68%, #FFE27A 96%, transparent 96%)",
-                  padding: "0 0.15em",
-                }}
-              >
-                {HERO.title2}
-              </h2>
-
-              {/* Info grid */}
-              <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-8 max-w-2xl">
-                {HERO.info.map((it, i) => (
-                  <div
-                    key={it.label}
-                    className="pl-5 animate-[fadeUp_0.7s_ease-out_both]"
-                    style={{
-                      borderLeft: "3px solid #002C5F",
-                      animationDelay: `${0.15 + i * 0.08}s`,
-                    }}
-                  >
-                    <div className="text-[15px] font-semibold" style={{ color: "#002C5F" }}>
-                      {it.label}
-                    </div>
-                    <div className="mt-1.5 text-[18px] md:text-[19px] font-bold text-[#1A1A1A] leading-snug whitespace-nowrap">
-                      {it.value}
-                    </div>
-                    {(it as any).sub && (
-                      <div className="mt-0.5 text-[12px] md:text-[13px] font-medium text-[#4a4a4a] whitespace-nowrap">
-                        {(it as any).sub}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* CTA */}
-              <div className="mt-12">
-                <Link
-                  to="/submit"
-                  className="group inline-flex items-center gap-2 rounded-xl bg-[#002C5F] px-7 py-4 text-[15px] font-bold text-white transition-colors hover:bg-[#1A4A8A]"
-                >
-                  참가 신청하기
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </Link>
-                <div className="mt-4 inline-flex items-center gap-2 text-[14px] font-semibold text-[#002C5F]">
-                  <span className="text-base">🎤</span>
-                  7. 22 (수) 우수작 발표회 실시 예정
-                </div>
-              </div>
-            </div>
-
-            {/* Right visual */}
-            <div className="relative h-80 md:h-[600px] flex items-center justify-center animate-[fadeUp_0.9s_ease-out_both]">
-              <SiteImage
-                slot="hero"
-                fallback={heroScene}
-                alt="TECZEN AI"
-                className="h-full w-auto object-contain"
-                style={{ animation: "bob 4s ease-in-out infinite" }}
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-
-      {/* INTRO — big statement copy (다크 + 글로우) */}
-      <section
-        className="relative overflow-hidden"
-        style={{ background: "radial-gradient(900px 520px at 50% 20%, #10203d 0%, #000105 65%)" }}
-      >
-        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute left-1/2 top-6 h-[300px] w-[620px] -translate-x-1/2 rounded-full opacity-60" style={{ background: "rgba(80,70,220,0.28)", filter: "blur(90px)" }} />
-          <div className="absolute left-[10%] top-[45%] h-[220px] w-[360px] rounded-full opacity-50" style={{ background: "rgba(210,60,140,0.13)", filter: "blur(90px)" }} />
-          <div className="absolute right-[8%] top-[30%] h-[240px] w-[380px] rounded-full opacity-60" style={{ background: "rgba(40,120,255,0.18)", filter: "blur(90px)" }} />
-          <span className="firefly" style={{ left: "14%", top: "82%", width: 5, height: 5, animationDuration: "16s", animationDelay: "0s", ["--fx" as any]: "18vw", ["--fy" as any]: "-40vh" }} />
-          <span className="firefly" style={{ left: "48%", top: "90%", width: 4, height: 4, animationDuration: "19s", animationDelay: "4s", ["--fx" as any]: "-6vw", ["--fy" as any]: "-46vh" }} />
-          <span className="firefly" style={{ left: "80%", top: "78%", width: 5, height: 5, animationDuration: "17s", animationDelay: "8s", ["--fx" as any]: "-16vw", ["--fy" as any]: "-36vh" }} />
-        </div>
-        <div className="relative z-10 mx-auto max-w-5xl px-6 py-10 md:py-12 text-center">
-          <div
-            className="font-bold tracking-[0.25em] mb-4"
-            style={{ color: "#8fb7ff", fontSize: "clamp(11px, 0.9vw, 13px)" }}
-          >
-            TECZEN AI CONTEST
-          </div>
-          <h2
-            className="font-extrabold text-white leading-[1.3]"
-            style={{ fontSize: "clamp(22px, 2.6vw, 34px)", letterSpacing: "-0.02em" }}
-          >
-            구성원의 <span style={{ background: "linear-gradient(100deg,#5ea1ff 10%,#a97bff 60%,#ff7bb1 95%)", WebkitBackgroundClip: "text", color: "transparent" }}>AI 활용 역량</span>을 높이고,<br />
-            실제 업무에 적용 가능한<br />
-            <span style={{ background: "linear-gradient(100deg,#5ea1ff 10%,#a97bff 60%,#ff7bb1 95%)", WebkitBackgroundClip: "text", color: "transparent" }}>우수 아이디어</span>를 발굴합니다
-          </h2>
-          <p className="mt-6 text-[14px] md:text-[15px] leading-[1.8] text-white/65 max-w-3xl mx-auto">
-            이번 <b className="text-white">제 1회 테크젠 AI 경진대회</b>는 구성원 여러분이<br className="hidden md:block" />
-            AI를 실제 업무에 적용해볼 수 있도록 마련된 자리입니다.
-          </p>
-        </div>
-      </section>
-
-      {/* AX LAB 배너 */}
+      {/* AX LAB — 메인 화면 */}
       <section className="mx-auto max-w-6xl px-6 pt-10">
-        <Link
-          to="/ax-lab"
-          className="group flex flex-col gap-4 overflow-hidden rounded-3xl bg-hyundai-gradient px-7 py-7 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div>
-            <div className="text-[12px] font-black uppercase tracking-widest text-white/70">AX LAB</div>
-            <div className="mt-1 text-[20px] font-black leading-snug text-white sm:text-[24px]">
-              104개의 아이디어, 이제 실제 업무로 연결합니다.
-            </div>
-            <div className="mt-1 text-[14px] text-white/75">AX협의체와 함께하는 AX 고도화 프로젝트</div>
-          </div>
-          <div className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-5 py-3 text-[14px] font-black text-primary transition group-hover:brightness-95">
-            내 작품 고도화 신청하기 <ArrowRight className="h-4 w-4" />
-          </div>
-        </Link>
+        <AxLabOverview />
       </section>
 
       {/* GALLERY */}
@@ -409,26 +217,6 @@ function Home() {
           문의사항: 미래성장팀 이재용 매니저 · 055-280-1741
         </div>
       </footer>
-
-      {/* Sticky bottom banner — 지금 당장 접수하기 */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-800 bg-slate-900/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:px-6 md:py-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="hidden sm:inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold text-white/90">
-              접수 마감 임박
-            </div>
-            <div className="truncate text-sm md:text-base font-bold text-white">
-              제 1회 테크젠 사내 AI 경진대회 · 지금 참여하고 상품 받아가세요!
-            </div>
-          </div>
-          <Link
-            to="/submit"
-            className="ml-4 inline-flex shrink-0 items-center gap-2 rounded-full bg-[#e85d3a] px-4 md:px-6 py-2 md:py-2.5 text-xs md:text-sm font-black text-white hover:bg-[#d94e2b] transition shadow-lg"
-          >
-            지금 당장 접수하기! <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </div>
 
       <style>{`
         @keyframes bob {

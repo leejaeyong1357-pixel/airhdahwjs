@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AX_AFTER_SUBMIT_STEPS } from "@/components/AxPipelineStepper";
+import { AX_STAGES, AX_STAGE_LIST } from "@/lib/ax-stages";
 import { toast } from "sonner";
 import {
   FileText, Sparkles, PlusCircle, ArrowRight, ArrowLeft, CheckCircle2, Paperclip,
@@ -16,12 +17,9 @@ import {
 
 export const Route = createFileRoute("/_authenticated/ax-lab/request")({ component: AxRequestWizard });
 
-const STAGE_LABEL: Record<number, { label: string; tone: string }> = {
-  1: { label: "1단계 · 제외·보류", tone: "bg-muted text-muted-foreground" },
-  2: { label: "2단계 · 보완 대상", tone: "bg-amber-400/15 text-amber-600" },
-  3: { label: "3단계 · 고도화 대상", tone: "bg-sky-500/15 text-sky-600" },
-  4: { label: "4단계 · 적용중", tone: "bg-emerald-500/15 text-emerald-600" },
-};
+const STAGE_LABEL: Record<number, { label: string; tone: string }> = Object.fromEntries(
+  AX_STAGE_LIST.map((st) => [st, { label: AX_STAGES[st].label, tone: AX_STAGES[st].soft }]),
+);
 
 const IMPROVEMENT_TYPES = ["기능 보완", "업무 프로세스 연결", "사용성 개선", "보안 검토"];
 const DATA_TYPES = ["개인정보", "회사 내부정보", "공개 데이터", "아직 미정"];
