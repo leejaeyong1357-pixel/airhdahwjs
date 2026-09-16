@@ -46,13 +46,14 @@ export type Store = {
   axNewWorks?: {
     id: string; user_id: string; title: string; description: string; techStack: string; createdAt: string;
   }[];
-  /** AX LAB — 1차 보안검증 안내 (관리자가 직접 수정) */
+  /** AX LAB — 안내 자료 (관리자가 직접 등록): 1차 보안검증 프롬프트·배너, SaaS 인증서 */
   axSecurityGuide?: {
     /** 개발 중인 과제에 넣어 쓰는 보안 점검 프롬프트 */
     prompt: string;
-    /** 우측 배너 이미지 — /media/... 경로 */
+    /** 이미지 — /media/... 경로 */
     checklistImage?: string;
     openCriteriaImage?: string;
+    saasCertImage?: string;
   };
   /** AX LAB — 고도화 신청 (경진대회 작품 또는 신규 등록작 기준) */
   axRequests?: {

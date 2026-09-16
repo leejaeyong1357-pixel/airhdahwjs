@@ -136,15 +136,17 @@ export const axGetSecurityGuide = createServerFn({ method: "GET" })
       prompt: g?.prompt?.trim() ? g.prompt : DEFAULT_SECURITY_PROMPT,
       checklistImage: g?.checklistImage ?? "",
       openCriteriaImage: g?.openCriteriaImage ?? "",
+      saasCertImage: g?.saasCertImage ?? "",
     };
   });
 
 export const axAdminSetSecurityGuide = createServerFn({ method: "POST" })
-  .inputValidator((d: { prompt: string; checklistImage?: string; openCriteriaImage?: string }) =>
+  .inputValidator((d: { prompt: string; checklistImage?: string; openCriteriaImage?: string; saasCertImage?: string }) =>
     z.object({
       prompt: z.string().max(10000),
       checklistImage: z.string().max(500).optional().default(""),
       openCriteriaImage: z.string().max(500).optional().default(""),
+      saasCertImage: z.string().max(500).optional().default(""),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -155,6 +157,7 @@ export const axAdminSetSecurityGuide = createServerFn({ method: "POST" })
       prompt: data.prompt,
       checklistImage: data.checklistImage,
       openCriteriaImage: data.openCriteriaImage,
+      saasCertImage: data.saasCertImage,
     };
     writeStore(store);
     return { ok: true };

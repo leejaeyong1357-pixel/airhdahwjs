@@ -1,11 +1,11 @@
 import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { axGetPipeline } from "@/lib/ax-lab.functions";
+import { axGetPipeline, axGetSecurityGuide } from "@/lib/ax-lab.functions";
 import { AxSecurityGuideDialog } from "@/components/AxSecurityGuideDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AX_STEPS } from "@/lib/ax-stages";
-import { FileText, Settings, ShieldCheck, Database, Users, ChevronRight, Info, ClipboardCheck } from "lucide-react";
+import { FileText, Settings, ShieldCheck, Database, Users, ChevronRight, Info, ClipboardCheck, Award } from "lucide-react";
 
 /** 신청 이후 진행 과정 (신청 위저드 사이드 패널용). */
 export const AX_AFTER_SUBMIT_STEPS = [
@@ -39,6 +39,14 @@ export function AxPipeline() {
   const [openStep, setOpenStep] = useState<number | null>(null);
   const [security, setSecurity] = useState(false);
   const [saasInfo, setSaasInfo] = useState(false);
+  const [cert, setCert] = useState(false);
+
+  const guideFn = useServerFn(axGetSecurityGuide);
+  const { data: guide } = useQuery({
+    queryKey: ["ax", "securityGuide"],
+    queryFn: () => guideFn(),
+    enabled: cert,
+  });
 
   const myStep = data?.myStep ?? null;
   const members = (n: number) => data?.steps?.[n] ?? [];
@@ -91,6 +99,7 @@ export function AxPipeline() {
                       extra={
                         n === 6 ? { label: "1차 보안검증 안내", onClick: () => setSecurity(true) }
                         : n === 8 ? { label: "SaaS란?", onClick: () => setSaasInfo(true) }
+                        : n === 9 ? { label: "SaaS 인증서", onClick: () => setCert(true) }
                         : undefined
                       }
                     />
@@ -154,6 +163,28 @@ export function AxPipeline() {
               <b className="text-slate-900">직접 만든 소프트웨어 서비스</b>를 말합니다.
             </p>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* SaaS 인증서 */}
+      <Dialog open={cert} onOpenChange={setCert}>
+        <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Award className="h-5 w-5 text-blue-600" /> 테크젠 공식 SaaS 인증서
+            </DialogTitle>
+          </DialogHeader>
+          {guide?.saasCertImage ? (
+            <img
+              src={guide.saasCertImage}
+              alt="테크젠 공식 SaaS 인증서"
+              className="w-full rounded-xl border border-[#eef1f6] object-contain"
+            />
+          ) : (
+            <div className="rounded-xl border border-dashed border-[#e3e8f0] bg-[#fbfcfe] p-12 text-center text-sm text-slate-400">
+              아직 등록된 인증서가 없습니다. 관리자가 [과제 관리 &gt; 안내 자료 설정] 에서 등록합니다.
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

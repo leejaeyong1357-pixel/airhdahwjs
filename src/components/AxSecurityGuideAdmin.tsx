@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { ShieldCheck, Upload, Eye, Trash2 } from "lucide-react";
 
-/** 관리자 — 1차 보안검증 안내(프롬프트 + 배너 2종) 편집. */
+/** 관리자 — 안내 자료 편집: 1차 보안검증 프롬프트·배너 2종 + SaaS 인증서. */
 export function AxSecurityGuideAdmin() {
   const qc = useQueryClient();
   const getFn = useServerFn(axGetSecurityGuide);
@@ -18,6 +18,7 @@ export function AxSecurityGuideAdmin() {
   const [prompt, setPrompt] = useState("");
   const [checklistImage, setChecklistImage] = useState("");
   const [openCriteriaImage, setOpenCriteriaImage] = useState("");
+  const [saasCertImage, setSaasCertImage] = useState("");
   const [preview, setPreview] = useState(false);
 
   useEffect(() => {
@@ -25,12 +26,13 @@ export function AxSecurityGuideAdmin() {
     setPrompt(data.prompt);
     setChecklistImage(data.checklistImage);
     setOpenCriteriaImage(data.openCriteriaImage);
+    setSaasCertImage(data.saasCertImage);
   }, [data]);
 
   const saveMut = useMutation({
-    mutationFn: () => setFn({ data: { prompt, checklistImage, openCriteriaImage } }),
+    mutationFn: () => setFn({ data: { prompt, checklistImage, openCriteriaImage, saasCertImage } }),
     onSuccess: () => {
-      toast.success("보안검증 안내를 저장했습니다.");
+      toast.success("안내 자료를 저장했습니다.");
       qc.invalidateQueries({ queryKey: ["ax", "securityGuide"] });
     },
     onError: (e: any) => toast.error(e.message),
@@ -53,7 +55,7 @@ export function AxSecurityGuideAdmin() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5 text-blue-600" />
-          <h2 className="text-[19px] font-black tracking-tight text-slate-900">1차 보안검증 안내 설정</h2>
+          <h2 className="text-[19px] font-black tracking-tight text-slate-900">안내 자료 설정</h2>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setPreview(true)}>
@@ -63,7 +65,7 @@ export function AxSecurityGuideAdmin() {
         </div>
       </div>
       <p className="mt-1 text-[13px] text-slate-400">
-        구성원이 [1차 보안검증 안내] 버튼을 눌렀을 때 보이는 프롬프트와 우측 배너 이미지를 여기서 바꿉니다.
+        구성원이 파이프라인에서 [1차 보안검증 안내] · [SaaS 인증서] 버튼을 눌렀을 때 보이는 내용을 여기서 등록합니다.
       </p>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -90,6 +92,12 @@ export function AxSecurityGuideAdmin() {
             src={openCriteriaImage}
             onPick={(f) => upload(f, setOpenCriteriaImage)}
             onClear={() => setOpenCriteriaImage("")}
+          />
+          <BannerUpload
+            label="테크젠 공식 SaaS 인증서"
+            src={saasCertImage}
+            onPick={(f) => upload(f, setSaasCertImage)}
+            onClear={() => setSaasCertImage("")}
           />
         </div>
       </div>
