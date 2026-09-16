@@ -66,7 +66,7 @@ export function AxOrgBoard({ board }: { board: any[] }) {
   };
 
   return (
-    <section className="rounded-2xl border border-[#e9ecf2] bg-white p-5 sm:p-6">
+    <section className="flex h-full flex-col rounded-2xl border border-[#e9ecf2] bg-white p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[19px] font-black tracking-tight text-slate-900">실별 고도화 현황</h2>
@@ -97,9 +97,9 @@ export function AxOrgBoard({ board }: { board: any[] }) {
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-[#eef1f6]">
+      <div className="mt-4 flex-1 overflow-x-auto rounded-xl border border-[#eef1f6]">
         {tab === "sil" ? (
-          <table className="w-full min-w-[700px] text-sm">
+          <table className="h-full w-full min-w-[700px] text-sm">
             <thead className="bg-[#f7f9fc] text-slate-400">
               <tr>
                 <Th className="w-8"></Th>
@@ -153,7 +153,7 @@ export function AxOrgBoard({ board }: { board: any[] }) {
             </tbody>
           </table>
         ) : (
-          <table className="w-full min-w-[740px] text-sm">
+          <table className="h-full w-full min-w-[740px] text-sm">
             <thead className="bg-[#f7f9fc] text-slate-400">
               <tr>
                 <Th className="text-left">소속 실</Th>
