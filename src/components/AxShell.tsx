@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { getLocalUser } from "@/integrations/supabase/demo";
 import { isAxLabAdminViewer } from "@/lib/ax-lab";
 import { supabase } from "@/integrations/supabase/client";
+import teczenLogo from "@/assets/teczen-logo.png";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -51,8 +52,8 @@ export function AxShell({ children }: { children: React.ReactNode }) {
       {/* 사이드바 */}
       <aside className="sticky top-0 hidden h-screen w-[228px] shrink-0 flex-col border-r border-[#e9ecf2] bg-white lg:flex">
         <Link to="/" className="block px-6 pb-6 pt-7">
-          <div className="text-[21px] font-black leading-none tracking-tight text-[#12315c]">TECZEN</div>
-          <div className="mt-1.5 text-[12.5px] font-medium text-slate-400">AX Platform</div>
+          <img src={teczenLogo} alt="TECZEN" className="h-[22px] w-auto" />
+          <div className="mt-2 text-[12.5px] font-medium text-slate-400">AX Platform</div>
         </Link>
 
         <nav className="flex-1 space-y-1 px-3">
