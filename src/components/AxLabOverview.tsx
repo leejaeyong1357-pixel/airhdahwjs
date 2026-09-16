@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { axGetOverview, axGetOrgBoard, axGetMyWorks } from "@/lib/ax-lab.functions";
 import { AxPipeline } from "@/components/AxPipeline";
 import { AxOrgBoard } from "@/components/AxOrgBoard";
+import { AxVideoSpotlight } from "@/components/AxVideoSpotlight";
 import { SiteImage } from "@/components/SiteImage";
 import { AX_STAGES, AX_STATUS } from "@/lib/ax-stages";
 import axlabHero from "@/assets/axlab-hero.png";
@@ -86,9 +87,10 @@ export function AxLabOverview() {
       </section>
 
       {/* 현황 표 + 핵심 단계 */}
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         <AxOrgBoard board={board} />
 
+        <div className="space-y-5">
         <section className="rounded-2xl border border-[#dbe5f5] bg-[#f4f8ff] p-6">
           <div className="inline-flex items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1 text-[12.5px] font-black text-blue-600">
             <Clock className="h-3.5 w-3.5" /> 핵심 단계
@@ -119,6 +121,9 @@ export function AxLabOverview() {
             업무 적용 과제 보기 <ArrowRight className="h-4 w-4" />
           </Link>
         </section>
+
+        <AxVideoSpotlight />
+        </div>
       </div>
 
       {/* 내 신청 현황 */}
