@@ -25,6 +25,16 @@ async function requireAxLabAdmin() {
   return user;
 }
 
+/**
+ * 구성원에게 보여줄 workId → 신청 맵.
+ * 반려된 신청은 없는 것으로 취급해, 목록·집계·배지 어디에도 남지 않게 한다.
+ * (관리자 화면은 되돌리거나 제외해야 하므로 반려 건도 그대로 본다.)
+ */
+function liveRequestsByWork(store: any) {
+  const live = (store.axRequests ?? []).filter((r: any) => r.status !== "rejected");
+  return new Map<string, any>(live.map((r: any) => [r.workId, r]));
+}
+
 async function resolveWork(store: any, roster: any, workId: string) {
   const c = store.submissions.find((s: any) => s.id === workId);
   if (c) {
@@ -230,8 +240,7 @@ export const axListTeamWorks = createServerFn({ method: "GET" })
     const store = readStore();
     const roster = await loadRoster();
     const stage = store.axStage ?? {};
-    const requests = store.axRequests ?? [];
-    const reqByWork = new Map(requests.map((r) => [r.workId, r]));
+    const reqByWork = liveRequestsByWork(store);
 
     const contest = store.submissions
       .map((s: any) => ({ s, author: liveProfile(roster, s.user_id, s.profiles) }))
@@ -282,7 +291,7 @@ export const axListWorksBy = createServerFn({ method: "GET" })
     const store = readStore();
     const roster = await loadRoster();
     const stage = store.axStage ?? {};
-    const reqByWork = new Map((store.axRequests ?? []).map((r) => [r.workId, r]));
+    const reqByWork = liveRequestsByWork(store);
 
     const contest = store.submissions.map((s: any) => {
       const author = liveProfile(roster, s.user_id, s.profiles);
@@ -335,8 +344,7 @@ export const axGetMyWorks = createServerFn({ method: "GET" })
     const roster = await loadRoster();
     const me = liveProfile(roster, user.empNo, undefined);
     const stage = store.axStage ?? {};
-    const requests = store.axRequests ?? [];
-    const reqByWork = new Map(requests.map((r) => [r.workId, r]));
+    const reqByWork = liveRequestsByWork(store);
     const sil = silOfTeam(me.team);
     const orgLabel = me.team ? (sil && sil !== me.team ? `${sil} > ${me.team}` : me.team) : "미지정";
 
@@ -415,9 +423,11 @@ export const axRequestAdvancement = createServerFn({ method: "POST" })
     if (!owner) throw new Error("작품을 찾을 수 없습니다.");
     if (owner !== user.empNo) throw new Error("본인 작품만 고도화 신청할 수 있습니다.");
     store.axRequests ??= [];
-    if (store.axRequests.some((r) => r.workId === data.workId)) {
+    // 반려된 신청은 없는 것으로 보고 다시 신청할 수 있게 한다(옛 기록은 대체).
+    if (store.axRequests.some((r) => r.workId === data.workId && r.status !== "rejected")) {
       throw new Error("이미 고도화 신청된 작품입니다.");
     }
+    store.axRequests = store.axRequests.filter((r) => r.workId !== data.workId);
     const now = new Date().toISOString();
     store.axRequests.push({
       id: crypto.randomUUID(), workId: data.workId, workSource: data.workSource,
