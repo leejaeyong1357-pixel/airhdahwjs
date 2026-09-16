@@ -18,12 +18,9 @@ const VIDEOS = [
 export function AxVideoSpotlight() {
   return (
     <section className="flex h-full flex-col rounded-2xl border border-[#dbe5f5] bg-[#f4f8ff] p-5">
-      <div className="inline-flex items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1 text-[12.5px] font-black text-blue-600">
-        <PlayCircle className="h-3.5 w-3.5" /> 참고 영상
+      <div className="inline-flex items-center gap-1.5 self-start rounded-lg bg-white/70 px-2.5 py-1 text-[12.5px] font-black text-blue-600">
+        <PlayCircle className="h-3.5 w-3.5" /> 현대자동차그룹 AX 혁신
       </div>
-      <h2 className="mt-2.5 break-keep text-[19px] font-black leading-snug tracking-tight text-[#12315c]">
-        현대자동차그룹 AX 혁신
-      </h2>
       {/* 표가 펼쳐져 더 길어져도 빈 칸이 생기지 않도록 영상을 고르게 배분한다. */}
       <div className="mt-3.5 flex flex-1 flex-col justify-between gap-3.5">
         {VIDEOS.map((v) => (
