@@ -5,9 +5,10 @@ import {
   axGetOverview, axGetOrgBoard, axAdminSetGoal, axAdminListWorks, axAdminSetStage,
   axAdminListRequests, axAdminSetRequestStatus,
 } from "@/lib/ax-lab.functions";
-import { AxPipelineStepper } from "@/components/AxPipelineStepper";
+import { AxPipeline } from "@/components/AxPipeline";
 import { AxOrgBoard } from "@/components/AxOrgBoard";
 import { AxWorkDetailDialog } from "@/components/AxWorkDetailDialog";
+import { AxSecurityGuideAdmin } from "@/components/AxSecurityGuideAdmin";
 import { AX_STAGES, AX_STAGE_LIST, AX_STATUS, type AxStage } from "@/lib/ax-stages";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -122,7 +123,7 @@ export function AdminAxLabView() {
         <StatCard icon={CheckCircle2} tone="emerald" label="SaaS 승인" value={overview?.saasApprovedCount ?? 0} />
       </div>
 
-      <AxPipelineStepper />
+      <AxPipeline />
 
       <AxOrgBoard board={board} />
 
@@ -283,6 +284,8 @@ export function AdminAxLabView() {
         </div>
       </section>
 
+      <AxSecurityGuideAdmin />
+
       {/* 고도화 신청 검토 (전체) */}
       <section id="requests-table" className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
         <div className="flex items-center gap-2">
@@ -388,8 +391,9 @@ export function AdminAxLabView() {
                   </ReqItem>
                   <ReqItem n={3} label="고도화에 필요한 지원">{reqDetail.form.neededSupport}</ReqItem>
                   <ReqItem n={4} label="예상 사용자 수">{reqDetail.form.expectedUsers}</ReqItem>
-                  <ReqItem n={5} label="기대 효과">{reqDetail.form.expectedImpact}</ReqItem>
-                  <ReqItem n={6} label="사용 데이터">
+                  <ReqItem n={5} label="예상 개발 완료 기간">{reqDetail.form.expectedDone}</ReqItem>
+                  <ReqItem n={6} label="기대 효과">{reqDetail.form.expectedImpact}</ReqItem>
+                  <ReqItem n={7} label="사용 데이터">
                     {reqDetail.form.dataTypes?.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {reqDetail.form.dataTypes.map((t: string) => (
@@ -405,7 +409,7 @@ export function AdminAxLabView() {
                       </div>
                     )}
                   </ReqItem>
-                  <ReqItem n={7} label="프로그램 · 문서 링크">
+                  <ReqItem n={8} label="프로그램 · 문서 링크">
                     {reqDetail.form.referenceLink ? (
                       <a href={reqDetail.form.referenceLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline underline-offset-4">
                         {reqDetail.form.referenceLink}
@@ -413,7 +417,7 @@ export function AdminAxLabView() {
                     ) : ""}
                   </ReqItem>
                   {reqDetail.form.attachmentPath && (
-                    <ReqItem n={8} label="소개 자료">
+                    <ReqItem n={9} label="소개 자료">
                       <a
                         href={reqDetail.form.attachmentPath}
                         target="_blank"

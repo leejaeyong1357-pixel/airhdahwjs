@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AX_AFTER_SUBMIT_STEPS } from "@/components/AxPipelineStepper";
+import { AX_AFTER_SUBMIT_STEPS } from "@/components/AxPipeline";
 import { AX_STAGES, AX_STAGE_LIST } from "@/lib/ax-stages";
 import { toast } from "sonner";
 import {
@@ -60,6 +60,7 @@ function AxRequestWizard() {
   const [improvementTypes, setImprovementTypes] = useState<string[]>([]);
   const [improvementDetail, setImprovementDetail] = useState("");
   const [neededSupport, setNeededSupport] = useState("");
+  const [expectedDone, setExpectedDone] = useState("");
   const [expectedUsers, setExpectedUsers] = useState("");
   const [expectedImpact, setExpectedImpact] = useState("");
   const [dataTypes, setDataTypes] = useState<string[]>([]);
@@ -78,7 +79,7 @@ function AxRequestWizard() {
       const d = JSON.parse(raw);
       setPainPoint(d.painPoint ?? ""); setImprovementTypes(d.improvementTypes ?? []);
       setImprovementDetail(d.improvementDetail ?? ""); setNeededSupport(d.neededSupport ?? "");
-      setExpectedUsers(d.expectedUsers ?? "");
+      setExpectedDone(d.expectedDone ?? ""); setExpectedUsers(d.expectedUsers ?? "");
       setExpectedImpact(d.expectedImpact ?? ""); setDataTypes(d.dataTypes ?? []);
       setReferenceLink(d.referenceLink ?? "");
     } catch { /* ignore */ }
@@ -91,7 +92,7 @@ function AxRequestWizard() {
   function saveDraft() {
     if (!selected) return;
     localStorage.setItem(`ax-draft-${selected.id}`, JSON.stringify({
-      painPoint, improvementTypes, improvementDetail, neededSupport, expectedUsers, expectedImpact, dataTypes, referenceLink,
+      painPoint, improvementTypes, improvementDetail, neededSupport, expectedDone, expectedUsers, expectedImpact, dataTypes, referenceLink,
     }));
     toast.success("임시 저장되었습니다.");
   }
@@ -122,7 +123,7 @@ function AxRequestWizard() {
         data: {
           workId: selected!.id, workSource: selected!.source,
           form: {
-            painPoint, improvementTypes, improvementDetail, neededSupport, expectedUsers, expectedImpact, dataTypes, referenceLink,
+            painPoint, improvementTypes, improvementDetail, neededSupport, expectedDone, expectedUsers, expectedImpact, dataTypes, referenceLink,
             attachmentPath: attachmentPath || undefined, attachmentName: attachment?.name,
           },
         },
@@ -312,12 +313,16 @@ function AxRequestWizard() {
                     </Field>
                   </div>
 
-                  <Field n={6} label="기대 효과">
+                  <Field n={6} label="예상 개발 완료 기간" hint="고도화를 언제쯤 마칠 수 있을지 적어주세요.">
+                    <Input value={expectedDone} onChange={(e) => setExpectedDone(e.target.value)} placeholder="예: 2026년 11월 말 / 약 2개월" />
+                  </Field>
+
+                  <Field n={7} label="기대 효과">
                     <Textarea rows={2} maxLength={500} value={expectedImpact} onChange={(e) => setExpectedImpact(e.target.value)} placeholder="예: 작성 시간을 줄이고, 입력 오류를 예방합니다." />
                     <CharCount v={expectedImpact} />
                   </Field>
 
-                  <Field n={7} label="사용 데이터" required hint="해당하는 항목을 모두 선택해 주세요.">
+                  <Field n={8} label="사용 데이터" required hint="해당하는 항목을 모두 선택해 주세요.">
                     <div className="flex flex-wrap gap-2">
                       {DATA_TYPES.map((t) => (
                         <Chip key={t} active={dataTypes.includes(t)} onClick={() => toggle(dataTypes, setDataTypes, t)}>{t}</Chip>
@@ -331,10 +336,10 @@ function AxRequestWizard() {
                   </Field>
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field n={8} label="프로그램 · 문서 링크">
+                    <Field n={9} label="프로그램 · 문서 링크">
                       <Input value={referenceLink} onChange={(e) => setReferenceLink(e.target.value)} placeholder="https://" />
                     </Field>
-                    <Field n={9} label="소개 자료 첨부">
+                    <Field n={10} label="소개 자료 첨부">
                       <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-center text-[12.5px] text-muted-foreground hover:border-primary/40">
                         <Paperclip className="h-4 w-4" />
                         {attachment ? attachment.name : uploading ? "업로드 중…" : "파일을 클릭하여 첨부하세요. (선택)"}

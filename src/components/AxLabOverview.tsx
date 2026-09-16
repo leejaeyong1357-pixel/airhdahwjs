@@ -2,14 +2,14 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { axGetOverview, axGetOrgBoard, axGetMyWorks } from "@/lib/ax-lab.functions";
-import { AxPipelineStepper } from "@/components/AxPipelineStepper";
+import { AxPipeline } from "@/components/AxPipeline";
 import { AxOrgBoard } from "@/components/AxOrgBoard";
-import { SiteImage } from "@/components/SiteImage";
-import { AX_STAGES, AX_STAGE_LIST, AX_STATUS } from "@/lib/ax-stages";
-import axlabHero from "@/assets/axlab-hero.png";
-import { Rocket, CheckCircle2, ArrowUpRight, ArrowRight } from "lucide-react";
+import { AX_STAGES, AX_STATUS } from "@/lib/ax-stages";
+import {
+  FileText, TrendingUp, Send, CheckCircle2, Plus, ArrowRight, Clock, Check,
+} from "lucide-react";
 
-/** AX LAB 메인 화면 — 메인페이지(/)와 /ax-lab 이 함께 쓴다. */
+/** AX 플랫폼 대시보드 — 메인페이지(/)와 /ax-lab 이 함께 쓴다. */
 export function AxLabOverview() {
   const overviewFn = useServerFn(axGetOverview);
   const boardFn = useServerFn(axGetOrgBoard);
@@ -25,98 +25,81 @@ export function AxLabOverview() {
   ];
 
   return (
-    <div className="space-y-5">
-      {/* 히어로 */}
-      <section className="relative overflow-hidden rounded-2xl bg-[linear-gradient(115deg,#ffffff_0%,#f6fafe_46%,#eff6fd_100%)] px-6 py-8 sm:px-10 sm:py-10 xl:pr-32">
-        <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-          <div className="relative z-10">
-            <div className="text-[13px] font-black uppercase tracking-[0.25em] text-blue-600">AX LAB</div>
-            <h1 className="mt-3 text-[38px] font-black leading-[1.15] tracking-tight text-[#12315c] sm:text-[46px]">
-              104개의 아이디어,
-              <br />
-              실제 <span className="text-blue-600">업무의 변화로</span>
-            </h1>
-            <p className="mt-4 text-[16px] leading-relaxed text-slate-600">
-              AX협의체와 함께 아이디어를 고도화하고
-              <br />
-              실제 업무 적용과 전사 확산으로 연결합니다.
-            </p>
-            <Link
-              to="/ax-lab/request"
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-[15px] font-bold text-white transition hover:bg-blue-700"
-            >
-              내 작품 고도화 신청하기 <ArrowUpRight className="h-4 w-4" />
-            </Link>
-          </div>
-
-          <div>
-            <SiteImage
-              slot="axlab-hero"
-              fallback={axlabHero}
-              alt="AX LAB"
-              className="ml-auto h-auto w-full max-w-[560px] object-contain"
-            />
-          </div>
-        </div>
-
-        {/* 우측 상단 문구 */}
-        <div className="pointer-events-none absolute right-6 top-8 hidden text-right xl:block">
-          <p className="text-[15px] font-semibold leading-relaxed text-slate-500">
-            AI로
-            <br />더 스마트한
-            <br />오늘, 더 큰 내일
+    <div className="mx-auto max-w-[1180px] space-y-5">
+      {/* 제목 */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-[30px] font-black leading-tight tracking-tight text-[#12315c]">
+            아이디어를 실제 업무의 변화로
+          </h1>
+          <p className="mt-1.5 text-[14.5px] text-slate-500">
+            104개 작품의 고도화부터 현장 적용, 전사 확산까지
           </p>
-          <div className="ml-auto mt-2.5 h-px w-14 bg-slate-300" />
-          <div className="mt-2 text-[11px] font-bold uppercase leading-relaxed tracking-[0.2em] text-slate-400">
-            TECZEN
-            <br />AX LAB
-          </div>
+        </div>
+        <Link
+          to="/ax-lab/request"
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-[14.5px] font-bold text-white transition hover:bg-blue-700"
+        >
+          <Plus className="h-4 w-4" /> 고도화 신청
+        </Link>
+      </div>
+
+      {/* 통계 */}
+      <section className="rounded-2xl border border-[#e9ecf2] bg-white px-2 py-5">
+        <div className="grid grid-cols-2 gap-y-6 lg:grid-cols-4">
+          <Stat icon={FileText} tone="blue" label="경진대회 작품" value={overview?.totalContestWorks ?? 0} />
+          <Stat icon={TrendingUp} tone="rose" label="고도화 대상" value={overview?.advancementTargetCount ?? 0} divider />
+          <Stat icon={Send} tone="blue" label="고도화 신청" value={overview?.requestedCount ?? 0} divider />
+          <Stat icon={CheckCircle2} tone="emerald" label="SaaS 승인" value={overview?.saasApprovedCount ?? 0} divider />
         </div>
       </section>
 
-      {/* 통계 — 전체 작품 + 단계별 건수 */}
-      <section className="rounded-2xl border border-slate-200 bg-white px-2 py-5 sm:px-4">
-        <div className="grid grid-cols-2 gap-y-6 sm:grid-cols-3 lg:grid-cols-5">
-          <div className="flex items-center gap-4 px-5">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-600">
-              <Rocket className="h-[22px] w-[22px]" />
-            </span>
-            <div>
-              <div className="text-[14px] font-bold text-slate-500">경진대회 작품</div>
-              <div className="mt-0.5 text-[32px] font-black leading-none tabular-nums text-slate-900">
-                {overview?.totalContestWorks ?? 0}
-              </div>
-            </div>
-          </div>
-          {AX_STAGE_LIST.map((st) => (
-            <div key={st} className="flex items-center gap-4 px-5 lg:border-l lg:border-slate-200">
-              <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-[17px] font-black ${AX_STAGES[st].solid}`}>
-                {st}
-              </span>
-              <div className="min-w-0">
-                <div className="text-[14px] font-bold text-slate-900">{st}단계 · {AX_STAGES[st].name}</div>
-                <div className="break-keep text-[11.5px] leading-tight text-slate-400">{AX_STAGES[st].desc}</div>
-                <div className="mt-1.5 text-[30px] font-black leading-none tabular-nums text-slate-900">
-                  {overview?.stageCounts?.[st] ?? 0}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* 현황 표 + 핵심 단계 */}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <AxOrgBoard board={board} />
 
-      <AxPipelineStepper />
+        <section className="rounded-2xl border border-[#dbe5f5] bg-[#f4f8ff] p-6">
+          <div className="inline-flex items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1 text-[12.5px] font-black text-blue-600">
+            <Clock className="h-3.5 w-3.5" /> 핵심 단계
+          </div>
+          <h2 className="mt-3 text-[22px] font-black leading-snug tracking-tight text-[#12315c]">
+            만드는 것을 넘어,
+            <br />업무에 쓰이도록
+          </h2>
+          <p className="mt-3 break-keep text-[13.5px] leading-relaxed text-slate-500">
+            좋은 아이디어는 현장에서 쓰일 때
+            <br />비로소 가치를 만듭니다.
+            <br />실제 업무 적용을 통해 더 큰 변화를 만들어 갑니다.
+          </p>
+          <ul className="mt-4 space-y-2.5">
+            {["실제 현장 테스트", "사용자 피드백 반영", "업무 개선 효과 확인"].map((t) => (
+              <li key={t} className="flex items-center gap-2.5 text-[13.5px] font-semibold text-slate-700">
+                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-blue-600">
+                  <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                </span>
+                {t}
+              </li>
+            ))}
+          </ul>
+          <Link
+            to="/ax-lab/request"
+            className="mt-5 flex items-center justify-center gap-2 rounded-xl bg-white py-3 text-[13.5px] font-bold text-blue-600 transition hover:bg-blue-50"
+          >
+            업무 적용 과제 보기 <ArrowRight className="h-4 w-4" />
+          </Link>
+        </section>
+      </div>
 
       {/* 내 신청 현황 */}
       {myWorkRows.length > 0 && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+        <section className="rounded-2xl border border-[#e9ecf2] bg-white p-5 sm:p-6">
           <h2 className="text-[19px] font-black tracking-tight text-slate-900">내 신청 현황</h2>
           <div className="mt-3 space-y-2">
             {myWorkRows.map((w: any) => (
-              <div key={w.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-4">
+              <div key={w.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#eef1f6] p-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">{w.badge}</span>
+                    <span className="rounded-full bg-[#f1f4f9] px-2 py-0.5 text-[11px] font-bold text-slate-500">{w.badge}</span>
                     {w.stage && (
                       <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${AX_STAGES[w.stage as 1].soft}`}>
                         {AX_STAGES[w.stage as 1].label}
@@ -143,8 +126,31 @@ export function AxLabOverview() {
         </section>
       )}
 
-      <AxOrgBoard board={board} />
+      <AxPipeline />
     </div>
   );
 }
 
+function Stat({ icon: Icon, tone, label, value, divider }: {
+  icon: any; tone: "blue" | "rose" | "emerald"; label: string; value: number; divider?: boolean;
+}) {
+  const tones = {
+    blue: "bg-[#eef4ff] text-blue-600",
+    rose: "bg-[#fdeef0] text-rose-500",
+    emerald: "bg-[#e9f8f0] text-emerald-500",
+  }[tone];
+  return (
+    <div className={`flex items-center gap-3.5 px-6 ${divider ? "lg:border-l lg:border-[#eef1f6]" : ""}`}>
+      <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${tones}`}>
+        <Icon className="h-[20px] w-[20px]" />
+      </span>
+      <div>
+        <div className="text-[13.5px] font-bold text-slate-500">{label}</div>
+        <div className="mt-0.5 flex items-baseline gap-1">
+          <span className="text-[30px] font-black leading-none tabular-nums text-slate-900">{value}</span>
+          <span className="text-[13px] font-semibold text-slate-400">건</span>
+        </div>
+      </div>
+    </div>
+  );
+}

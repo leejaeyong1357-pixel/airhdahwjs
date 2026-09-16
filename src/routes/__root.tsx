@@ -10,6 +10,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Header } from "@/components/Header";
+import { AxShell } from "@/components/AxShell";
 import { isStaleBundleError, reloadForStaleBundle } from "@/lib/stale-bundle";
 import { FloatingVideo } from "@/components/FloatingVideo";
 import { Toaster } from "@/components/ui/sonner";
@@ -51,16 +52,27 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const isAuth = path.startsWith("/auth");
+  const isAuth = path.startsWith("/auth") || path.startsWith("/change-password");
+  // AX 플랫폼(대시보드·고도화)은 사이드바 레이아웃, 나머지 기존 화면은 상단 헤더 그대로.
+  const isAxPlatform = path === "/" || path.startsWith("/ax-lab");
+
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen flex flex-col">
-        {!isAuth && <Header />}
-        <main className="flex-1"><Outlet /></main>
-        {!isAuth && <FloatingVideo />}
-        <Toaster position="top-center" richColors />
-        <CursorGlow />
-      </div>
+      {isAuth ? (
+        <div className="flex min-h-screen flex-col">
+          <main className="flex-1"><Outlet /></main>
+        </div>
+      ) : isAxPlatform ? (
+        <AxShell><Outlet /></AxShell>
+      ) : (
+        <div className="flex min-h-screen flex-col">
+          <Header />
+          <main className="flex-1"><Outlet /></main>
+          <FloatingVideo />
+        </div>
+      )}
+      <Toaster position="top-center" richColors />
+      <CursorGlow />
     </QueryClientProvider>
   );
 }

@@ -46,13 +46,23 @@ export type Store = {
   axNewWorks?: {
     id: string; user_id: string; title: string; description: string; techStack: string; createdAt: string;
   }[];
+  /** AX LAB — 1차 보안검증 안내 (관리자가 직접 수정) */
+  axSecurityGuide?: {
+    /** 개발 중인 과제에 넣어 쓰는 보안 점검 프롬프트 */
+    prompt: string;
+    /** 우측 배너 이미지 — /media/... 경로 */
+    checklistImage?: string;
+    openCriteriaImage?: string;
+  };
   /** AX LAB — 고도화 신청 (경진대회 작품 또는 신규 등록작 기준) */
   axRequests?: {
     id: string;
     workId: string;
     workSource: "contest" | "new";
     user_id: string;
-    status: "requested" | "reviewing" | "security" | "approved" | "saas" | "rejected";
+    status:
+      | "requested" | "reviewing" | "developing" | "field" | "security"
+      | "approved" | "saas" | "serial" | "rollout" | "rejected";
     createdAt: string;
     updatedAt: string;
     /** 신청서 상세 내용 */
@@ -61,6 +71,7 @@ export type Store = {
       improvementTypes: string[];   // 2. 고도화하고 싶은 내용(유형) — 기능보완/업무프로세스연결/사용성개선/보안검토
       improvementDetail: string;    // 2. 상세 설명
       neededSupport?: string;       // 3. 고도화에 필요한 지원 (본인이 고도화하며 필요한 것)
+      expectedDone?: string;        // 4. 예상 개발 완료 기간
       expectedUsers: string;        // 4. 예상 사용자 수
       expectedImpact: string;       // 5. 기대 효과
       dataTypes: string[];          // 6. 사용 데이터 — 개인정보/회사내부정보/공개데이터/아직미정

@@ -6,7 +6,10 @@ import { z } from "zod";
 // 이어지는 파이프라인. 저장은 기존 data/db.json (local-store.server.ts) 그대로 사용.
 
 const STAGE = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]);
-const STATUS = z.enum(["requested", "reviewing", "security", "approved", "saas", "rejected"]);
+const STATUS = z.enum([
+  "requested", "reviewing", "developing", "field", "security",
+  "approved", "saas", "serial", "rollout", "rejected",
+]);
 
 // ── 공용 헬퍼 ────────────────────────────────────────────────
 /** AX LAB 관리 기능 접근 — 정식 관리자 또는 AX LAB 전용 뷰어(김충환)만 허용. */
@@ -57,6 +60,104 @@ export const axGetOverview = createServerFn({ method: "GET" })
       if (v) stageCounts[v] += 1;
     }
     return { totalContestWorks, advancementTargetCount, requestedCount, saasApprovedCount, stageCounts };
+  });
+
+/**
+ * 10단계 파이프라인 — 각 단계에 누가 있는지, 내 신청은 몇 단계인지.
+ * 협의체가 신청 status 를 바꾸면 그대로 반영된다.
+ */
+export const axGetPipeline = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { readStore, requireUser, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { STEP_OF } = await import("@/lib/ax-stages");
+    const user = requireUser();
+    const store = readStore();
+    const roster = await loadRoster();
+
+    const titleOf = (workId: string) =>
+      store.submissions.find((s: any) => s.id === workId)?.title
+      ?? (store.axNewWorks ?? []).find((w: any) => w.id === workId)?.title
+      ?? "(삭제된 작품)";
+
+    const steps: Record<number, { id: string; title: string; authorName: string; authorTeam: string; mine: boolean }[]> = {};
+    for (let n = 1; n <= 10; n++) steps[n] = [];
+
+    let myStep: number | null = null;
+    for (const r of store.axRequests ?? []) {
+      if (r.status === "rejected") continue;
+      const n = STEP_OF[r.status];
+      if (!n) continue;
+      const author = liveProfile(roster, r.user_id, undefined);
+      const mine = r.user_id === user.empNo;
+      if (mine) myStep = n;
+      steps[n].push({ id: r.id, title: titleOf(r.workId), authorName: author.name, authorTeam: author.team, mine });
+    }
+
+    return {
+      // 1단계(작품 등록)는 경진대회 출품작 전체
+      totalWorks: store.submissions.length,
+      steps,
+      myStep,
+    };
+  });
+
+// ── 1차 보안검증 안내 (프롬프트 + 배너) ─────────────────────
+const DEFAULT_SECURITY_PROMPT = `아래 기준으로 지금 개발 중인 과제의 보안을 점검하고, 문제가 되는 부분과 수정 방법을 알려줘.
+
+1. 인증·권한
+   - 로그인하지 않은 사용자가 접근할 수 있는 화면·API 가 있는지
+   - 다른 사람의 데이터를 조회·수정할 수 있는 경로가 있는지
+
+2. 비밀정보 관리
+   - API 키·비밀번호·토큰이 소스코드나 프론트엔드에 노출돼 있는지
+   - 설정 파일이 저장소에 함께 올라가 있는지
+
+3. 개인정보·사내정보
+   - 수집하는 항목 중 꼭 필요하지 않은 개인정보가 있는지
+   - 사내 정보가 외부 서비스(AI API 포함)로 전송되는 구간이 있는지
+   - 로그에 개인정보가 그대로 남는지
+
+4. 입력값 검증
+   - 사용자 입력이 그대로 DB 질의나 명령어에 들어가는 곳이 있는지
+   - 업로드 파일의 확장자·크기 제한이 있는지
+
+5. 운영
+   - 오류 화면에 내부 경로·스택이 그대로 노출되는지
+   - 접속 기록이 남는지
+
+각 항목별로 [문제 없음 / 확인 필요 / 조치 필요] 로 표시하고, 조치가 필요한 항목은 수정 코드를 함께 제시해줘.`;
+
+export const axGetSecurityGuide = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { readStore, requireUser } = await import("@/lib/local-store.server");
+    requireUser();
+    const g = readStore().axSecurityGuide;
+    return {
+      prompt: g?.prompt?.trim() ? g.prompt : DEFAULT_SECURITY_PROMPT,
+      checklistImage: g?.checklistImage ?? "",
+      openCriteriaImage: g?.openCriteriaImage ?? "",
+    };
+  });
+
+export const axAdminSetSecurityGuide = createServerFn({ method: "POST" })
+  .inputValidator((d: { prompt: string; checklistImage?: string; openCriteriaImage?: string }) =>
+    z.object({
+      prompt: z.string().max(10000),
+      checklistImage: z.string().max(500).optional().default(""),
+      openCriteriaImage: z.string().max(500).optional().default(""),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { readStore, writeStore } = await import("@/lib/local-store.server");
+    await requireAxLabAdmin();
+    const store = readStore();
+    store.axSecurityGuide = {
+      prompt: data.prompt,
+      checklistImage: data.checklistImage,
+      openCriteriaImage: data.openCriteriaImage,
+    };
+    writeStore(store);
+    return { ok: true };
   });
 
 // ── 실별·팀별 현황 보드 ──────────────────────────────────────
@@ -283,6 +384,7 @@ export const axRequestAdvancement = createServerFn({ method: "POST" })
         improvementTypes: z.array(z.string()).max(10),
         improvementDetail: z.string().trim().max(500),
         neededSupport: z.string().trim().max(500).optional().default(""),
+        expectedDone: z.string().trim().max(100).optional().default(""),
         expectedUsers: z.string().trim().max(50),
         expectedImpact: z.string().trim().max(500),
         dataTypes: z.array(z.string()).max(10),

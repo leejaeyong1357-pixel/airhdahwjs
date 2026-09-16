@@ -4,8 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "@tanstack/react-router";
-import { PrizePopup, openPrizePopup } from "@/components/PrizePopup";
+import { PrizePopup } from "@/components/PrizePopup";
 import { ContestGuideModal } from "@/components/ContestGuideModal";
+import { AxIntroPopup } from "@/components/AxIntroPopup";
 import { SubmissionCard } from "@/components/SubmissionCard";
 import { AxLabOverview } from "@/components/AxLabOverview";
 import { listSubmissions } from "@/lib/submissions.functions";
@@ -75,17 +76,15 @@ function Home() {
   }, [nav]);
 
   return (
-    <div className="pb-10 bg-white">
+    <div className="pb-6">
       <PrizePopup />
       <ContestGuideModal />
+      <AxIntroPopup />
 
-      {/* AX LAB — 메인 화면 */}
-      <section className="mx-auto max-w-6xl px-6 pt-10">
-        <AxLabOverview />
-      </section>
+      <AxLabOverview />
 
       {/* GALLERY */}
-      <section id="gallery" className="mx-auto max-w-6xl px-6 pt-16 pb-12 scroll-mt-28">
+      <section id="gallery" className="mx-auto max-w-[1180px] scroll-mt-24 pb-10 pt-12">
         <div className="flex items-end justify-between">
           <div>
             <h2 className="text-2xl md:text-3xl font-black tracking-tight">
@@ -119,12 +118,11 @@ function Home() {
         </div>
 
         <div className="mt-6 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <span className="rounded-full bg-primary px-4 py-1.5 text-primary-foreground">🔥 좋아요 많은 순</span>
+          <span className="rounded-full bg-primary px-4 py-1.5 text-primary-foreground">좋아요 많은 순</span>
         </div>
 
         {subs.length === 0 ? (
           <div className="mt-12 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border py-24 text-center">
-            <div className="text-4xl mb-3">🚀</div>
             <div className="text-lg font-semibold">아직 등록된 작품이 없어요</div>
             <div className="mt-2 text-sm text-muted-foreground">첫 번째 참가자가 되어보세요!</div>
             <Link to="/submit" className="mt-6 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
@@ -143,7 +141,7 @@ function Home() {
       </section>
 
       {/* AI NEWS */}
-      <section id="news" className="mx-auto max-w-6xl px-6 pb-14 pt-6 scroll-mt-28">
+      <section id="news" className="mx-auto max-w-[1180px] scroll-mt-24 pb-10 pt-4">
         <div className="flex items-end justify-between">
           <div>
             <h2 className="text-2xl md:text-3xl font-black tracking-tight">
@@ -177,7 +175,7 @@ function Home() {
       </section>
 
       {/* 추천 AI 영상 */}
-      <section id="videos" className="mx-auto max-w-6xl px-6 pb-14 pt-6 scroll-mt-28">
+      <section id="videos" className="mx-auto max-w-[1180px] scroll-mt-24 pb-10 pt-4">
         <div className="flex items-end justify-between">
           <div>
             <h2 className="text-2xl md:text-3xl font-black tracking-tight">
