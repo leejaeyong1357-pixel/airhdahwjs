@@ -9,7 +9,7 @@ import { SiteImage } from "@/components/SiteImage";
 import { AX_STAGES, AX_STATUS } from "@/lib/ax-stages";
 import axlabHero from "@/assets/axlab-hero.png";
 import {
-  FileText, TrendingUp, Send, CheckCircle2, ArrowRight, ArrowUpRight, Clock, Check,
+  FileText, TrendingUp, Send, CheckCircle2, ArrowRight, ArrowUpRight,
 } from "lucide-react";
 
 /** AX 플랫폼 대시보드 — 메인페이지(/)와 /ax-lab 이 함께 쓴다. */
@@ -87,43 +87,10 @@ export function AxLabOverview() {
       </section>
 
       {/* 현황 표 + 핵심 단계 */}
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         <AxOrgBoard board={board} />
 
-        <div className="space-y-5">
-        <section className="rounded-2xl border border-[#dbe5f5] bg-[#f4f8ff] p-6">
-          <div className="inline-flex items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1 text-[12.5px] font-black text-blue-600">
-            <Clock className="h-3.5 w-3.5" /> 핵심 단계
-          </div>
-          <h2 className="mt-3 text-[22px] font-black leading-snug tracking-tight text-[#12315c]">
-            만드는 것을 넘어,
-            <br />업무에 쓰이도록
-          </h2>
-          <p className="mt-3 break-keep text-[13.5px] leading-relaxed text-slate-500">
-            좋은 아이디어는 현장에서 쓰일 때
-            <br />비로소 가치를 만듭니다.
-            <br />실제 업무 적용을 통해 더 큰 변화를 만들어 갑니다.
-          </p>
-          <ul className="mt-4 space-y-2.5">
-            {["실제 현장 테스트", "사용자 피드백 반영", "업무 개선 효과 확인"].map((t) => (
-              <li key={t} className="flex items-center gap-2.5 text-[13.5px] font-semibold text-slate-700">
-                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-blue-600">
-                  <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                </span>
-                {t}
-              </li>
-            ))}
-          </ul>
-          <Link
-            to="/ax-lab/request"
-            className="mt-5 flex items-center justify-center gap-2 rounded-xl bg-white py-3 text-[13.5px] font-bold text-blue-600 transition hover:bg-blue-50"
-          >
-            업무 적용 과제 보기 <ArrowRight className="h-4 w-4" />
-          </Link>
-        </section>
-
         <AxVideoSpotlight />
-        </div>
       </div>
 
       {/* 내 신청 현황 */}

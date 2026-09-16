@@ -17,14 +17,14 @@ const VIDEOS = [
 
 export function AxVideoSpotlight() {
   return (
-    <section className="rounded-2xl border border-[#e9ecf2] bg-white p-5">
-      <div className="inline-flex items-center gap-1.5 rounded-lg bg-[#eef4ff] px-2.5 py-1 text-[12.5px] font-black text-blue-600">
+    <section className="rounded-2xl border border-[#dbe5f5] bg-[#f4f8ff] p-5">
+      <div className="inline-flex items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1 text-[12.5px] font-black text-blue-600">
         <PlayCircle className="h-3.5 w-3.5" /> 참고 영상
       </div>
-      <p className="mt-2.5 break-keep text-[13px] leading-relaxed text-slate-500">
-        다른 기업은 AI를 어떻게 업무에 적용하고 있는지 살펴보세요.
-      </p>
-      <div className="mt-3.5 space-y-4">
+      <h2 className="mt-2.5 break-keep text-[19px] font-black leading-snug tracking-tight text-[#12315c]">
+        현대자동차그룹 AX 혁신
+      </h2>
+      <div className="mt-3.5 space-y-3.5">
         {VIDEOS.map((v) => (
           <VideoCard key={v.id} {...v} />
         ))}
