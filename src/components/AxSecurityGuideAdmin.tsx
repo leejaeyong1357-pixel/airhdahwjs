@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { axGetSecurityGuide, axAdminSetSecurityGuide } from "@/lib/ax-lab.functions";
+import { axGetSecurityGuide, axAdminSetSecurityGuide, PROMPT_MAX } from "@/lib/ax-lab.functions";
 import { AxSecurityGuideDialog } from "@/components/AxSecurityGuideDialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +38,14 @@ export function AxSecurityGuideAdmin() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  function save() {
+    if (prompt.length > PROMPT_MAX) {
+      toast.error(`프롬프트가 너무 깁니다. ${PROMPT_MAX.toLocaleString()}자 이하로 줄여주세요. (현재 ${prompt.length.toLocaleString()}자)`);
+      return;
+    }
+    saveMut.mutate();
+  }
+
   async function upload(file: File, set: (v: string) => void) {
     try {
       const path = `security/${crypto.randomUUID()}-${file.name}`;
@@ -61,7 +69,7 @@ export function AxSecurityGuideAdmin() {
           <Button variant="outline" onClick={() => setPreview(true)}>
             <Eye className="mr-1.5 h-4 w-4" /> 미리보기
           </Button>
-          <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>저장</Button>
+          <Button onClick={save} disabled={saveMut.isPending}>저장</Button>
         </div>
       </div>
       <p className="mt-1 text-[13px] text-slate-400">
@@ -70,7 +78,12 @@ export function AxSecurityGuideAdmin() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div>
-          <div className="text-[12.5px] font-bold text-slate-500">보안 점검 프롬프트</div>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[12.5px] font-bold text-slate-500">보안 점검 프롬프트</span>
+            <span className={`text-[12px] tabular-nums ${prompt.length > PROMPT_MAX ? "font-bold text-rose-500" : "text-slate-400"}`}>
+              {prompt.length.toLocaleString()} / {PROMPT_MAX.toLocaleString()}자
+            </span>
+          </div>
           <Textarea
             rows={16}
             value={prompt}

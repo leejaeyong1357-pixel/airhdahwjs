@@ -102,6 +102,9 @@ export const axGetPipeline = createServerFn({ method: "GET" })
   });
 
 // ── 1차 보안검증 안내 (프롬프트 + 배너) ─────────────────────
+/** 보안 점검 프롬프트 최대 길이 — 실제 점검표를 통째로 붙여넣을 수 있도록 넉넉하게. */
+export const PROMPT_MAX = 100_000;
+
 const DEFAULT_SECURITY_PROMPT = `아래 기준으로 지금 개발 중인 과제의 보안을 점검하고, 문제가 되는 부분과 수정 방법을 알려줘.
 
 1. 인증·권한
@@ -143,7 +146,7 @@ export const axGetSecurityGuide = createServerFn({ method: "GET" })
 export const axAdminSetSecurityGuide = createServerFn({ method: "POST" })
   .inputValidator((d: { prompt: string; checklistImage?: string; openCriteriaImage?: string; saasCertImage?: string }) =>
     z.object({
-      prompt: z.string().max(10000),
+      prompt: z.string().max(PROMPT_MAX),
       checklistImage: z.string().max(500).optional().default(""),
       openCriteriaImage: z.string().max(500).optional().default(""),
       saasCertImage: z.string().max(500).optional().default(""),
