@@ -4,9 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { axListWorksBy } from "@/lib/ax-lab.functions";
 import { AxWorkCard, AxWorkDetailDialog } from "@/components/AxWorkDetailDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AX_STAGES, AX_STAGE_LIST } from "@/lib/ax-stages";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
-type Filter = "all" | "stage3" | "requested" | "approved";
+type Filter = "all" | "stage1" | "stage2" | "stage3" | "stage4" | "requested" | "approved";
 type Pick = { scope: "sil" | "team"; name: string; filter: Filter; title: string };
 
 const sum = (rows: any[], key: string) => rows.reduce((a: number, r: any) => a + (r[key] ?? 0), 0);
@@ -50,7 +51,14 @@ export function AxOrgBoard({ board }: { board: any[] }) {
     return (
       <>
         <NumCell value={row.total} onPick={() => open(scope, key, "all", "전체 작품")} />
-        <NumCell value={row.stage3} onPick={() => open(scope, key, "stage3", "고도화 대상")} />
+        {AX_STAGE_LIST.map((st) => (
+          <NumCell
+            key={st}
+            value={row[`stage${st}`]}
+            tone={AX_STAGES[st].num}
+            onPick={() => open(scope, key, `stage${st}` as Filter, AX_STAGES[st].label)}
+          />
+        ))}
         <NumCell value={row.requested} pill onPick={() => open(scope, key, "requested", "고도화 신청")} />
         <NumCell value={row.approved} tone="text-emerald-600" onPick={() => open(scope, key, "approved", "승인")} />
       </>
@@ -91,13 +99,13 @@ export function AxOrgBoard({ board }: { board: any[] }) {
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-[#eef1f6]">
         {tab === "sil" ? (
-          <table className="w-full min-w-[560px] text-sm">
+          <table className="w-full min-w-[700px] text-sm">
             <thead className="bg-[#f7f9fc] text-slate-400">
               <tr>
                 <Th className="w-8"></Th>
                 <Th className="text-left">실</Th>
                 <Th>전체 작품</Th>
-                <Th>고도화 대상</Th>
+                {AX_STAGE_LIST.map((st) => <StageTh key={st} stage={st} />)}
                 <Th>신청</Th>
                 <Th>승인</Th>
               </tr>
@@ -132,26 +140,26 @@ export function AxOrgBoard({ board }: { board: any[] }) {
                 );
               })}
               {visibleSils.length === 0 && (
-                <tr><td colSpan={6} className="p-8 text-center text-sm text-slate-400">데이터가 없습니다.</td></tr>
+                <tr><td colSpan={9} className="p-8 text-center text-sm text-slate-400">데이터가 없습니다.</td></tr>
               )}
               <tr className="border-t border-[#e9ecf2] bg-[#f7f9fc]">
                 <Td></Td>
                 <Td className="font-black text-slate-800">합계</Td>
                 <TotalCell value={sum(visibleSils, "total")} />
-                <TotalCell value={sum(visibleSils, "stage3")} />
+                {AX_STAGE_LIST.map((st) => <TotalCell key={st} value={sum(visibleSils, `stage${st}`)} tone={AX_STAGES[st].num} />)}
                 <TotalCell value={sum(visibleSils, "requested")} pill />
                 <TotalCell value={sum(visibleSils, "approved")} />
               </tr>
             </tbody>
           </table>
         ) : (
-          <table className="w-full min-w-[620px] text-sm">
+          <table className="w-full min-w-[740px] text-sm">
             <thead className="bg-[#f7f9fc] text-slate-400">
               <tr>
                 <Th className="text-left">소속 실</Th>
                 <Th className="text-left">팀</Th>
                 <Th>전체 작품</Th>
-                <Th>고도화 대상</Th>
+                {AX_STAGE_LIST.map((st) => <StageTh key={st} stage={st} />)}
                 <Th>신청</Th>
                 <Th>승인</Th>
               </tr>
@@ -172,13 +180,13 @@ export function AxOrgBoard({ board }: { board: any[] }) {
                 </tr>
               ))}
               {visibleTeams.length === 0 && (
-                <tr><td colSpan={6} className="p-8 text-center text-sm text-slate-400">데이터가 없습니다.</td></tr>
+                <tr><td colSpan={9} className="p-8 text-center text-sm text-slate-400">데이터가 없습니다.</td></tr>
               )}
               <tr className="border-t border-[#e9ecf2] bg-[#f7f9fc]">
                 <Td></Td>
                 <Td className="font-black text-slate-800">합계</Td>
                 <TotalCell value={sum(visibleTeams, "total")} />
-                <TotalCell value={sum(visibleTeams, "stage3")} />
+                {AX_STAGE_LIST.map((st) => <TotalCell key={st} value={sum(visibleTeams, `stage${st}`)} tone={AX_STAGES[st].num} />)}
                 <TotalCell value={sum(visibleTeams, "requested")} pill />
                 <TotalCell value={sum(visibleTeams, "approved")} />
               </tr>
@@ -229,15 +237,24 @@ function NumCell({ value, tone, onPick, pill }: { value: number; tone?: string; 
   );
 }
 
-function TotalCell({ value, pill }: { value: number; pill?: boolean }) {
+function TotalCell({ value, pill, tone }: { value: number; pill?: boolean; tone?: string }) {
   return (
     <td className="px-3 py-3 text-center">
       {pill && value > 0 ? (
         <span className="rounded-full bg-[#eef4ff] px-3 py-1 text-[15px] font-black tabular-nums text-blue-600">{value}</span>
       ) : (
-        <span className={`px-2 text-[15px] font-black tabular-nums ${value ? "text-slate-800" : "text-slate-300"}`}>{value}</span>
+        <span className={`px-2 text-[15px] font-black tabular-nums ${value ? tone ?? "text-slate-800" : "text-slate-300"}`}>{value}</span>
       )}
     </td>
+  );
+}
+
+function StageTh({ stage }: { stage: 1 | 2 | 3 | 4 }) {
+  return (
+    <th className="px-2 py-2.5 text-center">
+      <div className="text-[12.5px] font-semibold text-slate-400">{stage}단계</div>
+      <div className={`text-[11px] font-bold ${AX_STAGES[stage].num}`}>{AX_STAGES[stage].name}</div>
+    </th>
   );
 }
 
