@@ -51,7 +51,8 @@ export const axGetOverview = createServerFn({ method: "GET" })
     const requests = store.axRequests ?? [];
     const totalContestWorks = store.submissions.length;
     const advancementTargetCount = Object.values(stage).filter((s) => s === 3).length;
-    const requestedCount = requests.length;
+    // 반려된 신청은 살아있는 신청이 아니므로 세지 않는다.
+    const requestedCount = requests.filter((r) => r.status !== "rejected").length;
     const saasApprovedCount = requests.filter((r) => r.status === "saas").length;
     // 단계별 건수 — 실별 현황 표와 같은 기준(경진대회 출품작)으로 센다.
     const stageCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
@@ -176,7 +177,8 @@ export const axGetOrgBoard = createServerFn({ method: "GET" })
     const roster = await loadRoster();
     const stage = store.axStage ?? {};
     const goals = store.axGoals ?? {};
-    const requests = store.axRequests ?? [];
+    // 반려된 신청은 '신청' 집계에서 빠진다.
+    const requests = (store.axRequests ?? []).filter((r) => r.status !== "rejected");
 
     // workId -> 실 이름 (작성자 팀 기준)
     const silOfWork = new Map<string, string | null>();
@@ -310,7 +312,9 @@ export const axListWorksBy = createServerFn({ method: "GET" })
         data.scope === "team" ? normalizeTeam(r.authorTeam) === data.name : silOfTeam(r.authorTeam) === data.name,
       );
 
-    if (data.filter === "requested") return inScope([...contest, ...news]).filter((r) => !!r.request);
+    if (data.filter === "requested") {
+      return inScope([...contest, ...news]).filter((r) => r.request && r.request.status !== "rejected");
+    }
     if (data.filter === "approved") {
       return inScope([...contest, ...news]).filter((r) => r.request?.status === "approved" || r.request?.status === "saas");
     }
@@ -525,6 +529,27 @@ export const axAdminSetRequestStatus = createServerFn({ method: "POST" })
     if (!r) throw new Error("신청 내역을 찾을 수 없습니다.");
     r.status = data.status as any;
     r.updatedAt = new Date().toISOString();
+    writeStore(store);
+    return { ok: true };
+  });
+
+/**
+ * 관리자: 고도화 신청 제외 — 신청 자체를 지운다.
+ * 반려(rejected)로 남겨두면 본인이 다시 신청할 수 없으므로, 제외는 삭제로 처리한다.
+ */
+export const axAdminDeleteRequest = createServerFn({ method: "POST" })
+  .inputValidator((d: { requestId: string }) =>
+    z.object({ requestId: z.string().min(1) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { readStore, writeStore } = await import("@/lib/local-store.server");
+    await requireAxLabAdmin();
+    const store = readStore();
+    const list = store.axRequests ?? [];
+    const i = list.findIndex((x) => x.id === data.requestId);
+    if (i < 0) throw new Error("신청 내역을 찾을 수 없습니다.");
+    list.splice(i, 1);
+    store.axRequests = list;
     writeStore(store);
     return { ok: true };
   });
