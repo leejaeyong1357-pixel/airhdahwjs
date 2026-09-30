@@ -69,30 +69,32 @@ export const AX_STEPS: {
   key: AxStepKey;
   label: string;
   desc: string;
-  /** 이 단계를 끝내는 사람 */
+  /** 이 단계를 맡는 사람 */
   actor: string;
-  /** 다음 단계로 넘어가는 방법 */
-  gate?: string;
+  /** 카드 아래 칸에 들어가는 말 — action 이 있으면 버튼, 없으면 안내 */
+  foot: string;
+  /** 버튼으로 열리는 것 (없으면 안내 문구로만 표시) */
+  action?: "security" | "cert";
 }[] = [
   {
     n: 1, key: "requested", label: "고도화 신청",
-    desc: "고도화하고 싶은 내용을 신청합니다.",
-    actor: "신청자", gate: "AX협의체 승인 / 반려",
+    desc: "개선할 내용과 적용 계획을\n등록합니다.",
+    actor: "신청자", foot: "AX협의체 승인 후 진행",
   },
   {
     n: 2, key: "developing", label: "고도화",
-    desc: "1차 보안검증 프롬프트를 넣고 개발을 시작합니다.",
-    actor: "신청자", gate: "본인이 2차 승인 검토 요청",
+    desc: "1차 보안검증 후 개발을\n진행합니다.",
+    actor: "신청자", foot: "1차 보안검증 프롬프트", action: "security",
   },
   {
-    n: 3, key: "review", label: "고도화 승인 검토",
-    desc: "AX협의체가 실효성과 보안을 검토합니다.",
-    actor: "AX협의체", gate: "승인 시 SaaS 등록번호 발급 · 반려 시 2단계로",
+    n: 3, key: "review", label: "승인 검토",
+    desc: "실효성과 보안을 최종\n검토합니다.",
+    actor: "AX협의체", foot: "승인 · 보완 요청",
   },
   {
     n: 4, key: "issued", label: "SaaS 등록번호 발급",
-    desc: "테크젠 공식 SaaS 번호를 발급하고 인증서를 드립니다.",
-    actor: "AX협의체",
+    desc: "공식 등록번호와 인증서를\n발급합니다.",
+    actor: "AX협의체", foot: "SaaS 인증서", action: "cert",
   },
 ];
 
