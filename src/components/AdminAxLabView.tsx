@@ -11,6 +11,7 @@ import { AxOrgBoard } from "@/components/AxOrgBoard";
 import { AxWorkDetailDialog } from "@/components/AxWorkDetailDialog";
 import { AxSecurityGuideAdmin } from "@/components/AxSecurityGuideAdmin";
 import { AxSaasCertificate, type SaasCertInfo } from "@/components/AxSaasCertificate";
+import { AxRequestBoard } from "@/components/AxRequestBoard";
 import {
   AX_STAGES, AX_STAGE_LIST, AX_STATUS, SAAS_CATEGORIES, type AxStage,
 } from "@/lib/ax-stages";
@@ -26,13 +27,6 @@ import {
   Target, ListChecks, ClipboardList, Search, Rocket, TrendingUp, Send, CheckCircle2,
   FileText, ArrowRight, MousePointerClick, Paperclip, Ban, Check, X, Award, Hash,
 } from "lucide-react";
-
-const REVIEW_TABS = [
-  { key: "todo", label: "처리 필요", match: (s: string) => s === "requested" || s === "review" },
-  { key: "requested", label: "1차 승인 대기", match: (s: string) => s === "requested" },
-  { key: "developing", label: "고도화 중", match: (s: string) => s === "developing" },
-  { key: "review", label: "2차 검토 대기", match: (s: string) => s === "review" },
-] as const;
 
 export function AdminAxLabView() {
   const qc = useQueryClient();
@@ -138,13 +132,6 @@ export function AdminAxLabView() {
     setGoalOpen(false);
   };
 
-  // 검토가 필요한 작품
-  const [reviewTab, setReviewTab] = useState<(typeof REVIEW_TABS)[number]["key"]>("todo");
-  const reviewFiltered = useMemo(() => {
-    const matcher = REVIEW_TABS.find((t) => t.key === reviewTab)!.match;
-    return requests.filter((r: any) => matcher(r.status));
-  }, [requests, reviewTab]);
-
   // 작품 단계 분류 검색 · 단계 필터
   const [q, setQ] = useState("");
   const [stageFilter, setStageFilter] = useState<"all" | "none" | AxStage>("all");
@@ -190,66 +177,17 @@ export function AdminAxLabView() {
 
       <AxOrgBoard board={board} />
 
-      {/* 검토가 필요한 작품 */}
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-[20px] font-black tracking-tight text-slate-900">검토가 필요한 작품</h2>
-          <a href="#requests-table" className="inline-flex items-center gap-1 text-[13px] font-semibold text-blue-600">
-            전체 신청 보기 <ArrowRight className="h-3.5 w-3.5" />
-          </a>
-        </div>
-        <div className="mt-3 flex w-fit gap-1 rounded-xl bg-slate-100 p-1">
-          {REVIEW_TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setReviewTab(t.key)}
-              className={`rounded-lg px-3 py-1.5 text-[13px] font-bold transition ${
-                reviewTab === t.key ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div className="mt-3 space-y-2">
-          {reviewFiltered.slice(0, 6).map((r: any) => (
-            <div key={r.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 p-3.5">
-              <FileText className="h-5 w-5 shrink-0 text-slate-400" />
-              <button onClick={() => setReqDetail(r)} className="min-w-0 flex-1 text-left">
-                <div className="truncate text-[14.5px] font-bold text-slate-900 underline-offset-4 hover:underline">{r.title}</div>
-                <div className="text-[12px] text-slate-500">{r.authorTeam} · {r.authorName}</div>
-              </button>
-              {r.stage && (
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${AX_STAGES[r.stage as AxStage].soft}`}>
-                  {AX_STAGES[r.stage as AxStage].label}
-                </span>
-              )}
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${AX_STATUS[r.status]?.tone ?? ""}`}>
-                {AX_STATUS[r.status]?.label ?? r.status}
-              </span>
-
-              <GateActions
-                row={r}
-                onApprove={(gate) => decideMut.mutate({ row: r, gate, approve: true })}
-                onReject={(gate) => { setRejectReason(""); setRejectTarget({ row: r, gate }); }}
-                onIssue={() => { setIssueCategory(SAAS_CATEGORIES[0].code); setIssueTarget(r); }}
-                onCert={() => setCert(certInfoOf(r))}
-                busy={decideMut.isPending}
-              />
-
-              <button
-                onClick={() => setExcludeTarget(r)}
-                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-[12px] font-bold text-slate-500 transition hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
-              >
-                <Ban className="h-3.5 w-3.5" /> 제외
-              </button>
-            </div>
-          ))}
-          {reviewFiltered.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">해당하는 작품이 없습니다.</div>
-          )}
-        </div>
-      </section>
+      {/* 단계별 신청 현황 보드 */}
+      <AxRequestBoard
+        requests={requests}
+        busy={decideMut.isPending}
+        onDetail={(r) => setReqDetail(r)}
+        onApprove={(r, gate) => decideMut.mutate({ row: r, gate, approve: true })}
+        onReject={(r, gate) => { setRejectReason(""); setRejectTarget({ row: r, gate }); }}
+        onIssue={(r) => { setIssueCategory(SAAS_CATEGORIES[0].code); setIssueTarget(r); }}
+        onCert={(r) => setCert(certInfoOf(r))}
+        onExclude={(r) => setExcludeTarget(r)}
+      />
 
       {/* 작품 단계 분류 (썸네일 카드 + 우클릭 지정) */}
       <section id="classify" className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
