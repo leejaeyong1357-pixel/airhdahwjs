@@ -61,11 +61,29 @@ export type Store = {
     workId: string;
     workSource: "contest" | "new";
     user_id: string;
-    status:
-      | "requested" | "reviewing" | "developing" | "field" | "security"
-      | "approved" | "saas" | "serial" | "rollout" | "rejected";
+    /**
+     * 1단계 신청(requested) → [협의체 승인] → 2단계 고도화(developing)
+     * → [본인 요청] → 3단계 승인 검토(review) → [협의체 승인] → 발급 완료(issued)
+     * 반려는 rejected. 3단계에서 반려하면 developing 으로 되돌린다.
+     */
+    status: "requested" | "developing" | "review" | "issued" | "rejected";
     createdAt: string;
     updatedAt: string;
+    /** 반려 사유 — 신청자에게 그대로 보여준다. */
+    rejectReason?: string;
+    /** 어느 관문에서 반려됐는지 (1단계 신청 심사 / 3단계 승인 검토) */
+    rejectedFrom?: "request" | "review";
+    rejectedAt?: string;
+    /** 발급된 SaaS 등록번호 */
+    saas?: {
+      number: string;      // TZAXHR26001
+      category: string;    // HR
+      year: string;        // 26
+      seq: number;         // 1
+      issuedAt: string;
+      issuedBy: string;    // 발급한 협의체 인원 사번
+      issuedByName: string;
+    };
     /** 신청서 상세 내용 */
     form?: {
       painPoint: string;            // 1. 활용할 업무와 현재의 불편함

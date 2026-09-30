@@ -4,12 +4,17 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   axGetOverview, axGetOrgBoard, axAdminSetGoal, axAdminListWorks, axAdminSetStage,
   axAdminListRequests, axAdminSetRequestStatus, axAdminDeleteRequest,
+  axAdminDecideRequest, axAdminDecideReview, axAdminIssueSaasNumber,
 } from "@/lib/ax-lab.functions";
 import { AxPipeline } from "@/components/AxPipeline";
 import { AxOrgBoard } from "@/components/AxOrgBoard";
 import { AxWorkDetailDialog } from "@/components/AxWorkDetailDialog";
 import { AxSecurityGuideAdmin } from "@/components/AxSecurityGuideAdmin";
-import { AX_STAGES, AX_STAGE_LIST, AX_STATUS, type AxStage } from "@/lib/ax-stages";
+import { AxSaasCertificate, type SaasCertInfo } from "@/components/AxSaasCertificate";
+import {
+  AX_STAGES, AX_STAGE_LIST, AX_STATUS, SAAS_CATEGORIES, type AxStage,
+} from "@/lib/ax-stages";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
@@ -19,14 +24,14 @@ import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Target, ListChecks, ClipboardList, Search, Rocket, TrendingUp, Send, CheckCircle2,
-  FileText, ArrowRight, MousePointerClick, Paperclip, Ban,
+  FileText, ArrowRight, MousePointerClick, Paperclip, Ban, Check, X, Award, Hash,
 } from "lucide-react";
 
 const REVIEW_TABS = [
-  { key: "all", label: "전체", match: (s: string) => s !== "saas" && s !== "rejected" },
-  { key: "review", label: "AX 검토", match: (s: string) => s === "requested" || s === "reviewing" },
-  { key: "security", label: "보안검증", match: (s: string) => s === "security" },
-  { key: "approved", label: "승인 대기", match: (s: string) => s === "approved" },
+  { key: "todo", label: "처리 필요", match: (s: string) => s === "requested" || s === "review" },
+  { key: "requested", label: "1차 승인 대기", match: (s: string) => s === "requested" },
+  { key: "developing", label: "고도화 중", match: (s: string) => s === "developing" },
+  { key: "review", label: "2차 검토 대기", match: (s: string) => s === "review" },
 ] as const;
 
 export function AdminAxLabView() {
@@ -66,6 +71,48 @@ export function AdminAxLabView() {
     mutationFn: (v: { requestId: string; status: string }) => setReqStatusFn({ data: v }),
     onSuccess: invalidate, onError: (e: any) => toast.error(e.message),
   });
+  // ── 승인 관문 ──────────────────────────────────────────────
+  const decideReqFn = useServerFn(axAdminDecideRequest);
+  const decideReviewFn = useServerFn(axAdminDecideReview);
+  const issueFn = useServerFn(axAdminIssueSaasNumber);
+
+  /** 반려 사유 입력 — gate 는 어느 관문인지 */
+  const [rejectTarget, setRejectTarget] = useState<{ row: any; gate: "request" | "review" } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const decideMut = useMutation({
+    mutationFn: (v: { row: any; gate: "request" | "review"; approve: boolean; reason?: string }) =>
+      (v.gate === "request" ? decideReqFn : decideReviewFn)({
+        data: { requestId: v.row.id, approve: v.approve, reason: v.reason ?? "" },
+      }),
+    onSuccess: (_r, v) => {
+      toast.success(
+        v.approve
+          ? v.gate === "request" ? "승인했습니다. 2단계 고도화로 넘어갑니다." : "승인했습니다. SaaS 등록번호를 발급하세요."
+          : v.gate === "request" ? "반려했습니다. 신청자에게 사유가 표시됩니다." : "반려했습니다. 2단계 고도화로 되돌렸습니다.",
+      );
+      setRejectTarget(null);
+      setRejectReason("");
+      invalidate();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // ── SaaS 등록번호 발급 ─────────────────────────────────────
+  const [issueTarget, setIssueTarget] = useState<any | null>(null);
+  const [issueCategory, setIssueCategory] = useState(SAAS_CATEGORIES[0].code);
+  const [cert, setCert] = useState<SaasCertInfo | null>(null);
+
+  const issueMut = useMutation({
+    mutationFn: (v: { requestId: string; category: string }) => issueFn({ data: v }),
+    onSuccess: (r: any) => {
+      toast.success(`SaaS 등록번호 ${r.number} 를 발급했습니다.`);
+      setIssueTarget(null);
+      invalidate();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   // 신청 제외 — 되돌릴 수 없어 확인을 받는다.
   const [excludeTarget, setExcludeTarget] = useState<any | null>(null);
   const deleteMut = useMutation({
@@ -92,7 +139,7 @@ export function AdminAxLabView() {
   };
 
   // 검토가 필요한 작품
-  const [reviewTab, setReviewTab] = useState<(typeof REVIEW_TABS)[number]["key"]>("all");
+  const [reviewTab, setReviewTab] = useState<(typeof REVIEW_TABS)[number]["key"]>("todo");
   const reviewFiltered = useMemo(() => {
     const matcher = REVIEW_TABS.find((t) => t.key === reviewTab)!.match;
     return requests.filter((r: any) => matcher(r.status));
@@ -177,13 +224,19 @@ export function AdminAxLabView() {
                   {AX_STAGES[r.stage as AxStage].label}
                 </span>
               )}
-              <select
-                value={r.status}
-                onChange={(e) => statusMut.mutate({ requestId: r.id, status: e.target.value })}
-                className={`shrink-0 rounded-full border-0 px-2.5 py-1 text-[12px] font-bold ${AX_STATUS[r.status].tone}`}
-              >
-                {Object.entries(AX_STATUS).map(([v, s]) => <option key={v} value={v}>{s.label}</option>)}
-              </select>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${AX_STATUS[r.status]?.tone ?? ""}`}>
+                {AX_STATUS[r.status]?.label ?? r.status}
+              </span>
+
+              <GateActions
+                row={r}
+                onApprove={(gate) => decideMut.mutate({ row: r, gate, approve: true })}
+                onReject={(gate) => { setRejectReason(""); setRejectTarget({ row: r, gate }); }}
+                onIssue={() => { setIssueCategory(SAAS_CATEGORIES[0].code); setIssueTarget(r); }}
+                onCert={() => setCert(certInfoOf(r))}
+                busy={decideMut.isPending}
+              />
+
               <button
                 onClick={() => setExcludeTarget(r)}
                 className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-[12px] font-bold text-slate-500 transition hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
@@ -323,6 +376,7 @@ export function AdminAxLabView() {
                 <th className="px-3 py-3 text-left font-bold">작품</th>
                 <th className="px-3 py-3 text-left font-bold">제출자</th>
                 <th className="w-[200px] px-3 py-3 text-left font-bold">상태</th>
+                <th className="w-[210px] px-3 py-3 text-left font-bold">처리</th>
                 <th className="w-[80px] px-3 py-3 text-center font-bold">제외</th>
               </tr>
             </thead>
@@ -337,13 +391,31 @@ export function AdminAxLabView() {
                   </td>
                   <td className="px-3 py-2.5 text-xs text-slate-500">{r.authorTeam} · {r.authorName}</td>
                   <td className="px-3 py-2.5">
-                    <select
-                      value={r.status}
-                      onChange={(e) => statusMut.mutate({ requestId: r.id, status: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[13px]"
-                    >
-                      {Object.entries(AX_STATUS).map(([v, s]) => <option key={v} value={v}>{s.label}</option>)}
-                    </select>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`rounded-full px-2.5 py-1 text-[12px] font-bold ${AX_STATUS[r.status]?.tone ?? ""}`}>
+                        {AX_STATUS[r.status]?.label ?? r.status}
+                      </span>
+                      {r.saas?.number && (
+                        <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] font-black tabular-nums text-emerald-700">
+                          {r.saas.number}
+                        </span>
+                      )}
+                    </div>
+                    {r.rejectReason && (
+                      <div className="mt-1 break-keep text-[11.5px] leading-snug text-destructive">
+                        반려 사유: {r.rejectReason}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <GateActions
+                      row={r}
+                      onApprove={(gate) => decideMut.mutate({ row: r, gate, approve: true })}
+                      onReject={(gate) => { setRejectReason(""); setRejectTarget({ row: r, gate }); }}
+                      onIssue={() => { setIssueCategory(SAAS_CATEGORIES[0].code); setIssueTarget(r); }}
+                      onCert={() => setCert(certInfoOf(r))}
+                      busy={decideMut.isPending}
+                    />
                   </td>
                   <td className="px-3 py-2.5 text-center">
                     <button
@@ -357,12 +429,109 @@ export function AdminAxLabView() {
                 </tr>
               ))}
               {requests.length === 0 && (
-                <tr><td colSpan={5} className="p-8 text-center text-sm text-slate-400">아직 고도화 신청이 없습니다.</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-sm text-slate-400">아직 고도화 신청이 없습니다.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </section>
+
+      {/* 반려 사유 */}
+      <Dialog open={!!rejectTarget} onOpenChange={(o) => !o && setRejectTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {rejectTarget?.gate === "request" ? "고도화 신청을 반려합니다" : "고도화 승인 검토를 반려합니다"}
+            </DialogTitle>
+          </DialogHeader>
+          {rejectTarget && (
+            <div className="rounded-xl border border-slate-200 p-3.5">
+              <div className="text-[15px] font-black text-slate-900">{rejectTarget.row.title}</div>
+              <div className="mt-0.5 text-[12.5px] text-slate-500">
+                {rejectTarget.row.authorTeam} · {rejectTarget.row.authorName}
+              </div>
+            </div>
+          )}
+          <div>
+            <label className="text-[12.5px] font-bold text-slate-500">반려 사유 (신청자에게 그대로 표시됩니다)</label>
+            <Textarea
+              rows={5}
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              className="mt-1.5"
+              placeholder="어떤 점을 보완해야 하는지 구체적으로 적어주세요."
+            />
+          </div>
+          <p className="break-keep text-[12.5px] leading-relaxed text-slate-500">
+            {rejectTarget?.gate === "request"
+              ? "반려하면 신청자가 사유를 확인하고 보완해 다시 신청할 수 있습니다."
+              : "반려하면 처음이 아니라 바로 전 단계인 2단계(고도화)로 돌아갑니다."}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectTarget(null)}>취소</Button>
+            <Button
+              variant="destructive"
+              disabled={decideMut.isPending || !rejectReason.trim()}
+              onClick={() =>
+                decideMut.mutate({
+                  row: rejectTarget!.row, gate: rejectTarget!.gate,
+                  approve: false, reason: rejectReason.trim(),
+                })
+              }
+            >
+              <X className="mr-1.5 h-4 w-4" /> 반려하기
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* SaaS 등록번호 발급 */}
+      <Dialog open={!!issueTarget} onOpenChange={(o) => !o && setIssueTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>SaaS 등록번호 발급</DialogTitle></DialogHeader>
+          {issueTarget && (
+            <div className="rounded-xl border border-slate-200 p-3.5">
+              <div className="text-[15px] font-black text-slate-900">{issueTarget.title}</div>
+              <div className="mt-0.5 text-[12.5px] text-slate-500">
+                {issueTarget.authorTeam} · {issueTarget.authorName}
+              </div>
+            </div>
+          )}
+          <div>
+            <label className="text-[12.5px] font-bold text-slate-500">업무성격 구분</label>
+            <select
+              value={issueCategory}
+              onChange={(e) => setIssueCategory(e.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[14px] font-semibold"
+            >
+              {SAAS_CATEGORIES.map((c) => (
+                <option key={c.code} value={c.code}>{c.code} · {c.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="rounded-xl bg-[#f4f8ff] p-4 text-center">
+            <div className="text-[11.5px] font-bold uppercase tracking-[0.2em] text-slate-400">발급될 번호</div>
+            <div className="mt-1.5 text-[24px] font-black tabular-nums tracking-[0.06em] text-[#12315c]">
+              TZAX{issueCategory}{String(new Date().getFullYear()).slice(-2)}
+              <span className="text-slate-400">###</span>
+            </div>
+            <div className="mt-1 text-[11.5px] text-slate-400">
+              일련번호는 같은 구분·같은 년도에서 자동으로 이어 붙습니다.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIssueTarget(null)}>취소</Button>
+            <Button
+              disabled={issueMut.isPending}
+              onClick={() => issueMut.mutate({ requestId: issueTarget.id, category: issueCategory })}
+            >
+              <Hash className="mr-1.5 h-4 w-4" /> 발급하기
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AxSaasCertificate info={cert} open={!!cert} onOpenChange={(o) => !o && setCert(null)} />
 
       {/* 신청 제외 확인 */}
       <Dialog open={!!excludeTarget} onOpenChange={(o) => !o && setExcludeTarget(null)}>
@@ -565,4 +734,77 @@ function StatCard({ icon: Icon, tone, label, value }: {
       <div className="mt-2 text-[34px] font-black leading-none tabular-nums text-slate-900">{value}</div>
     </div>
   );
+}
+
+/** 신청 행 → 인증서에 채울 정보 */
+function certInfoOf(r: any): SaasCertInfo | null {
+  if (!r?.saas?.number) return null;
+  return {
+    number: r.saas.number,
+    category: r.saas.category,
+    issuedAt: r.saas.issuedAt,
+    title: r.title,
+    authorName: r.authorName,
+    authorTeam: r.authorTeam,
+    authorEmpNo: r.authorEmpNo ?? "",
+  };
+}
+
+/**
+ * 현재 단계에 맞는 처리 버튼만 보여준다.
+ *   승인 대기 → [승인] [반려]      2차 검토 대기 → [승인] [반려]
+ *   고도화 중 → 본인이 검토 요청할 때까지 대기
+ *   승인 완료 → [번호 발급] → 발급 후 [인증서]
+ */
+function GateActions({ row, onApprove, onReject, onIssue, onCert, busy }: {
+  row: any;
+  onApprove: (gate: "request" | "review") => void;
+  onReject: (gate: "request" | "review") => void;
+  onIssue: () => void;
+  onCert: () => void;
+  busy?: boolean;
+}) {
+  const gate: "request" | "review" | null =
+    row.status === "requested" ? "request" : row.status === "review" ? "review" : null;
+
+  if (gate) {
+    return (
+      <div className="flex shrink-0 items-center gap-1.5">
+        <button
+          disabled={busy}
+          onClick={() => onApprove(gate)}
+          className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[12px] font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+        >
+          <Check className="h-3.5 w-3.5" /> 승인
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => onReject(gate)}
+          className="inline-flex items-center gap-1 rounded-lg border border-destructive/30 px-2.5 py-1.5 text-[12px] font-bold text-destructive transition hover:bg-destructive/5 disabled:opacity-50"
+        >
+          <X className="h-3.5 w-3.5" /> 반려
+        </button>
+      </div>
+    );
+  }
+
+  if (row.status === "issued") {
+    return row.saas?.number ? (
+      <button
+        onClick={onCert}
+        className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[#dbe5f5] px-2.5 py-1.5 text-[12px] font-bold text-blue-600 transition hover:bg-[#eef4ff]"
+      >
+        <Award className="h-3.5 w-3.5" /> 인증서
+      </button>
+    ) : (
+      <button
+        onClick={onIssue}
+        className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[12px] font-bold text-white transition hover:bg-blue-700"
+      >
+        <Hash className="h-3.5 w-3.5" /> 번호 발급
+      </button>
+    );
+  }
+
+  return <span className="shrink-0 text-[12px] text-slate-400">본인 진행 중</span>;
 }

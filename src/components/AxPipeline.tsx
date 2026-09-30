@@ -5,28 +5,23 @@ import { axGetPipeline, axGetSecurityGuide } from "@/lib/ax-lab.functions";
 import { AxSecurityGuideDialog } from "@/components/AxSecurityGuideDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AX_STEPS } from "@/lib/ax-stages";
-import { FileText, Settings, ShieldCheck, Database, Users, ChevronRight, Info, ClipboardCheck, Award } from "lucide-react";
+import {
+  Send, Settings, ShieldCheck, Award, ChevronRight, Info, ClipboardCheck, Users, FileText, Database,
+} from "lucide-react";
 
 /** 신청 이후 진행 과정 (신청 위저드 사이드 패널용). */
 export const AX_AFTER_SUBMIT_STEPS = [
-  { title: "AX협의체 검토", desc: "신청 내용을 바탕으로 고도화 방향과 지원 범위를 검토합니다.", icon: Users },
-  { title: "고도화 개발", desc: "검토 결과를 바탕으로 본인이 직접 기능을 고도화합니다.", icon: Settings },
-  { title: "현장 검증 · 업무 적용", desc: "실제 업무에 적용해 효과를 확인합니다.", icon: FileText },
-  { title: "보안 검증 · SaaS 승인", desc: "1차(본인)·2차(AX협의체) 보안검증 후 서비스 전환을 승인합니다.", icon: ShieldCheck },
-  { title: "SaaS 등록 · 전사 확산", desc: "공식 일련번호를 발급받아 등록하고, 전사에 확산합니다.", icon: Database },
+  { title: "AX협의체 승인 검토", desc: "실효성을 검토해 승인 또는 반려합니다. 반려되면 사유를 알려드립니다.", icon: Users },
+  { title: "고도화", desc: "1차 보안검증 프롬프트를 넣고 본인이 직접 고도화합니다.", icon: Settings },
+  { title: "2차 승인 검토 요청", desc: "고도화가 끝나면 직접 검토를 요청합니다.", icon: FileText },
+  { title: "AX협의체 2차 검토", desc: "실효성과 보안을 확인합니다. 반려되면 고도화 단계로 돌아갑니다.", icon: ShieldCheck },
+  { title: "SaaS 등록번호 발급", desc: "테크젠 공식 번호와 인증서를 받습니다.", icon: Database },
 ];
 
-const PHASES = [
-  { n: 1, title: "제안·검토", icon: FileText, steps: [1, 2, 3] },
-  { n: 2, title: "개발·적용", icon: Settings, steps: [4, 5] },
-  { n: 3, title: "검증·승인", icon: ShieldCheck, steps: [6, 7] },
-  { n: 4, title: "공식 등록", icon: Database, steps: [8, 9] },
-  { n: 5, title: "전사 확산", icon: Users, steps: [10] },
-];
-
+const ICONS = [Send, Settings, ShieldCheck, Award];
 const stepOf = (n: number) => AX_STEPS.find((s) => s.n === n)!;
 
-/** 아이디어에서 전사 확산까지 — 10단계를 5개 구간으로 묶어 보여준다. */
+/** 고도화 신청에서 SaaS 등록까지 — 각 단계를 하나씩 분리해 보여준다. */
 export function AxPipeline() {
   const pipelineFn = useServerFn(axGetPipeline);
   const { data } = useQuery({
@@ -38,7 +33,6 @@ export function AxPipeline() {
 
   const [openStep, setOpenStep] = useState<number | null>(null);
   const [security, setSecurity] = useState(false);
-  const [saasInfo, setSaasInfo] = useState(false);
   const [cert, setCert] = useState(false);
 
   const guideFn = useServerFn(axGetSecurityGuide);
@@ -50,16 +44,12 @@ export function AxPipeline() {
 
   const myStep = data?.myStep ?? null;
   const members = (n: number) => data?.steps?.[n] ?? [];
-  const countOf = (n: number) => (n === 1 ? (data?.totalWorks ?? 0) : members(n).length);
-
-  // 내 신청이 있는 구간을 강조한다.
-  const activePhase = myStep ? PHASES.find((p) => p.steps.includes(myStep))?.n : 2;
 
   return (
     <section className="rounded-2xl border border-[#e9ecf2] bg-white p-5 sm:p-6">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="text-[19px] font-black tracking-tight text-slate-900">아이디어에서 전사 확산까지</h2>
-        <p className="text-[13px] text-slate-400">현장 적용을 확인한 과제를 공식 SaaS로 연결합니다.</p>
+        <h2 className="text-[19px] font-black tracking-tight text-slate-900">고도화 진행 단계</h2>
+        <p className="text-[13px] text-slate-400">신청부터 SaaS 등록번호 발급까지</p>
       </div>
       {myStep && (
         <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-[#eef4ff] px-3 py-1.5 text-[13px] font-bold text-blue-600">
@@ -68,45 +58,73 @@ export function AxPipeline() {
         </p>
       )}
 
-      <div className="mt-4 flex flex-col gap-3 xl:flex-row xl:items-stretch">
-        {PHASES.map((p, i) => {
-          const on = activePhase === p.n;
+      <div className="mt-5 flex flex-col gap-3 xl:flex-row xl:items-stretch">
+        {AX_STEPS.map((s, i) => {
+          const Icon = ICONS[i];
+          const on = myStep === s.n;
+          const count = members(s.n).length;
           return (
-            <Fragment key={p.n}>
+            <Fragment key={s.n}>
               <div
-                className={`flex-1 rounded-xl border p-4 ${
-                  on ? "border-blue-200 bg-[#f4f8ff]" : "border-[#eef1f6] bg-white"
+                role="button"
+                tabIndex={0}
+                onClick={() => setOpenStep(s.n)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setOpenStep(s.n); }}
+                className={`flex flex-1 cursor-pointer flex-col rounded-xl border p-4 transition hover:shadow-sm active:scale-[0.99] ${
+                  on ? "border-blue-300 bg-[#f4f8ff] ring-1 ring-blue-200" : "border-[#eef1f6] bg-white hover:bg-[#fafbfd]"
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <p.icon className={`h-[19px] w-[19px] shrink-0 ${on ? "text-blue-500" : "text-slate-400"}`} />
+                  <Icon className={`h-[19px] w-[19px] shrink-0 ${on ? "text-blue-500" : "text-slate-400"}`} />
                   <span className={`grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full text-[11.5px] font-black ${
                     on ? "bg-blue-600 text-white" : "bg-[#eef1f6] text-slate-500"
                   }`}>
-                    {p.n}
+                    {s.n}
                   </span>
-                  <span className="break-keep text-[14.5px] font-black text-slate-900">{p.title}</span>
+                  <span className="break-keep text-[14.5px] font-black text-slate-900">{s.label}</span>
+                  <span
+                    className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${
+                      count > 0 ? "bg-[#eef4ff] text-blue-600" : "bg-[#f1f4f9] text-slate-300"
+                    }`}
+                  >
+                    {count}
+                  </span>
                 </div>
 
-                <div className="mt-2.5 space-y-1">
-                  {p.steps.map((n) => (
-                    <StepRow
-                      key={n}
-                      n={n}
-                      count={countOf(n)}
-                      mine={myStep === n}
-                      onOpen={n === 1 ? undefined : () => setOpenStep(n)}
-                      extra={
-                        n === 6 ? { label: "1차 보안검증 안내", onClick: () => setSecurity(true) }
-                        : n === 8 ? { label: "SaaS란?", onClick: () => setSaasInfo(true) }
-                        : n === 9 ? { label: "SaaS 인증서", onClick: () => setCert(true) }
-                        : undefined
-                      }
-                    />
-                  ))}
+                <p className="mt-2.5 break-keep text-[12.5px] leading-relaxed text-slate-500">{s.desc}</p>
+
+                <div className="mt-2 flex items-center gap-1.5 text-[11.5px] font-bold text-slate-400">
+                  <Users className="h-3 w-3" /> {s.actor}
                 </div>
+
+                {/* 2단계 하위 — 1차 보안검증 */}
+                {s.key === "developing" && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setSecurity(true); }}
+                    className="mt-3 inline-flex w-fit items-center gap-1 rounded-md border border-[#dbe5f5] bg-white px-2 py-1 text-[11px] font-bold text-blue-600 transition hover:bg-[#eef4ff]"
+                  >
+                    <ShieldCheck className="h-3 w-3" /> 1차 보안검증 프롬프트
+                  </button>
+                )}
+                {s.key === "issued" && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setCert(true); }}
+                    className="mt-3 inline-flex w-fit items-center gap-1 rounded-md border border-[#dbe5f5] bg-white px-2 py-1 text-[11px] font-bold text-blue-600 transition hover:bg-[#eef4ff]"
+                  >
+                    <Award className="h-3 w-3" /> SaaS 인증서
+                  </button>
+                )}
+
+                {/* 다음 단계로 가는 관문 */}
+                {s.gate && (
+                  <div className="mt-auto pt-3">
+                    <div className="rounded-lg bg-[#f7f9fc] px-2.5 py-1.5 text-[11px] font-bold leading-snug text-slate-500 break-keep">
+                      ↓ {s.gate}
+                    </div>
+                  </div>
+                )}
               </div>
-              {i < PHASES.length - 1 && (
+              {i < AX_STEPS.length - 1 && (
                 <ChevronRight className="hidden h-4 w-4 shrink-0 self-center text-slate-300 xl:block" />
               )}
             </Fragment>
@@ -135,9 +153,16 @@ export function AxPipeline() {
                       <div className="truncate text-[14px] font-bold text-slate-800">{m.title}</div>
                       <div className="text-[12px] text-slate-400">{m.authorTeam} · {m.authorName}</div>
                     </div>
-                    {m.mine && (
-                      <span className="shrink-0 rounded-full bg-blue-600 px-2.5 py-1 text-[11px] font-black text-white">내 과제</span>
-                    )}
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {m.saasNumber && (
+                        <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] font-black tabular-nums text-emerald-700">
+                          {m.saasNumber}
+                        </span>
+                      )}
+                      {m.mine && (
+                        <span className="rounded-full bg-blue-600 px-2.5 py-1 text-[11px] font-black text-white">내 과제</span>
+                      )}
+                    </div>
                   </div>
                 ))}
                 {members(openStep).length === 0 && (
@@ -148,21 +173,6 @@ export function AxPipeline() {
               </div>
             </>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* SaaS 설명 */}
-      <Dialog open={saasInfo} onOpenChange={setSaasInfo}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>SaaS란?</DialogTitle></DialogHeader>
-          <div className="flex items-start gap-3 rounded-xl bg-[#f4f8ff] p-4">
-            <Info className="mt-0.5 h-5 w-5 shrink-0 text-blue-500" />
-            <p className="text-[15px] leading-relaxed text-slate-700">
-              <b className="text-slate-900">S</b>oftware <b className="text-slate-900">a</b>s <b className="text-slate-900">a</b> <b className="text-slate-900">S</b>ervice 의 약자로,
-              <br />
-              <b className="text-slate-900">직접 만든 소프트웨어 서비스</b>를 말합니다.
-            </p>
-          </div>
         </DialogContent>
       </Dialog>
 
@@ -185,55 +195,14 @@ export function AxPipeline() {
               아직 등록된 인증서가 없습니다. 관리자가 [과제 관리 &gt; 안내 자료 설정] 에서 등록합니다.
             </div>
           )}
+          <p className="flex items-start gap-2 rounded-lg bg-[#f4f8ff] p-3 text-[12.5px] leading-relaxed text-slate-600">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+            SaaS 등록번호가 발급되면 내 과제 인증서에 번호·작품명·소속·성명이 자동으로 채워집니다.
+          </p>
         </DialogContent>
       </Dialog>
 
       <AxSecurityGuideDialog open={security} onOpenChange={setSecurity} />
     </section>
-  );
-}
-
-function StepRow({ n, count, mine, onOpen, extra }: {
-  n: number; count: number; mine: boolean;
-  onOpen?: () => void;
-  extra?: { label: string; onClick: () => void };
-}) {
-  const s = stepOf(n);
-  const clickable = !!onOpen;
-  return (
-    <div>
-      <div
-        role={clickable ? "button" : undefined}
-        tabIndex={clickable ? 0 : undefined}
-        onClick={onOpen}
-        onKeyDown={(e) => { if (clickable && (e.key === "Enter" || e.key === " ")) onOpen!(); }}
-        className={`flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-[12.5px] transition ${
-          mine ? "bg-blue-600/10 ring-1 ring-blue-300" : ""
-        } ${clickable ? "cursor-pointer hover:bg-[#eef4ff] hover:shadow-sm active:scale-[0.98]" : ""}`}
-      >
-        <span className={`break-keep ${mine ? "font-black text-blue-700" : "font-semibold text-slate-500"}`}>
-          {n}. {s.label}
-        </span>
-        <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${
-            count > 0 ? "bg-[#eef4ff] text-blue-600" : "bg-[#f1f4f9] text-slate-300"
-          }`}
-        >
-          {n === 1 ? `${count}개` : count}
-        </span>
-      </div>
-      {n === 1 && <div className="px-2 pb-1 text-[11px] text-slate-400">경진대회</div>}
-      {n === 6 && (
-        <div className="px-2 pb-1 text-[11px] leading-snug text-slate-400">1차 본인 · 2차 AX협의체</div>
-      )}
-      {extra && (
-        <button
-          onClick={extra.onClick}
-          className="ml-2 mb-1 inline-flex items-center gap-1 rounded-md border border-[#dbe5f5] bg-white px-2 py-1 text-[11px] font-bold text-blue-600 transition hover:bg-[#eef4ff]"
-        >
-          <Info className="h-3 w-3" /> {extra.label}
-        </button>
-      )}
-    </div>
   );
 }

@@ -6,10 +6,7 @@ import { z } from "zod";
 // 이어지는 파이프라인. 저장은 기존 data/db.json (local-store.server.ts) 그대로 사용.
 
 const STAGE = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]);
-const STATUS = z.enum([
-  "requested", "reviewing", "developing", "field", "security",
-  "approved", "saas", "serial", "rollout", "rejected",
-]);
+const STATUS = z.enum(["requested", "developing", "review", "issued", "rejected"]);
 
 // ── 공용 헬퍼 ────────────────────────────────────────────────
 /** AX LAB 관리 기능 접근 — 정식 관리자 또는 AX LAB 전용 뷰어(김충환)만 허용. */
@@ -63,7 +60,7 @@ export const axGetOverview = createServerFn({ method: "GET" })
     const advancementTargetCount = Object.values(stage).filter((s) => s === 3).length;
     // 반려된 신청은 살아있는 신청이 아니므로 세지 않는다.
     const requestedCount = requests.filter((r) => r.status !== "rejected").length;
-    const saasApprovedCount = requests.filter((r) => r.status === "saas").length;
+    const saasApprovedCount = requests.filter((r) => r.status === "issued").length;
     // 단계별 건수 — 실별 현황 표와 같은 기준(경진대회 출품작)으로 센다.
     const stageCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
     for (const s of store.submissions) {
@@ -90,8 +87,10 @@ export const axGetPipeline = createServerFn({ method: "GET" })
       ?? (store.axNewWorks ?? []).find((w: any) => w.id === workId)?.title
       ?? "(삭제된 작품)";
 
-    const steps: Record<number, { id: string; title: string; authorName: string; authorTeam: string; mine: boolean }[]> = {};
-    for (let n = 1; n <= 10; n++) steps[n] = [];
+    const steps: Record<number, {
+      id: string; title: string; authorName: string; authorTeam: string; mine: boolean; saasNumber: string;
+    }[]> = {};
+    for (let n = 1; n <= 4; n++) steps[n] = [];
 
     let myStep: number | null = null;
     for (const r of store.axRequests ?? []) {
@@ -101,7 +100,11 @@ export const axGetPipeline = createServerFn({ method: "GET" })
       const author = liveProfile(roster, r.user_id, undefined);
       const mine = r.user_id === user.empNo;
       if (mine) myStep = n;
-      steps[n].push({ id: r.id, title: titleOf(r.workId), authorName: author.name, authorTeam: author.team, mine });
+      steps[n].push({
+        id: r.id, title: titleOf(r.workId),
+        authorName: author.name, authorTeam: author.team, mine,
+        saasNumber: r.saas?.number ?? "",
+      });
     }
 
     return {
@@ -207,7 +210,7 @@ export const axGetOrgBoard = createServerFn({ method: "GET" })
         const c3 = contestInTeam.filter((s: any) => stage[s.id] === 3).length;
         const c4 = contestInTeam.filter((s: any) => stage[s.id] === 4).length;
         const reqInTeam = requests.filter((r) => teamOfWork.get(r.workId) === team);
-        const approvedInTeam = reqInTeam.filter((r) => r.status === "approved" || r.status === "saas").length;
+        const approvedInTeam = reqInTeam.filter((r) => r.status === "issued").length;
         return { team, total: contestInTeam.length, stage1: c1, stage2: c2, stage3: c3, stage4: c4, requested: reqInTeam.length, approved: approvedInTeam };
       });
       const contestInSil = store.submissions.filter((s: any) => silOfWork.get(s.id) === g.name);
@@ -222,7 +225,7 @@ export const axGetOrgBoard = createServerFn({ method: "GET" })
         stage4: contestInSil.filter((s: any) => stage[s.id] === 4).length,
         goal: goals[g.name] ?? 0,
         requested: reqInSil.length,
-        approved: reqInSil.filter((r) => r.status === "approved" || r.status === "saas").length,
+        approved: reqInSil.filter((r) => r.status === "issued").length,
         teams: teamStats,
       };
     });
@@ -325,7 +328,7 @@ export const axListWorksBy = createServerFn({ method: "GET" })
       return inScope([...contest, ...news]).filter((r) => r.request && r.request.status !== "rejected");
     }
     if (data.filter === "approved") {
-      return inScope([...contest, ...news]).filter((r) => r.request?.status === "approved" || r.request?.status === "saas");
+      return inScope([...contest, ...news]).filter((r) => r.request?.status === "issued");
     }
     const scoped = inScope(contest);
     if (data.filter === "all") return scoped;
@@ -344,7 +347,10 @@ export const axGetMyWorks = createServerFn({ method: "GET" })
     const roster = await loadRoster();
     const me = liveProfile(roster, user.empNo, undefined);
     const stage = store.axStage ?? {};
-    const reqByWork = liveRequestsByWork(store);
+    // 내 화면에서는 반려 건도 봐야 한다 — 사유를 확인하고 다시 신청해야 하므로.
+    const reqByWork = new Map<string, any>(
+      (store.axRequests ?? []).filter((r: any) => r.user_id === user.empNo).map((r: any) => [r.workId, r]),
+    );
     const sil = silOfTeam(me.team);
     const orgLabel = me.team ? (sil && sil !== me.team ? `${sil} > ${me.team}` : me.team) : "미지정";
 
@@ -352,7 +358,7 @@ export const axGetMyWorks = createServerFn({ method: "GET" })
     const myNewWorks = (store.axNewWorks ?? []).filter((w: any) => w.user_id === user.empNo);
 
     return {
-      authorName: me.name, authorTeam: me.team, orgLabel,
+      authorName: me.name, authorTeam: me.team, authorEmpNo: user.empNo, orgLabel,
       contestWork: contestWork
         ? {
             id: contestWork.id, source: "contest" as const, title: contestWork.title,
@@ -521,6 +527,10 @@ export const axAdminListRequests = createServerFn({ method: "GET" })
         stage: stage[r.workId] ?? null,
         status: r.status, createdAt: r.createdAt, updatedAt: r.updatedAt,
         form: r.form ?? null,
+        rejectReason: r.rejectReason ?? "",
+        rejectedFrom: r.rejectedFrom ?? null,
+        saas: r.saas ?? null,
+        authorEmpNo: work?.user_id ?? "",
       });
     }
     rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
@@ -541,6 +551,152 @@ export const axAdminSetRequestStatus = createServerFn({ method: "POST" })
     r.updatedAt = new Date().toISOString();
     writeStore(store);
     return { ok: true };
+  });
+
+// ── 승인 관문 ────────────────────────────────────────────────
+
+/** 관문에서 신청 건을 찾아 꺼낸다. */
+async function takeRequest(requestId: string) {
+  const { readStore, writeStore } = await import("@/lib/local-store.server");
+  const store = readStore();
+  const r = (store.axRequests ?? []).find((x) => x.id === requestId);
+  if (!r) throw new Error("신청 내역을 찾을 수 없습니다.");
+  return { store, r, save: () => writeStore(store) };
+}
+
+/**
+ * 1단계 관문 — AX협의체가 고도화 신청을 승인/반려한다.
+ * 승인하면 2단계(고도화)로, 반려하면 사유와 함께 신청자에게 돌아간다.
+ */
+export const axAdminDecideRequest = createServerFn({ method: "POST" })
+  .inputValidator((d: { requestId: string; approve: boolean; reason?: string }) =>
+    z.object({
+      requestId: z.string().min(1),
+      approve: z.boolean(),
+      reason: z.string().trim().max(2000).optional().default(""),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await requireAxLabAdmin();
+    const { r, save } = await takeRequest(data.requestId);
+    if (r.status !== "requested") throw new Error("승인 대기 중인 신청만 처리할 수 있습니다.");
+    if (!data.approve && !data.reason) throw new Error("반려 사유를 입력해주세요.");
+
+    const now = new Date().toISOString();
+    if (data.approve) {
+      r.status = "developing";
+      r.rejectReason = "";
+      r.rejectedFrom = undefined;
+    } else {
+      r.status = "rejected";
+      r.rejectReason = data.reason;
+      r.rejectedFrom = "request";
+      r.rejectedAt = now;
+    }
+    r.updatedAt = now;
+    save();
+    return { ok: true };
+  });
+
+/**
+ * 2단계 → 3단계 — 고도화를 마친 본인이 2차 승인 검토를 요청한다.
+ */
+export const axRequestSecondReview = createServerFn({ method: "POST" })
+  .inputValidator((d: { requestId: string }) =>
+    z.object({ requestId: z.string().min(1) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { requireUser } = await import("@/lib/local-store.server");
+    const user = requireUser();
+    const { r, save } = await takeRequest(data.requestId);
+    if (r.user_id !== user.empNo) throw new Error("본인 신청만 검토 요청할 수 있습니다.");
+    if (r.status !== "developing") throw new Error("고도화 진행 중인 과제만 검토 요청할 수 있습니다.");
+    r.status = "review";
+    r.rejectReason = "";
+    r.rejectedFrom = undefined;
+    r.updatedAt = new Date().toISOString();
+    save();
+    return { ok: true };
+  });
+
+/**
+ * 3단계 관문 — AX협의체가 실효성·보안을 검토해 승인/반려한다.
+ * 반려하면 처음이 아니라 바로 전 단계(2단계 고도화)로 돌아간다.
+ */
+export const axAdminDecideReview = createServerFn({ method: "POST" })
+  .inputValidator((d: { requestId: string; approve: boolean; reason?: string }) =>
+    z.object({
+      requestId: z.string().min(1),
+      approve: z.boolean(),
+      reason: z.string().trim().max(2000).optional().default(""),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await requireAxLabAdmin();
+    const { r, save } = await takeRequest(data.requestId);
+    if (r.status !== "review") throw new Error("승인 검토 중인 과제만 처리할 수 있습니다.");
+    if (!data.approve && !data.reason) throw new Error("반려 사유를 입력해주세요.");
+
+    const now = new Date().toISOString();
+    if (data.approve) {
+      // 승인 — 발급 대기. 번호는 발급 버튼을 눌러야 채번된다.
+      r.status = "issued";
+      r.rejectReason = "";
+      r.rejectedFrom = undefined;
+    } else {
+      // 반려 — 전 단계(고도화)로 되돌린다.
+      r.status = "developing";
+      r.rejectReason = data.reason;
+      r.rejectedFrom = "review";
+      r.rejectedAt = now;
+    }
+    r.updatedAt = now;
+    save();
+    return { ok: true };
+  });
+
+/**
+ * SaaS 등록번호 발급 — TZAX + 업무성격(2) + 년도(2) + 일련번호(3).
+ * 일련번호는 같은 업무성격·같은 년도 안에서 자동으로 이어 붙인다.
+ */
+export const axAdminIssueSaasNumber = createServerFn({ method: "POST" })
+  .inputValidator((d: { requestId: string; category: string }) =>
+    z.object({
+      requestId: z.string().min(1),
+      category: z.string().regex(/^[A-Z]{2}$/),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { requireUser } = await import("@/lib/local-store.server");
+    const { SAAS_CATEGORY_LABEL, formatSaasNumber } = await import("@/lib/ax-stages");
+    const admin = await requireAxLabAdmin();
+    requireUser();
+    if (!SAAS_CATEGORY_LABEL[data.category]) throw new Error("업무성격 구분이 올바르지 않습니다.");
+
+    const { store, r, save } = await takeRequest(data.requestId);
+    if (r.status !== "issued") throw new Error("승인 완료된 과제만 번호를 발급할 수 있습니다.");
+    if (r.saas?.number) throw new Error("이미 번호가 발급된 과제입니다.");
+
+    const year = String(new Date().getFullYear()).slice(-2);
+    // 같은 구분·같은 년도에서 가장 큰 일련번호 다음 값
+    const used = (store.axRequests ?? [])
+      .map((x) => x.saas)
+      .filter((s): s is NonNullable<typeof s> => !!s && s.category === data.category && s.year === year)
+      .map((s) => s.seq);
+    const seq = (used.length ? Math.max(...used) : 0) + 1;
+
+    r.saas = {
+      number: formatSaasNumber(data.category, year, seq),
+      category: data.category,
+      year,
+      seq,
+      issuedAt: new Date().toISOString(),
+      issuedBy: admin.empNo,
+      issuedByName: admin.name,
+    };
+    r.updatedAt = r.saas.issuedAt;
+    save();
+    return { ok: true, number: r.saas.number };
   });
 
 /**
