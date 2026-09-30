@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   axGetOverview, axGetOrgBoard, axAdminSetGoal, axAdminListWorks, axAdminSetStage,
   axAdminListRequests, axAdminSetRequestStatus, axAdminDeleteRequest,
-  axAdminDecideRequest, axAdminDecideReview, axAdminIssueSaasNumber,
+  axAdminDecideRequest, axAdminDecideReview, axAdminIssueSaasNumber, axAdminCancelSaas,
 } from "@/lib/ax-lab.functions";
 import { AxPipeline } from "@/components/AxPipeline";
 import { AxOrgBoard } from "@/components/AxOrgBoard";
@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import {
   Target, ListChecks, ClipboardList, Search, Rocket, TrendingUp, Send, CheckCircle2,
   FileText, ArrowRight, MousePointerClick, Paperclip, Ban, Check, X, Award, Hash,
+  RotateCcw, Undo2,
 } from "lucide-react";
 
 export function AdminAxLabView() {
@@ -102,6 +103,27 @@ export function AdminAxLabView() {
     onSuccess: (r: any) => {
       toast.success(`SaaS 등록번호 ${r.number} 를 발급했습니다.`);
       setIssueTarget(null);
+      invalidate();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // ── SaaS 등록 취소 ─────────────────────────────────────────
+  const cancelSaasFn = useServerFn(axAdminCancelSaas);
+  const [cancelTarget, setCancelTarget] = useState<any | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+
+  const cancelMut = useMutation({
+    mutationFn: (v: { requestId: string; mode: "reissue" | "review"; reason?: string }) =>
+      cancelSaasFn({ data: v }),
+    onSuccess: (r: any, v) => {
+      toast.success(
+        v.mode === "reissue"
+          ? `번호 ${r.released} 를 취소했습니다. 다시 발급할 수 있습니다.`
+          : `SaaS 등록을 취소하고 승인 검토 단계로 되돌렸습니다.`,
+      );
+      setCancelTarget(null);
+      setCancelReason("");
       invalidate();
     },
     onError: (e: any) => toast.error(e.message),
@@ -187,6 +209,7 @@ export function AdminAxLabView() {
         onIssue={(r) => { setIssueCategory(SAAS_CATEGORIES[0].code); setIssueTarget(r); }}
         onCert={(r) => setCert(certInfoOf(r))}
         onExclude={(r) => setExcludeTarget(r)}
+        onCancelSaas={(r) => { setCancelReason(""); setCancelTarget(r); }}
       />
 
       {/* 작품 단계 분류 (썸네일 카드 + 우클릭 지정) */}
@@ -352,6 +375,7 @@ export function AdminAxLabView() {
                       onReject={(gate) => { setRejectReason(""); setRejectTarget({ row: r, gate }); }}
                       onIssue={() => { setIssueCategory(SAAS_CATEGORIES[0].code); setIssueTarget(r); }}
                       onCert={() => setCert(certInfoOf(r))}
+                      onCancelSaas={() => { setCancelReason(""); setCancelTarget(r); }}
                       busy={decideMut.isPending}
                     />
                   </td>
@@ -466,6 +490,76 @@ export function AdminAxLabView() {
               <Hash className="mr-1.5 h-4 w-4" /> 발급하기
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* SaaS 등록 취소 */}
+      <Dialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>SaaS 등록을 취소합니다</DialogTitle></DialogHeader>
+          {cancelTarget && (
+            <div className="rounded-xl border border-slate-200 p-3.5">
+              <div className="text-[15px] font-black text-slate-900">{cancelTarget.title}</div>
+              <div className="mt-0.5 text-[12.5px] text-slate-500">
+                {cancelTarget.authorTeam} · {cancelTarget.authorName}
+              </div>
+              {cancelTarget.saas?.number && (
+                <div className="mt-2 inline-block rounded-full bg-emerald-500/15 px-2.5 py-1 text-[12px] font-black tabular-nums text-emerald-700">
+                  {cancelTarget.saas.number}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2.5">
+            {/* 1) 번호만 다시 발급 */}
+            <div className="rounded-xl border border-slate-200 p-3.5">
+              <div className="text-[14px] font-black text-slate-900">번호만 취소하고 다시 발급</div>
+              <p className="mt-1 break-keep text-[12.5px] leading-relaxed text-slate-500">
+                업무성격 구분을 잘못 골랐을 때 씁니다. 등록 상태는 그대로 두고
+                번호만 비워 [발급 대기]로 돌아갑니다.
+              </p>
+              <Button
+                variant="outline"
+                className="mt-2.5 w-full"
+                disabled={cancelMut.isPending || !cancelTarget?.saas?.number}
+                onClick={() => cancelMut.mutate({ requestId: cancelTarget.id, mode: "reissue" })}
+              >
+                <RotateCcw className="mr-1.5 h-4 w-4" /> 번호 다시 발급
+              </Button>
+            </div>
+
+            {/* 2) 승인 검토로 되돌리기 */}
+            <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-3.5">
+              <div className="text-[14px] font-black text-slate-900">등록을 취소하고 승인 검토로</div>
+              <p className="mt-1 break-keep text-[12.5px] leading-relaxed text-slate-500">
+                번호를 반납하고 3단계(승인 검토)로 되돌립니다. 사유는 신청자에게 그대로 보입니다.
+              </p>
+              <Textarea
+                rows={3}
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="mt-2 bg-white"
+                placeholder="취소 사유를 적어주세요."
+              />
+              <Button
+                variant="destructive"
+                className="mt-2 w-full"
+                disabled={cancelMut.isPending || !cancelReason.trim()}
+                onClick={() =>
+                  cancelMut.mutate({
+                    requestId: cancelTarget.id, mode: "review", reason: cancelReason.trim(),
+                  })
+                }
+              >
+                <Undo2 className="mr-1.5 h-4 w-4" /> 등록 취소하고 되돌리기
+              </Button>
+            </div>
+          </div>
+
+          <p className="text-[12px] leading-relaxed text-slate-400">
+            취소한 번호는 다시 쓰지 않고 비워 둡니다. 같은 번호가 두 곳에 남지 않도록 다음 발급은 그 다음 번호부터 이어집니다.
+          </p>
         </DialogContent>
       </Dialog>
 
@@ -694,12 +788,13 @@ function certInfoOf(r: any): SaasCertInfo | null {
  *   고도화 중 → 본인이 검토 요청할 때까지 대기
  *   승인 완료 → [번호 발급] → 발급 후 [인증서]
  */
-function GateActions({ row, onApprove, onReject, onIssue, onCert, busy }: {
+function GateActions({ row, onApprove, onReject, onIssue, onCert, onCancelSaas, busy }: {
   row: any;
   onApprove: (gate: "request" | "review") => void;
   onReject: (gate: "request" | "review") => void;
   onIssue: () => void;
   onCert: () => void;
+  onCancelSaas: () => void;
   busy?: boolean;
 }) {
   const gate: "request" | "review" | null =
@@ -728,12 +823,20 @@ function GateActions({ row, onApprove, onReject, onIssue, onCert, busy }: {
 
   if (row.status === "issued") {
     return row.saas?.number ? (
-      <button
-        onClick={onCert}
-        className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[#dbe5f5] px-2.5 py-1.5 text-[12px] font-bold text-blue-600 transition hover:bg-[#eef4ff]"
-      >
-        <Award className="h-3.5 w-3.5" /> 인증서
-      </button>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <button
+          onClick={onCert}
+          className="inline-flex items-center gap-1 rounded-lg border border-[#dbe5f5] px-2.5 py-1.5 text-[12px] font-bold text-blue-600 transition hover:bg-[#eef4ff]"
+        >
+          <Award className="h-3.5 w-3.5" /> 인증서
+        </button>
+        <button
+          onClick={onCancelSaas}
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12px] font-bold text-slate-500 transition hover:border-destructive/40 hover:text-destructive"
+        >
+          <Undo2 className="h-3.5 w-3.5" /> 등록 취소
+        </button>
+      </div>
     ) : (
       <button
         onClick={onIssue}

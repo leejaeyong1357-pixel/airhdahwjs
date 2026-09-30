@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { AX_STAGES, type AxStage } from "@/lib/ax-stages";
-import { Check, X, Hash, Award, Ban, AlertCircle, Paperclip } from "lucide-react";
+import { Check, X, Hash, Award, Ban, AlertCircle, Paperclip, Undo2 } from "lucide-react";
 
 /** 보드 한 칸(단계)의 정의 — 어떤 신청이 여기에 들어오는지와 색. */
 const COLUMNS = [
@@ -46,7 +46,7 @@ const COLUMNS = [
  * 단계별 신청 현황 보드 — 협의체 인원이 지금 뭘 처리해야 하는지 한눈에 본다.
  * 승인/반려가 필요한 칸(1·3단계)에는 카드마다 버튼이 바로 붙는다.
  */
-export function AxRequestBoard({ requests, onApprove, onReject, onIssue, onCert, onDetail, onExclude, busy }: {
+export function AxRequestBoard({ requests, onApprove, onReject, onIssue, onCert, onDetail, onExclude, onCancelSaas, busy }: {
   requests: any[];
   onApprove: (row: any, gate: "request" | "review") => void;
   onReject: (row: any, gate: "request" | "review") => void;
@@ -54,6 +54,7 @@ export function AxRequestBoard({ requests, onApprove, onReject, onIssue, onCert,
   onCert: (row: any) => void;
   onDetail: (row: any) => void;
   onExclude: (row: any) => void;
+  onCancelSaas: (row: any) => void;
   busy?: boolean;
 }) {
   const grouped = useMemo(
@@ -108,6 +109,7 @@ export function AxRequestBoard({ requests, onApprove, onReject, onIssue, onCert,
                   onCert={onCert}
                   onDetail={onDetail}
                   onExclude={onExclude}
+                  onCancelSaas={onCancelSaas}
                   busy={busy}
                 />
               ))}
@@ -124,7 +126,7 @@ export function AxRequestBoard({ requests, onApprove, onReject, onIssue, onCert,
   );
 }
 
-function Card({ row: r, colKey, onApprove, onReject, onIssue, onCert, onDetail, onExclude, busy }: any) {
+function Card({ row: r, colKey, onApprove, onReject, onIssue, onCert, onDetail, onExclude, onCancelSaas, busy }: any) {
   const gate: "request" | "review" | null =
     colKey === "requested" ? "request" : colKey === "review" ? "review" : null;
 
@@ -162,7 +164,8 @@ function Card({ row: r, colKey, onApprove, onReject, onIssue, onCert, onDetail, 
         <div className="mt-1.5 rounded-lg bg-rose-50 p-2">
           <div className="flex items-center gap-1 text-[10.5px] font-black text-rose-600">
             <AlertCircle className="h-3 w-3" />
-            {r.rejectedFrom === "review" ? "2차 검토 반려" : "신청 반려"}
+            {r.rejectedFrom === "saasCancel" ? "SaaS 등록 취소"
+              : r.rejectedFrom === "review" ? "2차 검토 반려" : "신청 반려"}
           </div>
           <p className="mt-0.5 line-clamp-3 break-keep text-[11px] leading-snug text-slate-600">
             {r.rejectReason}
@@ -199,12 +202,20 @@ function Card({ row: r, colKey, onApprove, onReject, onIssue, onCert, onDetail, 
           </button>
         )}
         {colKey === "issued" && (
-          <button
-            onClick={() => onCert(r)}
-            className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-emerald-300 bg-white px-2 py-1.5 text-[11.5px] font-bold text-emerald-700 transition hover:bg-emerald-50"
-          >
-            <Award className="h-3 w-3" /> 인증서
-          </button>
+          <>
+            <button
+              onClick={() => onCert(r)}
+              className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-300 bg-white px-2 py-1.5 text-[11.5px] font-bold text-emerald-700 transition hover:bg-emerald-50"
+            >
+              <Award className="h-3 w-3" /> 인증서
+            </button>
+            <button
+              onClick={() => onCancelSaas(r)}
+              className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11.5px] font-bold text-slate-500 transition hover:border-rose-300 hover:text-rose-600"
+            >
+              <Undo2 className="h-3 w-3" /> 등록 취소
+            </button>
+          </>
         )}
         {colKey === "developing" && (
           <span className="w-full rounded-lg bg-slate-50 px-2 py-1.5 text-center text-[11px] font-semibold text-slate-400">

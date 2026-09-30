@@ -220,7 +220,8 @@ function MyWorkRow({ work: w, me }: { work: any; me: { name: string; team: strin
         <div className="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3.5">
           <div className="flex items-center gap-1.5 text-[12.5px] font-black text-destructive">
             <AlertCircle className="h-4 w-4" />
-            {r.rejectedFrom === "review" ? "2차 승인 검토 반려" : "고도화 신청 반려"}
+            {r.rejectedFrom === "saasCancel" ? "SaaS 등록 취소"
+              : r.rejectedFrom === "review" ? "2차 승인 검토 반려" : "고도화 신청 반려"}
           </div>
           <p className="mt-1.5 whitespace-pre-wrap break-keep text-[13px] leading-relaxed text-slate-700">
             {r.rejectReason}
@@ -228,6 +229,11 @@ function MyWorkRow({ work: w, me }: { work: any; me: { name: string; team: strin
           {r.rejectedFrom === "review" && (
             <p className="mt-2 text-[12px] font-semibold text-slate-500">
               보완 후 다시 [2차 승인 검토 요청]을 눌러주세요.
+            </p>
+          )}
+          {r.rejectedFrom === "saasCancel" && (
+            <p className="mt-2 text-[12px] font-semibold text-slate-500">
+              발급된 SaaS 등록번호가 취소되어 승인 검토 단계로 돌아갔습니다.
             </p>
           )}
         </div>

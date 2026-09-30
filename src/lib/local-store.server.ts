@@ -55,6 +55,12 @@ export type Store = {
     openCriteriaImage?: string;
     saasCertImage?: string;
   };
+  /** AX LAB — 취소되어 반납된 SaaS 번호. 같은 번호를 다시 발급하지 않기 위해 남겨 둔다. */
+  axRetiredSaas?: {
+    number: string; category: string; year: string; seq: number;
+    issuedAt: string; issuedBy: string; issuedByName: string;
+    retiredAt: string; reason: string;
+  }[];
   /** AX LAB — 고도화 신청 (경진대회 작품 또는 신규 등록작 기준) */
   axRequests?: {
     id: string;
@@ -71,8 +77,11 @@ export type Store = {
     updatedAt: string;
     /** 반려 사유 — 신청자에게 그대로 보여준다. */
     rejectReason?: string;
-    /** 어느 관문에서 반려됐는지 (1단계 신청 심사 / 3단계 승인 검토) */
-    rejectedFrom?: "request" | "review";
+    /**
+     * 어느 관문에서 되돌아왔는지 —
+     * request: 1단계 신청 반려 / review: 3단계 승인 검토 반려 / saasCancel: SaaS 등록 취소
+     */
+    rejectedFrom?: "request" | "review" | "saasCancel";
     rejectedAt?: string;
     /** 발급된 SaaS 등록번호 */
     saas?: {

@@ -678,11 +678,16 @@ export const axAdminIssueSaasNumber = createServerFn({ method: "POST" })
     if (r.saas?.number) throw new Error("이미 번호가 발급된 과제입니다.");
 
     const year = String(new Date().getFullYear()).slice(-2);
-    // 같은 구분·같은 년도에서 가장 큰 일련번호 다음 값
-    const used = (store.axRequests ?? [])
-      .map((x) => x.saas)
-      .filter((s): s is NonNullable<typeof s> => !!s && s.category === data.category && s.year === year)
-      .map((s) => s.seq);
+    // 같은 구분·같은 년도에서 가장 큰 일련번호 다음 값.
+    // 취소된 번호(axRetiredSaas)도 함께 보고 건너뛴다 — 한 번 나간 번호는 다시 쓰지 않는다.
+    const sameSlot = (s: { category: string; year: string } | undefined) =>
+      !!s && s.category === data.category && s.year === year;
+    const used = [
+      ...(store.axRequests ?? []).map((x) => x.saas),
+      ...(store.axRetiredSaas ?? []),
+    ]
+      .filter(sameSlot)
+      .map((s) => s!.seq);
     const seq = (used.length ? Math.max(...used) : 0) + 1;
 
     r.saas = {
@@ -697,6 +702,54 @@ export const axAdminIssueSaasNumber = createServerFn({ method: "POST" })
     r.updatedAt = r.saas.issuedAt;
     save();
     return { ok: true, number: r.saas.number };
+  });
+
+/**
+ * SaaS 등록 취소 — 등록이 끝난 뒤에도 되돌릴 수 있다.
+ *   reissue : 번호만 지우고 발급 대기로 (구분을 잘못 골랐을 때 다시 발급)
+ *   review  : 번호를 지우고 3단계 승인 검토로 되돌린다 (사유 필요)
+ * 반납한 번호는 다시 쓰지 않고 비워 둔다 — 같은 번호가 두 곳에 남지 않도록.
+ */
+export const axAdminCancelSaas = createServerFn({ method: "POST" })
+  .inputValidator((d: { requestId: string; mode: "reissue" | "review"; reason?: string }) =>
+    z.object({
+      requestId: z.string().min(1),
+      mode: z.enum(["reissue", "review"]),
+      reason: z.string().trim().max(2000).optional().default(""),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await requireAxLabAdmin();
+    const { store, r, save } = await takeRequest(data.requestId);
+    if (r.status !== "issued") throw new Error("등록 완료된 과제만 취소할 수 있습니다.");
+    if (data.mode === "reissue" && !r.saas?.number) {
+      throw new Error("아직 번호가 발급되지 않았습니다.");
+    }
+    if (data.mode === "review" && !data.reason) throw new Error("취소 사유를 입력해주세요.");
+
+    const now = new Date().toISOString();
+    const released = r.saas?.number ?? "";
+
+    // 반납한 번호는 재사용하지 않는다 — 취소 이력으로 남겨 채번에서 건너뛴다.
+    if (r.saas) {
+      store.axRetiredSaas ??= [];
+      store.axRetiredSaas.push({
+        ...r.saas,
+        retiredAt: now,
+        reason: data.reason || (data.mode === "reissue" ? "번호 재발급" : ""),
+      });
+    }
+    r.saas = undefined;
+
+    if (data.mode === "review") {
+      r.status = "review";
+      r.rejectReason = data.reason;
+      r.rejectedFrom = "saasCancel";
+      r.rejectedAt = now;
+    }
+    r.updatedAt = now;
+    save();
+    return { ok: true, released };
   });
 
 /**
