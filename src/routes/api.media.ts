@@ -30,8 +30,21 @@ export const Route = createFileRoute("/api/media")({
         const base = join(process.cwd(), "public", "media");
         const dest = normalize(join(base, path));
         if (!dest.startsWith(base)) return new Response("잘못된 경로입니다.", { status: 400 });
-        mkdirSync(dirname(dest), { recursive: true });
-        writeFileSync(dest, buf);
+
+        try {
+          mkdirSync(dirname(dest), { recursive: true });
+          writeFileSync(dest, buf);
+        } catch (err: any) {
+          // 파일명이 너무 길거나(ENAMETOOLONG) 디스크가 꽉 찬 경우 등 —
+          // 500 HTML 페이지 대신 사람이 읽을 수 있는 이유를 돌려준다.
+          const reason =
+            err?.code === "ENAMETOOLONG"
+              ? "파일 이름이 너무 깁니다. 이름을 줄여서 다시 올려주세요."
+              : err?.code === "ENOSPC"
+                ? "서버 저장 공간이 부족합니다. 관리자에게 알려주세요."
+                : `파일을 저장하지 못했습니다. (${err?.code ?? "알 수 없는 오류"})`;
+          return new Response(reason, { status: 500 });
+        }
         return Response.json({ ok: true, url: `/media/${path}` });
       },
     },

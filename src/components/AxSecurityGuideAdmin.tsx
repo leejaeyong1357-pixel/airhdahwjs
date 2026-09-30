@@ -5,6 +5,7 @@ import { axGetSecurityGuide, axAdminSetSecurityGuide, PROMPT_MAX } from "@/lib/a
 import { AxSecurityGuideDialog } from "@/components/AxSecurityGuideDialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { uploadFile } from "@/lib/upload";
 import { toast } from "sonner";
 import { ShieldCheck, Upload, Eye, Trash2 } from "lucide-react";
 
@@ -48,13 +49,11 @@ export function AxSecurityGuideAdmin() {
 
   async function upload(file: File, set: (v: string) => void) {
     try {
-      const path = `security/${crypto.randomUUID()}-${file.name}`;
-      const res = await fetch(`/api/media?path=${encodeURIComponent(path)}`, { method: "POST", body: file });
-      if (!res.ok) throw new Error("업로드 실패");
-      set(`/media/${path}`);
+      const relative = await uploadFile("security", file);
+      set(`/media/security/${relative}`);
       toast.success("이미지를 올렸습니다. [저장]을 눌러 반영하세요.");
-    } catch {
-      toast.error("이미지 업로드에 실패했습니다.");
+    } catch (err: any) {
+      toast.error(err?.message ?? "이미지 업로드에 실패했습니다.");
     }
   }
 

@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AX_AFTER_SUBMIT_STEPS } from "@/components/AxPipeline";
 import { AX_STAGES, AX_STAGE_LIST } from "@/lib/ax-stages";
+import { uploadFile } from "@/lib/upload";
 import { toast } from "sonner";
 import {
   FileText, Sparkles, PlusCircle, ArrowRight, ArrowLeft, CheckCircle2, Paperclip,
@@ -103,15 +104,11 @@ function AxRequestWizard() {
     setAttachment(f);
     setUploading(true);
     try {
-      const path = `${crypto.randomUUID()}-${f.name}`;
-      const res = await fetch(`/api/media?path=${encodeURIComponent(`ax-attachments/${path}`)}`, {
-        method: "POST", body: f,
-      });
-      if (!res.ok) throw new Error("업로드 실패");
-      setAttachmentPath(path);
-    } catch {
-      toast.error("파일 업로드에 실패했습니다.");
+      setAttachmentPath(await uploadFile("ax-attachments", f));
+    } catch (err: any) {
+      toast.error(err?.message ?? "파일 업로드에 실패했습니다.");
       setAttachment(null);
+      setAttachmentPath("");
     } finally {
       setUploading(false);
     }
