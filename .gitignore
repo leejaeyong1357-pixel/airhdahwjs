@@ -41,3 +41,6 @@ src/routeTree.gen.ts
 # 작품 제출 데이터/업로드 파일 — 각 서버 로컬에 보관
 data/
 public/media/
+
+# 자체 서명 SSL 인증서 (개인키 포함 — 저장소에 올리지 않는다)
+certs/
