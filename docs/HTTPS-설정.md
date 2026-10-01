@@ -1,5 +1,108 @@
 # HTTPS(SSL) 설정 — http → https 전환
 
+> ## 📌 직접 진행하는 순서 (도메인 관리 사이트 접속 가능한 경우)
+>
+> 전산팀 도움 없이 혼자 할 수 있습니다. 비용 0원, 걸리는 시간 20~30분.
+>
+> ### 1. win-acme 내려받기
+> https://www.win-acme.com → `win-acme.v2.x.x.x64.pluggable.zip` → 압축 해제
+> (예: `C:\win-acme\`)
+>
+> ### 2. 관리자 권한으로 실행
+> `wacs.exe` 우클릭 → **관리자 권한으로 실행**
+>
+> 메뉴에서 순서대로:
+>
+> | 물어보는 것 | 고를 것 |
+> |---|---|
+> | 메인 메뉴 | `M` (Create certificate - full options) |
+> | 도메인 입력 | `vibe.teczen.kr` |
+> | 인증 방식 | **`[dns-01] Create verification records manually`** |
+> | 개인키 종류 | `RSA` (기본값 엔터) |
+> | 저장 방식 | **`PEM encoded files`** |
+> | 저장 경로 | `C:\certs` |
+> | 그 외 | 전부 기본값(엔터) |
+>
+> ### 3. 화면에 TXT 레코드가 뜬다 → 도메인 관리 사이트에 추가
+>
+> win-acme 가 이런 걸 보여줍니다.
+>
+> ```
+> Domain:  _acme-challenge.vibe.teczen.kr
+> Record:  _acme-challenge.vibe
+> Value:   abcd1234...긴문자열...
+> ```
+>
+> 가비아·후이즈 등 **도메인 관리 → DNS 설정(레코드 관리)** 에서:
+>
+> | 칸 | 넣을 값 |
+> |---|---|
+> | 타입 | `TXT` |
+> | 호스트/이름 | `_acme-challenge.vibe` |
+> | 값/내용 | (화면의 긴 문자열 그대로 복사) |
+> | TTL | 기본값 (600 등) |
+>
+> ⚠️ 사이트에 따라 호스트에 **전체 주소**(`_acme-challenge.vibe.teczen.kr`)를
+> 넣어야 하는 곳도 있습니다. 보통은 `_acme-challenge.vibe` 만 넣습니다.
+> 저장 후 목록에 `_acme-challenge.vibe.teczen.kr` 로 보이면 맞게 들어간 겁니다.
+>
+> ### 4. 반영됐는지 확인하고 엔터
+>
+> **바로 엔터 누르지 마세요.** DNS 반영에 1~10분 걸립니다.
+> 다른 명령창을 열어 확인합니다.
+>
+> ```
+> nslookup -type=TXT _acme-challenge.vibe.teczen.kr 8.8.8.8
+> ```
+>
+> 넣은 문자열이 보이면 → win-acme 창으로 돌아가 **엔터**
+> 안 보이면 → 2~3분 뒤 다시 확인
+>
+> (끝에 `8.8.8.8` 을 꼭 붙이세요. 사내 DNS 말고 **외부 DNS** 로 확인해야 합니다.
+> Let's Encrypt 도 외부에서 조회하기 때문입니다.)
+>
+> ### 5. 발급 완료 → .env 설정
+>
+> `C:\certs` 에 파일이 두 개 생깁니다. 이름을 확인하고 `.env` 에 적습니다.
+>
+> ```
+> SSL_CERT=C:\certs\vibe.teczen.kr-chain.pem
+> SSL_KEY=C:\certs\vibe.teczen.kr-key.pem
+> ```
+>
+> 파일 이름이 다르면 실제 이름으로 맞추세요.
+> `-chain.pem`(중간 인증서 포함) 이 있으면 그걸 쓰고, 없으면 `-crt.pem` 을 씁니다.
+>
+> ### 6. 서버 재시작
+>
+> ```
+> npm run build
+> npm start
+> ```
+>
+> 화면에 `https://localhost:2222` 로 바뀌면 성공입니다.
+>
+> ### 7. ⚠️ 포털 메뉴 주소를 https 로 바꾸기 (빠뜨리기 쉬움)
+>
+> 오토웨이 메뉴에 등록된 주소가 아직 `http://` 면 경고가 그대로 뜹니다.
+>
+> ```
+> http://vibe.teczen.kr:2222   →   https://vibe.teczen.kr:2222
+> ```
+>
+> 로 바꿔야 끝납니다.
+>
+> ### 8. 90일마다 갱신
+>
+> Let's Encrypt 는 90일짜리입니다. 수동 DNS 방식은 자동 갱신이 안 되므로
+> **달력에 85일 뒤 알림을 걸어두세요.** 그때 2~5번을 다시 하면 됩니다.
+>
+> 도메인 관리 사이트가 API 를 지원하면(가비아·Cloudflare 등) win-acme 에서
+> 해당 플러그인을 고르면 자동 갱신됩니다. 2번에서 인증 방식을 고를 때
+> 업체 이름이 보이면 그걸 고르세요.
+
+
+
 사내 포털(오토웨이 업무시스템)에 이 사이트를 넣으려면 https 여야 합니다.
 
 `http://` 로 두면:
