@@ -35,7 +35,7 @@ function AdminTeams() {
     <div className="max-w-xl space-y-6">
       <div className="rounded-xl border border-border bg-card p-6">
         <div className="text-sm font-semibold">실/팀 추가</div>
-        <form onSubmit={(e) => { e.preventDefault(); if (name.trim()) createMut.mutate(); }} method="dialog" className="mt-3 flex gap-2">
+        <form onSubmit={(e) => { e.preventDefault(); if (name.trim()) createMut.mutate(); }} className="mt-3 flex gap-2">
           <Input placeholder="예: 미래성장실" value={name} onChange={(e) => setName(e.target.value)} />
           <Button type="submit" disabled={createMut.isPending || !name.trim()}>
             <Plus className="mr-1 h-4 w-4" /> 추가
