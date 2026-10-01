@@ -17,7 +17,7 @@
 공인 인증서(브라우저가 믿는 인증서)는 **`192.168.x.x` 같은 사내 IP 로는 발급되지 않습니다.**
 국제 규정(CA/Browser Forum)상 CA 가 내부 주소로는 발급할 수 없습니다.
 
-그래서 **도메인 이름이 반드시 필요합니다.** 예: `axlab.teczen.co.kr`
+그래서 **도메인 이름이 반드시 필요합니다.** 예: `vibe.teczen.kr`
 
 > 좋은 소식: 그 도메인이 **인터넷에 공개될 필요는 없습니다.**
 > DNS 레코드만 공개해 두고, 실제 서버는 사내에만 있어도 됩니다.
@@ -28,8 +28,8 @@
 ## 전체 순서
 
 ```
-1) 도메인 정하기          axlab.teczen.co.kr
-2) DNS A 레코드 추가      axlab.teczen.co.kr  →  192.168.0.10 (서버 PC 내부 IP)
+1) 도메인 정하기          vibe.teczen.kr
+2) DNS A 레코드 추가      vibe.teczen.kr  →  192.168.0.10 (서버 PC 내부 IP)
 3) 인증서 발급            Let's Encrypt(무료) 또는 유료 인증서
 4) .env 에 경로 넣기
 5) 서버 재시작 + 방화벽
@@ -42,7 +42,7 @@
 회사 도메인 아래에 하위 이름을 하나 만듭니다.
 
 ```
-axlab.teczen.co.kr
+vibe.teczen.kr
 ```
 
 ## 2) DNS A 레코드 추가 (전산팀 요청)
@@ -50,8 +50,8 @@ axlab.teczen.co.kr
 ```
 [요청] DNS 레코드 추가
 
-  이름(호스트) : axlab
-  도메인       : teczen.co.kr
+  이름(호스트) : vibe
+  도메인       : teczen.kr
   타입         : A
   값           : 192.168.0.10     ← AX LAB 서버 PC 의 사내 IP
   TTL          : 기본값
@@ -65,6 +65,24 @@ axlab.teczen.co.kr
 
 ## 3) 인증서 발급
 
+### 먼저 — 어떤 방식을 쓸 수 있는지 확인
+
+서버 PC 의 명령창에서:
+
+```
+nslookup vibe.teczen.kr
+```
+
+나오는 **Address** 를 보고 고릅니다.
+
+| 나온 주소 | 뜻 | 쓸 방식 |
+|---|---|---|
+| `192.168.*` · `10.*` · `172.16~31.*` | 사내 IP | **DNS-01** (방법 A) |
+| 그 외 (공인 IP) | 인터넷에서 접속 가능할 수도 | **HTTP-01** 가능 (방법 A-2, 훨씬 간단) |
+
+공인 IP 라도 **외부에서 80 포트가 막혀 있으면** HTTP-01 은 안 됩니다.
+확실치 않으면 그냥 **DNS-01** 로 하세요. 어떤 환경에서든 됩니다.
+
 ### 방법 A — Let's Encrypt (무료, 권장)
 
 서버가 외부에 열려 있지 않아도 **DNS-01 방식**으로 받을 수 있습니다.
@@ -76,17 +94,32 @@ TXT 레코드만 잠깐 추가하면 되고, 서버는 인터넷에 노출되지
 2. 관리자 명령창에서 `wacs.exe` 실행
 3. 메뉴에서 차례로 선택
    - `M` (수동으로 도메인 지정)
-   - 도메인: `axlab.teczen.co.kr`
+   - 도메인: `vibe.teczen.kr`
    - 인증 방식: **DNS-01** (`4` 또는 `dns-01` 계열)
    - 화면에 나오는 **TXT 레코드**를 DNS 에 추가 → 전산팀에 요청
      ```
-     이름 : _acme-challenge.axlab
+     이름 : _acme-challenge.vibe
      타입 : TXT
      값   : (화면에 나오는 긴 문자열)
      ```
    - 추가 후 Enter → 발급 완료
-4. 저장 위치(보통 `C:\ProgramData\win-acme\...\axlab.teczen.co.kr\`)에서
+4. 저장 위치(보통 `C:\ProgramData\win-acme\...\vibe.teczen.kr\`)에서
    `fullchain.pem` 과 `privkey.pem` 경로를 확인
+
+### 방법 A-2 — HTTP-01 (공인 IP + 80 포트가 열려 있을 때만)
+
+이게 되면 제일 간단합니다. TXT 레코드도 필요 없고 **갱신도 완전 자동**입니다.
+
+관리자 명령창에서:
+
+```
+wacs.exe --target manual --host vibe.teczen.kr --validation selfhosting --store pemfiles --pemfilespath C:\certs
+```
+
+win-acme 가 80 포트로 잠깐 서버를 띄워 인증하고, `C:\certs` 에 PEM 파일을 떨궈 줍니다.
+작업 스케줄러에 자동 갱신도 알아서 등록됩니다.
+
+> 80 포트를 이미 다른 프로그램이 쓰고 있으면 실패합니다. 그때는 DNS-01 로 가세요.
 
 > **갱신**: Let's Encrypt 는 **90일**마다 갱신해야 합니다.
 > DNS 업체가 API 를 지원하면 win-acme 가 자동 갱신하도록 설정할 수 있습니다
@@ -130,15 +163,15 @@ SSL_KEY=C:\certs\privkey.pem
 **유료 인증서 (파일이 따로 올 때)**
 
 ```
-SSL_CERT=C:\certs\axlab.crt
-SSL_KEY=C:\certs\axlab.key
+SSL_CERT=C:\certs\vibe.crt
+SSL_KEY=C:\certs\vibe.key
 SSL_CA=C:\certs\chain.crt
 ```
 
 **PFX(.pfx) 로 받았다면**
 
 ```
-SSL_PFX=C:\certs\axlab.pfx
+SSL_PFX=C:\certs\vibe.pfx
 SSL_PASSPHRASE=비밀번호
 ```
 
@@ -181,7 +214,7 @@ netsh advfirewall firewall add rule name="TECZEN-HTTP"  dir=in action=allow prot
 
 ## 확인
 
-사내 PC 에서 `https://axlab.teczen.co.kr` 로 접속해서:
+사내 PC 에서 `https://vibe.teczen.kr` 로 접속해서:
 
 - 주소창에 **자물쇠**가 보이는지
 - 로그인할 때 보안 경고가 **안 뜨는지**
@@ -190,7 +223,7 @@ netsh advfirewall firewall add rule name="TECZEN-HTTP"  dir=in action=allow prot
 중간 인증서가 빠졌는지 확인하려면 (서버 PC 에서):
 
 ```
-openssl s_client -connect axlab.teczen.co.kr:443 -showcerts
+openssl s_client -connect vibe.teczen.kr:443 -showcerts
 ```
 
 맨 아래 `Verify return code: 0 (ok)` 가 나오면 정상입니다.
@@ -212,4 +245,4 @@ npm run cert
 **단, 직원 PC 에서 처음 접속할 때 경고가 뜹니다** (`고급 → 계속` 으로 넘어갈 수 있음).
 **포털 iframe 은 이 방식으로는 동작하지 않습니다.** 정식 인증서를 받기 전까지의 임시 수단으로만 쓰세요.
 
-만들어진 `certs/axlab.crt` 를 전산팀이 GPO 로 직원 PC 에 배포하면 경고가 사라집니다.
+만들어진 `certs/vibe.crt` 를 전산팀이 GPO 로 직원 PC 에 배포하면 경고가 사라집니다.
