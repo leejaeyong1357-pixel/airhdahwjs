@@ -178,7 +178,7 @@ export function SubmissionActions({
           <DialogHeader>
             <DialogTitle>작품 수정</DialogTitle>
           </DialogHeader>
-          <form onSubmit={saveEdit} className="space-y-4">
+          <form onSubmit={saveEdit} method="dialog" className="space-y-4">
             <div className="space-y-1.5">
               <Label>썸네일</Label>
               <div className="flex items-center gap-4">

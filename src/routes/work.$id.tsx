@@ -217,6 +217,7 @@ function WorkPage() {
         {signedIn && (
           <form
             onSubmit={(e) => { e.preventDefault(); if (body.trim()) commentMut.mutate(body); }}
+            method="dialog"
             className="mt-4 flex gap-2"
           >
             <Textarea
