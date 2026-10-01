@@ -100,7 +100,7 @@ function AuthPage() {
         </p>
 
         {/* 흰색 로그인 카드 */}
-        <form onSubmit={onSubmit} method="dialog" className="mt-10 flex w-full max-w-md flex-col gap-5 rounded-3xl bg-white px-9 py-10 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.7)]">
+        <form onSubmit={onSubmit} className="mt-10 flex w-full max-w-md flex-col gap-5 rounded-3xl bg-white px-9 py-10 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.7)]">
           <h2 className="text-center text-2xl font-black tracking-tight text-[#0a0a0a]">로그인</h2>
 
           <div className="space-y-3">

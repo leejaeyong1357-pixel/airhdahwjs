@@ -184,7 +184,7 @@ function SubmitPage() {
         <p className="mt-2 text-sm text-muted-foreground">모든 형태의 결과물(HTML, 프로그램, Python 등)을 업로드할 수 있습니다.</p>
       </div>
 
-      <form onSubmit={onSubmit} method="dialog" className="space-y-6 rounded-2xl border border-border bg-card p-8">
+      <form onSubmit={onSubmit} className="space-y-6 rounded-2xl border border-border bg-card p-8">
         <Field label="1. 제목" htmlFor="title">
           <Input id="title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength={120} placeholder="작품 제목을 입력하세요" />
         </Field>

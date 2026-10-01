@@ -107,7 +107,7 @@ function MyPage() {
         )}
       </div>
 
-      <form onSubmit={changePassword} method="dialog" className="mt-6 rounded-2xl border border-border bg-card p-6">
+      <form onSubmit={changePassword} className="mt-6 rounded-2xl border border-border bg-card p-6">
         <div className="text-sm font-semibold">비밀번호 변경</div>
         <div className="mt-4 space-y-4">
           <div className="space-y-1.5">

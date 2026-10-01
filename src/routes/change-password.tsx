@@ -136,7 +136,7 @@ function ChangePasswordPage() {
         <p className="mt-2 text-sm text-muted-foreground">
           보안을 위해 첫 로그인 시 새 비밀번호를 설정해야 합니다.
         </p>
-        <form onSubmit={onSubmit} method="dialog" className="mt-6 space-y-4">
+        <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="current">현재 비밀번호</Label>
             <Input
