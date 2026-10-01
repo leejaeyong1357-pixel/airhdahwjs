@@ -74,6 +74,8 @@ function readTls() {
 
 const tls = readTls();
 const scheme = tls ? "https" : "http";
+// 기존 http 주소로 들어온 사람을 https 로 넘겨준다 (예: HTTP_REDIRECT_PORT=80)
+const redirectPort = Number(process.env.HTTP_REDIRECT_PORT ?? 0);
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -167,6 +169,25 @@ server.listen(port, "0.0.0.0", async () => {
     console.log("접속이 안 되면 윈도우 방화벽에서 포트를 허용하세요 (관리자 명령창):");
     console.log(`   netsh advfirewall firewall add rule name="TECZEN" dir=in action=allow protocol=TCP localport=${port}`);
   }
+  // http 로 들어온 요청을 https 로 넘기는 작은 서버
+  if (tls && redirectPort) {
+    createServer((req, res) => {
+      const host = (req.headers.host ?? "").replace(/:\d+$/, "");
+      const target = `https://${host}${port === 443 ? "" : `:${port}`}${req.url ?? "/"}`;
+      res.writeHead(301, { location: target });
+      res.end();
+    })
+      .listen(redirectPort, "0.0.0.0", () => {
+        console.log("");
+        console.log(`http://…:${redirectPort} 로 들어오면 https 로 자동 연결됩니다.`);
+      })
+      .on("error", (err) => {
+        console.error("");
+        console.error(`!! http→https 전환 포트(${redirectPort})를 열지 못했습니다: ${err.message}`);
+        console.error("   80·443 같은 낮은 포트는 관리자 권한이 필요할 수 있습니다.");
+      });
+  }
+
   if (!tls) {
     console.log("");
     console.log("※ 지금은 http 입니다. 로그인처럼 정보를 입력하는 화면에서");
