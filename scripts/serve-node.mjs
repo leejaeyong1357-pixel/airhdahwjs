@@ -138,7 +138,20 @@ const onRequest = async (req, res) => {
     });
     const response = await handler.fetch(request, {}, {});
 
-    res.writeHead(response.status, Object.fromEntries(response.headers));
+    const headers = Object.fromEntries(response.headers);
+    // HTML 은 절대 캐시하지 않는다.
+    // 캐시하면 재빌드 뒤에도 브라우저가 옛날 HTML 을 들고 있는데,
+    // 거기 적힌 JS 파일은 이름이 바뀌어 사라진 뒤라 404 가 난다.
+    // 그러면 자바스크립트가 안 붙어서 화면이 먹통이 되거나,
+    // 폼이 브라우저 방식으로 전송되며 보안 경고가 뜬다.
+    const type = headers["content-type"] ?? "";
+    if (type.includes("text/html")) {
+      headers["cache-control"] = "no-store, must-revalidate";
+      headers["pragma"] = "no-cache";
+      headers["expires"] = "0";
+    }
+
+    res.writeHead(response.status, headers);
     if (response.body) {
       Readable.fromWeb(response.body).pipe(res);
     } else {
