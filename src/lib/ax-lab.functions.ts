@@ -211,7 +211,12 @@ export const axGetOrgBoard = createServerFn({ method: "GET" })
         const c4 = contestInTeam.filter((s: any) => stage[s.id] === 4).length;
         const reqInTeam = requests.filter((r) => teamOfWork.get(r.workId) === team);
         const approvedInTeam = reqInTeam.filter((r) => r.status === "issued").length;
-        return { team, total: contestInTeam.length, stage1: c1, stage2: c2, stage3: c3, stage4: c4, requested: reqInTeam.length, approved: approvedInTeam };
+        return {
+          team, total: contestInTeam.length,
+          stage1: c1, stage2: c2, stage3: c3, stage4: c4,
+          unclassified: contestInTeam.length - (c1 + c2 + c3 + c4),
+          requested: reqInTeam.length, approved: approvedInTeam,
+        };
       });
       const contestInSil = store.submissions.filter((s: any) => silOfWork.get(s.id) === g.name);
       const reqInSil = requests.filter((r) => silOfWork.get(r.workId) === g.name);
@@ -223,6 +228,7 @@ export const axGetOrgBoard = createServerFn({ method: "GET" })
         stage2: contestInSil.filter((s: any) => stage[s.id] === 2).length,
         stage3: contestInSil.filter((s: any) => stage[s.id] === 3).length,
         stage4: contestInSil.filter((s: any) => stage[s.id] === 4).length,
+        unclassified: contestInSil.filter((s: any) => !stage[s.id]).length,
         goal: goals[g.name] ?? 0,
         requested: reqInSil.length,
         approved: reqInSil.filter((r) => r.status === "issued").length,
@@ -284,7 +290,7 @@ export const axListWorksBy = createServerFn({ method: "GET" })
     z.object({
       scope: z.enum(["sil", "team"]),
       name: z.string().min(1),
-      filter: z.enum(["all", "stage1", "stage2", "stage3", "stage4", "requested", "approved"]),
+      filter: z.enum(["all", "none", "stage1", "stage2", "stage3", "stage4", "requested", "approved"]),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -332,6 +338,8 @@ export const axListWorksBy = createServerFn({ method: "GET" })
     }
     const scoped = inScope(contest);
     if (data.filter === "all") return scoped;
+    // 아직 단계를 매기지 않은 작품 — 단계별 합이 전체와 안 맞는 이유다.
+    if (data.filter === "none") return scoped.filter((r) => !r.stage);
     const want = Number(data.filter.replace("stage", ""));
     return scoped.filter((r) => r.stage === want);
   });
