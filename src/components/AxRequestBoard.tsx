@@ -222,14 +222,13 @@ function Card({ row: r, colKey, onApprove, onReject, onIssue, onCert, onDetail, 
             본인이 검토 요청할 때까지 대기
           </span>
         )}
-        {colKey === "rejected" && (
-          <button
-            onClick={() => onExclude(r)}
-            className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11.5px] font-bold text-slate-500 transition hover:border-rose-300 hover:text-rose-600"
-          >
-            <Ban className="h-3 w-3" /> 신청 제외
-          </button>
-        )}
+        {/* 어느 단계에 있든 신청을 아예 없던 일로 되돌릴 수 있다 */}
+        <button
+          onClick={() => onExclude(r)}
+          className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-400 transition hover:border-rose-300 hover:text-rose-600"
+        >
+          <Ban className="h-3 w-3" /> 신청 초기화
+        </button>
       </div>
     </div>
   );

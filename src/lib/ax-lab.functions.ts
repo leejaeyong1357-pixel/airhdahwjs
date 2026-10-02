@@ -767,8 +767,19 @@ export const axAdminDeleteRequest = createServerFn({ method: "POST" })
     const list = store.axRequests ?? [];
     const i = list.findIndex((x) => x.id === data.requestId);
     if (i < 0) throw new Error("신청 내역을 찾을 수 없습니다.");
-    list.splice(i, 1);
+
+    const [removed] = list.splice(i, 1);
+    // 번호가 나가 있었다면 반납 처리한다. 그냥 지우면 그 번호가
+    // 비어 보여서 다음 사람에게 똑같이 발급될 수 있다.
+    if (removed?.saas) {
+      store.axRetiredSaas ??= [];
+      store.axRetiredSaas.push({
+        ...removed.saas,
+        retiredAt: new Date().toISOString(),
+        reason: "신청 초기화",
+      });
+    }
     store.axRequests = list;
     writeStore(store);
-    return { ok: true };
+    return { ok: true, released: removed?.saas?.number ?? "" };
   });

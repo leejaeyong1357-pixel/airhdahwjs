@@ -129,12 +129,12 @@ export function AdminAxLabView() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  // 신청 제외 — 되돌릴 수 없어 확인을 받는다.
+  // 신청 초기화(삭제) — 되돌릴 수 없어 확인을 받는다.
   const [excludeTarget, setExcludeTarget] = useState<any | null>(null);
   const deleteMut = useMutation({
     mutationFn: (requestId: string) => delReqFn({ data: { requestId } }),
     onSuccess: () => {
-      toast.success("고도화 신청을 제외했습니다.");
+      toast.success("신청을 초기화했습니다. 신청 전 상태로 돌아갑니다.");
       setExcludeTarget(null);
       invalidate();
     },
@@ -338,7 +338,7 @@ export function AdminAxLabView() {
                 <th className="px-3 py-3 text-left font-bold">제출자</th>
                 <th className="w-[200px] px-3 py-3 text-left font-bold">상태</th>
                 <th className="w-[210px] px-3 py-3 text-left font-bold">처리</th>
-                <th className="w-[80px] px-3 py-3 text-center font-bold">제외</th>
+                <th className="w-[80px] px-3 py-3 text-center font-bold">초기화</th>
               </tr>
             </thead>
             <tbody>
@@ -382,10 +382,10 @@ export function AdminAxLabView() {
                   <td className="px-3 py-2.5 text-center">
                     <button
                       onClick={() => setExcludeTarget(r)}
-                      aria-label={`${r.title} 신청 제외`}
+                      aria-label={`${r.title} 신청 초기화`}
                       className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[12px] font-bold text-slate-500 transition hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
                     >
-                      <Ban className="h-3.5 w-3.5" /> 제외
+                      <Ban className="h-3.5 w-3.5" /> 초기화
                     </button>
                   </td>
                 </tr>
@@ -565,23 +565,39 @@ export function AdminAxLabView() {
 
       <AxSaasCertificate info={cert} open={!!cert} onOpenChange={(o) => !o && setCert(null)} />
 
-      {/* 신청 제외 확인 */}
+      {/* 신청 초기화 확인 */}
       <Dialog open={!!excludeTarget} onOpenChange={(o) => !o && setExcludeTarget(null)}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>고도화 신청을 제외할까요?</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>신청을 초기화할까요?</DialogTitle></DialogHeader>
           {excludeTarget && (
             <div className="rounded-xl border border-slate-200 p-3.5">
               <div className="text-[15px] font-black text-slate-900">{excludeTarget.title}</div>
               <div className="mt-0.5 text-[12.5px] text-slate-500">
                 {excludeTarget.authorTeam} · {excludeTarget.authorName}
               </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${AX_STATUS[excludeTarget.status]?.tone ?? ""}`}>
+                  현재 {AX_STATUS[excludeTarget.status]?.label ?? excludeTarget.status}
+                </span>
+                {excludeTarget.saas?.number && (
+                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-black tabular-nums text-emerald-700">
+                    {excludeTarget.saas.number}
+                  </span>
+                )}
+              </div>
             </div>
           )}
           <p className="break-keep text-[13.5px] leading-relaxed text-slate-500">
-            신청 내역이 지워져 목록·집계·파이프라인에서 모두 빠집니다.
-            작성한 신청서 내용도 함께 사라지며 되돌릴 수 없습니다.
-            제외한 뒤에는 본인이 다시 신청할 수 있습니다.
+            아예 신청하지 않은 상태로 되돌립니다. 지금 어느 단계에 있든
+            목록·집계·파이프라인에서 모두 빠지고, 작성한 신청서 내용도 함께 사라집니다.
+            되돌릴 수 없으며, 초기화한 뒤에는 본인이 다시 신청할 수 있습니다.
           </p>
+          {excludeTarget?.saas?.number && (
+            <p className="break-keep rounded-lg bg-amber-50 p-3 text-[12.5px] leading-relaxed text-amber-700">
+              발급된 SaaS 등록번호 <b>{excludeTarget.saas.number}</b> 도 함께 회수됩니다.
+              이 번호는 다시 쓰지 않고 비워 두며, 다음 발급은 그 다음 번호로 이어집니다.
+            </p>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setExcludeTarget(null)}>취소</Button>
             <Button
@@ -589,7 +605,7 @@ export function AdminAxLabView() {
               disabled={deleteMut.isPending}
               onClick={() => deleteMut.mutate(excludeTarget.id)}
             >
-              <Ban className="mr-1.5 h-4 w-4" /> 제외하기
+              <Ban className="mr-1.5 h-4 w-4" /> 초기화하기
             </Button>
           </DialogFooter>
         </DialogContent>
