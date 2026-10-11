@@ -22,10 +22,27 @@ const ips = Object.values(networkInterfaces())
   .map((i) => i.address);
 const host = hostname();
 const dnsNames = ["localhost", host, ...(host.includes(".") ? [] : [`${host}.local`])];
-const extraNames = process.argv.slice(2); // npm run cert -- axlab.company.local
 
-const allDns = [...new Set([...dnsNames, ...extraNames])];
+// 직원들이 실제로 쓰는 주소를 넣어야 한다.
+//   npm run cert -- vibe.teczen.kr
+// .env 의 SITE_DOMAIN 에 적어두면 매번 안 써도 된다.
+const envDomain = (process.env.SITE_DOMAIN ?? "").trim();
+const extraNames = [...process.argv.slice(2), ...(envDomain ? [envDomain] : [])]
+  .map((s) => s.trim().replace(/^https?:\/\//, "").replace(/[:/].*$/, ""))
+  .filter(Boolean);
+
+const allDns = [...new Set([...extraNames, ...dnsNames])];
 const allIps = [...new Set([...ips, "127.0.0.1"])];
+
+if (!extraNames.length) {
+  console.log("");
+  console.log("⚠️  접속 도메인을 지정하지 않았습니다.");
+  console.log("   직원들이 도메인으로 접속한다면 그 주소를 꼭 넣어야 합니다.");
+  console.log("   안 넣으면 접속할 때 '주소가 인증서와 다르다'는 오류가 더 뜹니다.");
+  console.log("");
+  console.log("   예)  npm run cert -- vibe.teczen.kr");
+  console.log("");
+}
 
 console.log("");
 console.log("이 인증서에 들어갈 주소:");
@@ -72,7 +89,7 @@ x509_extensions = v3
 prompt = no
 
 [dn]
-CN = ${host}
+CN = ${allDns[0]}
 O = TECZEN
 OU = AX LAB
 
@@ -162,11 +179,48 @@ console.log("그 다음 서버를 다시 시작하면 https 로 뜹니다:");
 console.log("   npm run build");
 console.log("   npm start");
 console.log("");
-console.log("※ 자체 서명 인증서라 직원 PC 에서 처음 접속할 때 경고가 뜹니다.");
-console.log("   경고를 없애려면 아래 파일을 전산팀에 전달해 GPO 로 배포하세요.");
-console.log(`   (직원 PC 의 '신뢰할 수 있는 루트 인증 기관'에 설치하면 경고가 사라집니다)`);
+// 직원에게 그대로 보낼 설치 안내문을 같이 만들어 둔다.
+const site = allDns[0];
+const guidePath = join(certDir, "직원-설치안내.txt");
+writeFileSync(guidePath, `AX LAB 접속 전 1회만 하면 되는 설정
+
+같이 받은 "${crtPath.split(/[\\/]/).pop()}" 파일을 바탕화면에 두고,
+아래 둘 중 편한 방법으로 한 번만 설치해 주세요.
+설치하면 "이 사이트는 안전하지 않습니다" 경고가 사라집니다.
+
+
+[방법 1] 파일을 더블클릭해서 설치
+  1. 인증서 파일 더블클릭
+  2. [인증서 설치] 클릭
+  3. 저장소 위치: "현재 사용자" 선택 → [다음]
+  4. "모든 인증서를 다음 저장소에 저장" 선택 → [찾아보기]
+  5. "신뢰할 수 있는 루트 인증 기관" 선택 → [확인] → [다음] → [마침]
+  6. 보안 경고가 뜨면 [예]
+  7. 브라우저를 완전히 껐다가 다시 켜기
+
+
+[방법 2] 명령어 한 줄 (빠름)
+  시작 메뉴에서 "PowerShell" 검색 → 실행 후 아래를 붙여넣고 엔터
+
+  Import-Certificate -FilePath "$env:USERPROFILE\\Desktop\\${crtPath.split(/[\\/]/).pop()}" -CertStoreLocation Cert:\\CurrentUser\\Root
+
+  (관리자 권한 없어도 됩니다)
+  끝나면 브라우저를 완전히 껐다가 다시 켜기
+
+
+접속 주소: https://${site}:2222
+
+문의: 미래성장팀 이재용
+`, "utf8");
+
+console.log("※ 자체 서명 인증서입니다. 직원 PC 에 이 인증서를 설치해야");
+console.log("   '안전하지 않음' 경고 없이 접속됩니다. 설치 전에는 경고가 뜹니다.");
 console.log("");
-console.log(`   배포용 인증서: ${crtPath}`);
+console.log(`   직원에게 보낼 파일 2개:`);
+console.log(`     ${crtPath}`);
+console.log(`     ${guidePath}`);
+console.log("");
+console.log("   (전산팀이 GPO 로 배포해 주면 직원이 따로 할 일은 없습니다)");
 if (existsSync(crtPath)) {
   const pem = readFileSync(crtPath, "utf8");
   if (!pem.includes("BEGIN CERTIFICATE")) console.warn("   (형식 확인 필요)");
