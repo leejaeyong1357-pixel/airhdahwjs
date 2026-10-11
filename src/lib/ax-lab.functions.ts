@@ -358,7 +358,8 @@ export const axGetMyWorks = createServerFn({ method: "GET" })
     const myNewWorks = (store.axNewWorks ?? []).filter((w: any) => w.user_id === user.empNo);
 
     return {
-      authorName: me.name, authorTeam: me.team, authorEmpNo: user.empNo, orgLabel,
+      authorName: me.name, authorTeam: me.team, authorPosition: me.position,
+      authorEmpNo: user.empNo, orgLabel,
       contestWork: contestWork
         ? {
             id: contestWork.id, source: "contest" as const, title: contestWork.title,
@@ -530,6 +531,7 @@ export const axAdminListRequests = createServerFn({ method: "GET" })
         rejectReason: r.rejectReason ?? "",
         rejectedFrom: r.rejectedFrom ?? null,
         saas: r.saas ?? null,
+        authorPosition: work?.author?.position ?? "",
         authorEmpNo: work?.user_id ?? "",
       });
     }

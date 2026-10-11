@@ -110,6 +110,7 @@ export function AxLabOverview() {
                 me={{
                   name: myWorks?.authorName ?? "",
                   team: myWorks?.authorTeam ?? "",
+                  position: myWorks?.authorPosition ?? "",
                   empNo: myWorks?.authorEmpNo ?? "",
                 }}
               />
@@ -129,7 +130,7 @@ export function AxLabOverview() {
  *   고도화 진행 → 1차 보안검증 안내 + 2차 승인 검토 요청
  *   발급 완료 → SaaS 번호와 인증서
  */
-function MyWorkRow({ work: w, me }: { work: any; me: { name: string; team: string; empNo: string } }) {
+function MyWorkRow({ work: w, me }: { work: any; me: { name: string; team: string; position: string; empNo: string } }) {
   const qc = useQueryClient();
   const reviewFn = useServerFn(axRequestSecondReview);
   const [security, setSecurity] = useState(false);
@@ -247,7 +248,8 @@ function MyWorkRow({ work: w, me }: { work: any; me: { name: string; team: strin
           r?.saas?.number
             ? {
                 number: r.saas.number, category: r.saas.category, issuedAt: r.saas.issuedAt,
-                title: w.title, authorName: me.name, authorTeam: me.team, authorEmpNo: me.empNo,
+                title: w.title, authorName: me.name, authorTeam: me.team,
+                authorPosition: me.position, authorEmpNo: me.empNo,
               }
             : null
         }

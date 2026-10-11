@@ -12,6 +12,7 @@ import { AxWorkDetailDialog } from "@/components/AxWorkDetailDialog";
 import { AxSecurityGuideAdmin } from "@/components/AxSecurityGuideAdmin";
 import { AxSaasCertificate, type SaasCertInfo } from "@/components/AxSaasCertificate";
 import { AxRequestBoard } from "@/components/AxRequestBoard";
+import { AxSaasRegistry } from "@/components/AxSaasRegistry";
 import {
   AX_STAGES, AX_STAGE_LIST, AX_STATUS, SAAS_CATEGORIES, type AxStage,
 } from "@/lib/ax-stages";
@@ -323,6 +324,11 @@ export function AdminAxLabView() {
       <AxSecurityGuideAdmin />
 
       {/* 고도화 신청 검토 (전체) */}
+      <AxSaasRegistry
+        requests={requests}
+        onCancelSaas={(r) => { setCancelReason(""); setCancelTarget(r); }}
+      />
+
       <section id="requests-table" className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
         <div className="flex items-center gap-2">
           <ClipboardList className="h-5 w-5 text-blue-600" />
@@ -794,6 +800,7 @@ function certInfoOf(r: any): SaasCertInfo | null {
     title: r.title,
     authorName: r.authorName,
     authorTeam: r.authorTeam,
+    authorPosition: r.authorPosition ?? "",
     authorEmpNo: r.authorEmpNo ?? "",
   };
 }
