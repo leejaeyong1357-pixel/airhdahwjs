@@ -100,6 +100,11 @@ export const axGetPipeline = createServerFn({ method: "GET" })
     for (let n = 1; n <= 4; n++) steps[n] = [];
 
     let myStep: number | null = null;
+    // 내 과제가 번호를 받았다면 인증서에 넣을 정보도 함께 내려준다.
+    let myCert: {
+      number: string; category: string; issuedAt: string; title: string;
+      authorName: string; authorTeam: string; authorPosition: string; authorEmpNo: string;
+    } | null = null;
     for (const r of store.axRequests ?? []) {
       if (r.status === "rejected") continue;
       const n = STEP_OF[r.status];
@@ -107,6 +112,14 @@ export const axGetPipeline = createServerFn({ method: "GET" })
       const author = liveProfile(roster, r.user_id, undefined);
       const mine = r.user_id === user.empNo;
       if (mine) myStep = n;
+      if (mine && r.saas?.number) {
+        myCert = {
+          number: r.saas.number, category: r.saas.category, issuedAt: r.saas.issuedAt,
+          title: titleOf(r.workId),
+          authorName: author.name, authorTeam: author.team, authorPosition: author.position,
+          authorEmpNo: r.user_id,
+        };
+      }
       steps[n].push({
         id: r.id, title: titleOf(r.workId),
         authorName: author.name, authorTeam: author.team, mine,
@@ -119,6 +132,7 @@ export const axGetPipeline = createServerFn({ method: "GET" })
       totalWorks: store.submissions.length,
       steps,
       myStep,
+      myCert,
     };
   });
 

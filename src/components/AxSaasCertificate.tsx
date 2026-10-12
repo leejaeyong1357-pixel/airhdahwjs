@@ -1,6 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { axGetSecurityGuide } from "@/lib/ax-lab.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Award, Printer } from "lucide-react";
 import teczenLogo from "@/assets/teczen-logo.png";
@@ -26,13 +23,6 @@ export function AxSaasCertificate({ info, open, onOpenChange }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const guideFn = useServerFn(axGetSecurityGuide);
-  const { data: guide } = useQuery({
-    queryKey: ["ax", "securityGuide"],
-    queryFn: () => guideFn(),
-    enabled: open,
-  });
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[94vh] max-w-2xl overflow-y-auto p-0">
@@ -43,17 +33,6 @@ export function AxSaasCertificate({ info, open, onOpenChange }: {
         </DialogHeader>
 
         {info && <CertificateSheet info={info} />}
-
-        {guide?.saasCertImage && (
-          <div className="px-6">
-            <div className="mb-2 text-[12.5px] font-bold text-slate-400">첨부 인증서</div>
-            <img
-              src={guide.saasCertImage}
-              alt="테크젠 공식 SaaS 인증서"
-              className="w-full rounded-xl border border-[#eef1f6] object-contain"
-            />
-          </div>
-        )}
 
         <div className="px-6 pb-6">
           <button

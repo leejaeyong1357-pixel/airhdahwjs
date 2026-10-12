@@ -1,8 +1,9 @@
 import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { axGetPipeline, axGetSecurityGuide } from "@/lib/ax-lab.functions";
+import { axGetPipeline } from "@/lib/ax-lab.functions";
 import { AxSecurityGuideDialog } from "@/components/AxSecurityGuideDialog";
+import { AxSaasCertificate, type SaasCertInfo } from "@/components/AxSaasCertificate";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AX_STEPS } from "@/lib/ax-stages";
 import {
@@ -39,14 +40,8 @@ export function AxPipeline() {
   const [security, setSecurity] = useState(false);
   const [cert, setCert] = useState(false);
 
-  const guideFn = useServerFn(axGetSecurityGuide);
-  const { data: guide } = useQuery({
-    queryKey: ["ax", "securityGuide"],
-    queryFn: () => guideFn(),
-    enabled: cert,
-  });
-
   const myStep = data?.myStep ?? null;
+  const myCert: SaasCertInfo | null = data?.myCert ?? null;
   const members = (n: number) => data?.steps?.[n] ?? [];
 
   return (
@@ -219,31 +214,25 @@ export function AxPipeline() {
         </DialogContent>
       </Dialog>
 
-      {/* SaaS 인증서 */}
-      <Dialog open={cert} onOpenChange={setCert}>
-        <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Award className="h-5 w-5 text-blue-600" /> 테크젠 공식 SaaS 인증서
-            </DialogTitle>
-          </DialogHeader>
-          {guide?.saasCertImage ? (
-            <img
-              src={guide.saasCertImage}
-              alt="테크젠 공식 SaaS 인증서"
-              className="w-full rounded-xl border border-[#eef1f6] object-contain"
-            />
-          ) : (
-            <div className="rounded-xl border border-dashed border-[#e3e8f0] bg-[#fbfcfe] p-12 text-center text-sm text-slate-400">
-              아직 등록된 인증서가 없습니다. 관리자가 [과제 관리 &gt; 안내 자료 설정] 에서 등록합니다.
-            </div>
-          )}
-          <p className="flex items-start gap-2 rounded-lg bg-[#f4f8ff] p-3 text-[12.5px] leading-relaxed text-slate-600">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
-            SaaS 등록번호가 발급되면 내 과제 인증서에 번호·작품명·소속·성명이 자동으로 채워집니다.
-          </p>
-        </DialogContent>
-      </Dialog>
+      {/* SaaS 인증서 — 내 과제가 발급된 경우에만 내 인증서를 보여준다 */}
+      {myCert ? (
+        <AxSaasCertificate info={myCert} open={cert} onOpenChange={setCert} />
+      ) : (
+        <Dialog open={cert} onOpenChange={setCert}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Award className="h-5 w-5 text-blue-600" /> 테크젠 공식 SaaS 인증서
+              </DialogTitle>
+            </DialogHeader>
+            <p className="flex items-start gap-2 rounded-lg bg-[#f4f8ff] p-4 text-[13.5px] leading-relaxed text-slate-600">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+              마지막 단계까지 통과해 SaaS 등록번호를 받으면, 번호·작품명·소속·성명이
+              자동으로 채워진 인증서가 여기에 나옵니다.
+            </p>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <AxSecurityGuideDialog open={security} onOpenChange={setSecurity} />
     </section>
