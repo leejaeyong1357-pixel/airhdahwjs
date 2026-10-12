@@ -23,6 +23,14 @@ async function requireAxLabAdmin() {
 }
 
 /**
+ * 작품의 단계. 아직 분류하지 않은 작품은 1단계(보류)로 본다.
+ * 그래야 1~4단계를 더한 값이 전체 작품 수와 맞는다.
+ */
+function stageOf(stage: Record<string, 1 | 2 | 3 | 4>, workId: string): 1 | 2 | 3 | 4 {
+  return stage[workId] ?? 1;
+}
+
+/**
  * 구성원에게 보여줄 workId → 신청 맵.
  * 반려된 신청은 없는 것으로 취급해, 목록·집계·배지 어디에도 남지 않게 한다.
  * (관리자 화면은 되돌리거나 제외해야 하므로 반려 건도 그대로 본다.)
@@ -64,8 +72,7 @@ export const axGetOverview = createServerFn({ method: "GET" })
     // 단계별 건수 — 실별 현황 표와 같은 기준(경진대회 출품작)으로 센다.
     const stageCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
     for (const s of store.submissions) {
-      const v = stage[s.id];
-      if (v) stageCounts[v] += 1;
+      stageCounts[stageOf(stage, s.id)] += 1;
     }
     return { totalContestWorks, advancementTargetCount, requestedCount, saasApprovedCount, stageCounts };
   });
@@ -205,10 +212,10 @@ export const axGetOrgBoard = createServerFn({ method: "GET" })
     const silTeams = ORG.map((g) => {
       const teamStats = g.teams.map((team) => {
         const contestInTeam = store.submissions.filter((s: any) => teamOfWork.get(s.id) === team);
-        const c1 = contestInTeam.filter((s: any) => stage[s.id] === 1).length;
-        const c2 = contestInTeam.filter((s: any) => stage[s.id] === 2).length;
-        const c3 = contestInTeam.filter((s: any) => stage[s.id] === 3).length;
-        const c4 = contestInTeam.filter((s: any) => stage[s.id] === 4).length;
+        const c1 = contestInTeam.filter((s: any) => stageOf(stage, s.id) === 1).length;
+        const c2 = contestInTeam.filter((s: any) => stageOf(stage, s.id) === 2).length;
+        const c3 = contestInTeam.filter((s: any) => stageOf(stage, s.id) === 3).length;
+        const c4 = contestInTeam.filter((s: any) => stageOf(stage, s.id) === 4).length;
         const reqInTeam = requests.filter((r) => teamOfWork.get(r.workId) === team);
         const approvedInTeam = reqInTeam.filter((r) => r.status === "issued").length;
         return { team, total: contestInTeam.length, stage1: c1, stage2: c2, stage3: c3, stage4: c4, requested: reqInTeam.length, approved: approvedInTeam };
@@ -219,10 +226,10 @@ export const axGetOrgBoard = createServerFn({ method: "GET" })
         sil: g.name,
         isDept: !!g.isDept,
         total: contestInSil.length,
-        stage1: contestInSil.filter((s: any) => stage[s.id] === 1).length,
-        stage2: contestInSil.filter((s: any) => stage[s.id] === 2).length,
-        stage3: contestInSil.filter((s: any) => stage[s.id] === 3).length,
-        stage4: contestInSil.filter((s: any) => stage[s.id] === 4).length,
+        stage1: contestInSil.filter((s: any) => stageOf(stage, s.id) === 1).length,
+        stage2: contestInSil.filter((s: any) => stageOf(stage, s.id) === 2).length,
+        stage3: contestInSil.filter((s: any) => stageOf(stage, s.id) === 3).length,
+        stage4: contestInSil.filter((s: any) => stageOf(stage, s.id) === 4).length,
         goal: goals[g.name] ?? 0,
         requested: reqInSil.length,
         approved: reqInSil.filter((r) => r.status === "issued").length,
@@ -252,7 +259,7 @@ export const axListTeamWorks = createServerFn({ method: "GET" })
         id: s.id, source: "contest" as const, title: s.title,
         thumbnailUrl: mediaUrl("thumbnails", s.thumbnail_url),
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
-        stage: stage[s.id] ?? null,
+        stage: stageOf(stage, s.id),
         request: reqByWork.get(s.id) ?? null,
         description: s.description ?? "", features: s.features ?? "",
         techStack: s.tech_stack ?? "", expectedImpact: s.expected_impact ?? "",
@@ -265,7 +272,7 @@ export const axListTeamWorks = createServerFn({ method: "GET" })
       .map(({ w, author }) => ({
         id: w.id, source: "new" as const, title: w.title, thumbnailUrl: "", files: [],
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
-        stage: stage[w.id] ?? null,
+        stage: stageOf(stage, w.id),
         request: reqByWork.get(w.id) ?? null,
         description: w.description ?? "", features: "",
         techStack: w.techStack ?? "", expectedImpact: "",
@@ -302,7 +309,7 @@ export const axListWorksBy = createServerFn({ method: "GET" })
         id: s.id, source: "contest" as const, title: s.title,
         thumbnailUrl: mediaUrl("thumbnails", s.thumbnail_url),
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
-        stage: stage[s.id] ?? null, request: reqByWork.get(s.id) ?? null,
+        stage: stageOf(stage, s.id), request: reqByWork.get(s.id) ?? null,
         description: s.description ?? "", features: s.features ?? "",
         techStack: s.tech_stack ?? "", expectedImpact: s.expected_impact ?? "",
         files: (s.files ?? []).map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) })),
@@ -313,7 +320,7 @@ export const axListWorksBy = createServerFn({ method: "GET" })
       return {
         id: w.id, source: "new" as const, title: w.title, thumbnailUrl: "", files: [],
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
-        stage: stage[w.id] ?? null, request: reqByWork.get(w.id) ?? null,
+        stage: stageOf(stage, w.id), request: reqByWork.get(w.id) ?? null,
         description: w.description ?? "", features: "",
         techStack: w.techStack ?? "", expectedImpact: "",
       };
@@ -364,13 +371,13 @@ export const axGetMyWorks = createServerFn({ method: "GET" })
         ? {
             id: contestWork.id, source: "contest" as const, title: contestWork.title,
             description: contestWork.description ?? "",
-            stage: stage[contestWork.id] ?? null,
+            stage: stageOf(stage, contestWork.id),
             request: reqByWork.get(contestWork.id) ?? null,
           }
         : null,
       newWorks: myNewWorks.map((w: any) => ({
         id: w.id, source: "new" as const, title: w.title, description: w.description, techStack: w.techStack,
-        stage: stage[w.id] ?? null, request: reqByWork.get(w.id) ?? null,
+        stage: stageOf(stage, w.id), request: reqByWork.get(w.id) ?? null,
       })),
     };
   });
@@ -462,7 +469,7 @@ export const axAdminListWorks = createServerFn({ method: "GET" })
         id: s.id, source: "contest" as const, title: s.title,
         thumbnailUrl: mediaUrl("thumbnails", s.thumbnail_url),
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
-        stage: stage[s.id] ?? null, request: reqByWork.get(s.id) ?? null,
+        stage: stageOf(stage, s.id), request: reqByWork.get(s.id) ?? null,
         description: s.description ?? "", features: s.features ?? "",
         techStack: s.tech_stack ?? "", expectedImpact: s.expected_impact ?? "",
         files: (s.files ?? []).map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) })),
@@ -473,7 +480,7 @@ export const axAdminListWorks = createServerFn({ method: "GET" })
       return {
         id: w.id, source: "new" as const, title: w.title, thumbnailUrl: "", files: [],
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
-        stage: stage[w.id] ?? null, request: reqByWork.get(w.id) ?? null,
+        stage: stageOf(stage, w.id), request: reqByWork.get(w.id) ?? null,
         description: w.description ?? "", features: "",
         techStack: w.techStack ?? "", expectedImpact: "",
       };
@@ -525,7 +532,7 @@ export const axAdminListRequests = createServerFn({ method: "GET" })
         id: r.id, workId: r.workId, workSource: r.workSource,
         title: work?.title ?? "(삭제된 작품)",
         authorName: work?.author?.name ?? "", authorTeam: work?.author?.team ?? "",
-        stage: stage[r.workId] ?? null,
+        stage: stageOf(stage, r.workId),
         status: r.status, createdAt: r.createdAt, updatedAt: r.updatedAt,
         form: r.form ?? null,
         rejectReason: r.rejectReason ?? "",

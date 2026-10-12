@@ -157,14 +157,13 @@ export function AdminAxLabView() {
 
   // 작품 단계 분류 검색 · 단계 필터
   const [q, setQ] = useState("");
-  const [stageFilter, setStageFilter] = useState<"all" | "none" | AxStage>("all");
+  const [stageFilter, setStageFilter] = useState<"all" | AxStage>("all");
   const filteredWorks = useMemo(() => {
     const k = q.trim().toLowerCase();
     return works
       .filter((w: any) => (k ? `${w.title} ${w.authorName} ${w.authorTeam}`.toLowerCase().includes(k) : true))
       .filter((w: any) => {
         if (stageFilter === "all") return true;
-        if (stageFilter === "none") return !w.stage;
         return w.stage === stageFilter;
       });
   }, [works, q, stageFilter]);
@@ -254,7 +253,6 @@ export function AdminAxLabView() {
         {/* 단계별 필터 */}
         <div className="mt-4 flex flex-wrap items-center gap-1.5">
           <FilterPill active={stageFilter === "all"} onClick={() => setStageFilter("all")} label={`전체 ${works.length}`} />
-          <FilterPill active={stageFilter === "none"} onClick={() => setStageFilter("none")} label={`미분류 ${works.filter((w: any) => !w.stage).length}`} />
           {AX_STAGE_LIST.map((st) => (
             <FilterPill
               key={st}
@@ -310,8 +308,6 @@ export function AdminAxLabView() {
                     <span className={`mr-2 h-2.5 w-2.5 rounded-full ${AX_STAGES[st].dot}`} /> {AX_STAGES[st].label}
                   </ContextMenuItem>
                 ))}
-                <ContextMenuSeparator />
-                <ContextMenuItem onClick={() => stageMut.mutate({ workId: w.id, stage: null })}>미분류로 변경</ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
           ))}
