@@ -57,8 +57,21 @@ export function AxRequestBoard({ requests, onApprove, onReject, onIssue, onCert,
   onCancelSaas: (row: any) => void;
   busy?: boolean;
 }) {
+  // 먼저 신청한 사람이 위에 오도록 한다. 위에서부터 처리하면
+  // 승인도 SaaS 번호도 신청 순서대로 나간다.
   const grouped = useMemo(
-    () => COLUMNS.map((c) => ({ col: c, rows: requests.filter(c.match) })),
+    () =>
+      COLUMNS.map((c) => ({
+        col: c,
+        rows: requests
+          .filter(c.match)
+          .slice()
+          .sort(
+            (a: any, b: any) =>
+              String(a.createdAt).localeCompare(String(b.createdAt)) ||
+              String(a.id).localeCompare(String(b.id)),
+          ),
+      })),
     [requests],
   );
   const todo = grouped[0].rows.length + grouped[2].rows.length;

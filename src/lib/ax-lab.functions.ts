@@ -687,20 +687,29 @@ export const axAdminIssueSaasNumber = createServerFn({ method: "POST" })
     if (r.saas?.number) throw new Error("이미 번호가 발급된 과제입니다.");
 
     const year = String(new Date().getFullYear()).slice(-2);
-    // 같은 구분·같은 년도에서 가장 큰 일련번호 다음 값.
-    // 취소된 번호(axRetiredSaas)도 함께 보고 건너뛴다 — 한 번 나간 번호는 다시 쓰지 않는다.
+    // 같은 구분·같은 년도에서 이미 나간 번호들. 취소된 번호도 다시 쓰지 않는다.
     const sameSlot = (s: { category: string; year: string } | undefined) =>
       !!s && s.category === data.category && s.year === year;
-    const used = [
-      ...(store.axRequests ?? []).map((x) => x.saas),
-      ...(store.axRetiredSaas ?? []),
-    ]
-      .filter(sameSlot)
-      .map((s) => s!.seq);
-    const seq = (used.length ? Math.max(...used) : 0) + 1;
+    const taken = new Set(
+      [...(store.axRequests ?? []).map((x) => x.saas), ...(store.axRetiredSaas ?? [])]
+        .filter(sameSlot)
+        .map((s) => s!.seq),
+    );
+    // 가장 큰 번호 다음부터 시작하되, 혹시라도 이미 쓰인 번호면 더 밀어낸다.
+    let seq = (taken.size ? Math.max(...taken) : 0) + 1;
+    while (taken.has(seq)) seq += 1;
+
+    const number = formatSaasNumber(data.category, year, seq);
+    const allNumbers = new Set([
+      ...(store.axRequests ?? []).map((x) => x.saas?.number).filter(Boolean),
+      ...(store.axRetiredSaas ?? []).map((x) => x.number),
+    ]);
+    if (allNumbers.has(number)) {
+      throw new Error(`${number} 는 이미 사용된 번호입니다. 다시 시도해주세요.`);
+    }
 
     r.saas = {
-      number: formatSaasNumber(data.category, year, seq),
+      number,
       category: data.category,
       year,
       seq,
