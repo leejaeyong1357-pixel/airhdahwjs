@@ -5,6 +5,7 @@ import { createReadStream, existsSync, statSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { createSecureContext } from "node:tls";
+import { X509Certificate } from "node:crypto";
 import { join, normalize, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
@@ -92,8 +93,34 @@ function readTls() {
   }
 }
 
+// 메모장으로 만들면 .env.local.txt 로 저장되는 일이 잦다 — 그러면 설정이 안 읽힌다
+if (existsSync(join(rootDir, ".env.local.txt"))) {
+  console.error("");
+  console.error("!! .env.local.txt 파일이 있습니다. 이름이 .env.local 이어야 읽힙니다.");
+  console.error("   명령창에서:  ren .env.local.txt .env.local");
+  console.error("");
+}
+
 const tls = readTls();
 const scheme = tls ? "https" : "http";
+
+/** 지금 쓰는 인증서가 무엇인지 — 회사 인증서가 맞게 들어갔는지 눈으로 확인하는 용도 */
+function describeCert() {
+  if (!tls?.cert) return null;
+  try {
+    const x = new X509Certificate(tls.cert);
+    const cn = (s) => s.match(/CN=([^\n,]+)/)?.[1] ?? s.split("\n")[0];
+    return {
+      file: process.env.SSL_CERT,
+      subject: cn(x.subject),
+      issuer: cn(x.issuer),
+      selfSigned: x.subject === x.issuer,
+      validTo: x.validTo,
+    };
+  } catch {
+    return null;
+  }
+}
 // 기존 http 주소로 들어온 사람을 https 로 넘겨준다 (예: HTTP_REDIRECT_PORT=80)
 const redirectPort = Number(process.env.HTTP_REDIRECT_PORT ?? 0);
 
@@ -194,6 +221,19 @@ server.listen(port, "0.0.0.0", async () => {
     .map((i) => i.address);
   console.log("=====================================================");
   console.log(`TECZEN 서버 실행 중  (이 컴퓨터에서: ${scheme}://localhost:${port})`);
+  const info = describeCert();
+  if (info) {
+    console.log("");
+    console.log("사용 중인 인증서:");
+    console.log(`   파일     ${info.file}`);
+    console.log(`   발급 대상 ${info.subject}`);
+    console.log(`   발급자   ${info.issuer}`);
+    console.log(`   만료     ${info.validTo}`);
+    if (info.selfSigned) {
+      console.log("   ※ 자체 서명 인증서입니다 (npm run cert 로 만든 것).");
+      console.log("     회사 인증서를 쓰려면 .env 의 SSL_ 줄을 지우고 .env.local 에 넣으세요.");
+    }
+  }
   const domain = (process.env.SITE_DOMAIN ?? "").trim();
   if (tls && domain) {
     // 도메인 인증서는 IP 로 접속하면 '주소가 다르다'는 오류가 난다 — 도메인만 안내한다.
