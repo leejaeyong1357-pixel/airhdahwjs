@@ -184,28 +184,38 @@ const site = allDns[0];
 const guidePath = join(certDir, "직원-설치안내.txt");
 writeFileSync(guidePath, `AX LAB 접속 전 1회만 하면 되는 설정
 
-같이 받은 "${crtPath.split(/[\\/]/).pop()}" 파일을 바탕화면에 두고,
-아래 둘 중 편한 방법으로 한 번만 설치해 주세요.
+같이 받은 "${crtPath.split(/[\\/]/).pop()}" 파일을 바탕화면에 저장해 주세요.
+아래 둘 중 편한 방법으로 한 번만 설치하면 됩니다.
 설치하면 "이 사이트는 안전하지 않습니다" 경고가 사라집니다.
 
 
-[방법 1] 파일을 더블클릭해서 설치
+[방법 1] 명령 프롬프트 한 줄  (제일 빠름)
+
+  1. 시작 메뉴에서 "cmd" 검색 -> 명령 프롬프트 실행
+  2. 아래를 그대로 붙여넣고 엔터
+
+     certutil -user -addstore Root "%USERPROFILE%\\Desktop\\${crtPath.split(/[\\/]/).pop()}"
+
+  3. 확인 창이 뜨면 [예]
+  4. 브라우저를 완전히 종료했다가 다시 켜기
+
+  ※ 관리자 권한 필요 없습니다.
+
+
+[방법 2] 파일을 더블클릭해서 설치
+
   1. 인증서 파일 더블클릭
   2. [인증서 설치] 클릭
-  3. 저장소 위치: "현재 사용자" 선택 → [다음]
-  4. "모든 인증서를 다음 저장소에 저장" 선택 → [찾아보기]
-  5. "신뢰할 수 있는 루트 인증 기관" 선택 → [확인] → [다음] → [마침]
+  3. 저장소 위치: "현재 사용자" 선택 -> [다음]
+  4. "모든 인증서를 다음 저장소에 저장" 선택 -> [찾아보기]
+  5. "신뢰할 수 있는 루트 인증 기관" 선택 -> [확인] -> [다음] -> [마침]
   6. 보안 경고가 뜨면 [예]
-  7. 브라우저를 완전히 껐다가 다시 켜기
+  7. 브라우저를 완전히 종료했다가 다시 켜기
 
 
-[방법 2] 명령어 한 줄 (빠름)
-  시작 메뉴에서 "PowerShell" 검색 → 실행 후 아래를 붙여넣고 엔터
-
-  Import-Certificate -FilePath "$env:USERPROFILE\\Desktop\\${crtPath.split(/[\\/]/).pop()}" -CertStoreLocation Cert:\\CurrentUser\\Root
-
-  (관리자 권한 없어도 됩니다)
-  끝나면 브라우저를 완전히 껐다가 다시 켜기
+※ 브라우저 재시작을 꼭 해주세요.
+  창만 닫지 마시고, 작업표시줄에서도 완전히 종료한 뒤 다시 여셔야 합니다.
+  이걸 안 하면 설치하고도 경고가 그대로 뜹니다.
 
 
 접속 주소: https://${site}:2222
@@ -221,6 +231,10 @@ console.log(`     ${crtPath}`);
 console.log(`     ${guidePath}`);
 console.log("");
 console.log("   (전산팀이 GPO 로 배포해 주면 직원이 따로 할 일은 없습니다)");
+console.log("");
+console.log("   이 PC 에 먼저 설치하려면 명령 프롬프트(cmd)에서:");
+console.log(`     certutil -user -addstore Root "${crtPath}"`);
+console.log("   설치 후 브라우저를 완전히 종료했다가 다시 켜세요.");
 if (existsSync(crtPath)) {
   const pem = readFileSync(crtPath, "utf8");
   if (!pem.includes("BEGIN CERTIFICATE")) console.warn("   (형식 확인 필요)");
