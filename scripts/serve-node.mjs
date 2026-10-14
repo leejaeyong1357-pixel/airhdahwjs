@@ -5,6 +5,7 @@ import { createReadStream, existsSync, statSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { createSecureContext } from "node:tls";
+import { createServer as createNetServer } from "node:net";
 import {
   parseBlocks, buildChain, isSelfSigned, sanNames, domainMatches, cnOf, daysLeft, fmtDate,
 } from "./tls-util.mjs";
@@ -227,7 +228,40 @@ const onRequest = async (req, res) => {
   }
 };
 
-const server = tls ? createHttpsServer(tls, onRequest) : createServer(onRequest);
+/**
+ * http 로 들어온 요청을 같은 주소의 https 로 보낸다.
+ * IP 로 들어왔으면 인증서에 맞는 도메인(SITE_DOMAIN)으로 바꿔서 보낸다.
+ * 302 — POST 로 들어와도(그룹웨어 링크) GET 으로 바뀌어 로그인 화면이 열린다.
+ */
+function redirectToHttps(req, res) {
+  const domain = (process.env.SITE_DOMAIN ?? "").trim();
+  let host = req.headers.host ?? `localhost:${port}`;
+  if (domain && /^[\d.]+(:\d+)?$/.test(host)) host = `${domain}:${port}`;
+  res.writeHead(302, { location: `https://${host}${req.url ?? "/"}`, "cache-control": "no-store" });
+  res.end();
+}
+
+let server;
+if (tls) {
+  // 한 포트에서 https 와 http 를 같이 받는다.
+  // 첫 바이트가 0x16 이면 TLS(https), 아니면 평문 http → https 로 넘긴다.
+  // (그룹웨어 링크가 아직 http:// 여도 '어쨌든 보내기' 하면 https 로 들어온다)
+  const httpsServer = createHttpsServer(tls, onRequest);
+  const plainServer = createServer(redirectToHttps);
+  server = createNetServer((socket) => {
+    socket.on("error", () => socket.destroy());
+    socket.setTimeout(15_000, () => socket.destroy());
+    socket.once("data", (buf) => {
+      socket.setTimeout(0);
+      socket.pause();
+      socket.unshift(buf);
+      (buf[0] === 0x16 ? httpsServer : plainServer).emit("connection", socket);
+      process.nextTick(() => socket.resume());
+    });
+  });
+} else {
+  server = createServer(onRequest);
+}
 
 server.listen(port, "0.0.0.0", async () => {
   const { networkInterfaces } = await import("node:os");
