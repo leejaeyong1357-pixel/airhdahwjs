@@ -12,7 +12,8 @@
     "start:bun": "bun scripts/serve.ts",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "cert": "node scripts/make-cert.mjs"
+    "cert": "node scripts/make-cert.mjs",
+    "cert:setup": "node scripts/setup-cert.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

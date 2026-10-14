@@ -5,7 +5,9 @@ import { createReadStream, existsSync, statSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { createSecureContext } from "node:tls";
-import { X509Certificate } from "node:crypto";
+import {
+  parseBlocks, buildChain, isSelfSigned, sanNames, domainMatches, cnOf, daysLeft, fmtDate,
+} from "./tls-util.mjs";
 import { join, normalize, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
@@ -61,10 +63,20 @@ function readTls() {
         ...(SSL_PASSPHRASE ? { passphrase: SSL_PASSPHRASE } : {}),
       };
     } else if (SSL_CERT && SSL_KEY) {
+      let cert = read(SSL_CERT, "SSL_CERT");
+      // 체인 파일을 따로 줬으면 서버 인증서 뒤에 중간 인증서를 순서대로 붙인다 (루트 제외).
+      // ca 옵션으로 넘기면 브라우저에 중간 인증서가 안 갈 수 있다.
+      if (SSL_CA) {
+        const pool = parseBlocks(read(SSL_CA, "SSL_CA")).certs;
+        const own = parseBlocks(cert).certs;
+        if (own.length === 1) {
+          const { chain } = buildChain(own[0], pool);
+          cert = Buffer.from(chain.map((c) => c.toString().trim()).join("\n") + "\n");
+        }
+      }
       opts = {
-        cert: read(SSL_CERT, "SSL_CERT"),
+        cert,
         key: read(SSL_KEY, "SSL_KEY"),
-        ...(SSL_CA ? { ca: read(SSL_CA, "SSL_CA") } : {}),
         // 개인키가 암호로 잠겨 있으면(회사 인증서처럼) 그 암호
         ...(SSL_PASSPHRASE ? { passphrase: SSL_PASSPHRASE } : {}),
       };
@@ -108,14 +120,18 @@ const scheme = tls ? "https" : "http";
 function describeCert() {
   if (!tls?.cert) return null;
   try {
-    const x = new X509Certificate(tls.cert);
-    const cn = (s) => s.match(/CN=([^\n,]+)/)?.[1] ?? s.split("\n")[0];
+    const [x, ...rest] = parseBlocks(tls.cert).certs;
+    if (!x) return null;
     return {
       file: process.env.SSL_CERT,
-      subject: cn(x.subject),
-      issuer: cn(x.issuer),
-      selfSigned: x.subject === x.issuer,
-      validTo: x.validTo,
+      subject: cnOf(x.subject),
+      issuer: cnOf(x.issuer),
+      selfSigned: isSelfSigned(x),
+      from: fmtDate(x.validFrom),
+      to: fmtDate(x.validTo),
+      left: daysLeft(x),
+      names: sanNames(x),
+      intermediates: rest.length,
     };
   } catch {
     return null;
@@ -222,19 +238,29 @@ server.listen(port, "0.0.0.0", async () => {
   console.log("=====================================================");
   console.log(`TECZEN 서버 실행 중  (이 컴퓨터에서: ${scheme}://localhost:${port})`);
   const info = describeCert();
+  const domain = (process.env.SITE_DOMAIN ?? "").trim();
   if (info) {
     console.log("");
-    console.log("사용 중인 인증서:");
-    console.log(`   파일     ${info.file}`);
-    console.log(`   발급 대상 ${info.subject}`);
-    console.log(`   발급자   ${info.issuer}`);
-    console.log(`   만료     ${info.validTo}`);
+    console.log(info.selfSigned ? "사용 중인 인증서: 자체 서명 (사설)" : "사용 중인 인증서: 공인 인증서");
+    console.log(`   파일        ${info.file}`);
+    console.log(`   발급 대상   ${info.subject}`);
+    console.log(`   발급자      ${info.issuer}`);
+    console.log(`   유효기간    ${info.from} ~ ${info.to}` + (info.left >= 0 ? ` (${info.left}일 남음)` : " (만료됨)"));
+    console.log(`   등록 도메인 ${info.names.join(", ") || "(없음)"}`);
     if (info.selfSigned) {
-      console.log("   ※ 자체 서명 인증서입니다 (npm run cert 로 만든 것).");
-      console.log("     회사 인증서를 쓰려면 .env 의 SSL_ 줄을 지우고 .env.local 에 넣으세요.");
+      console.log("   ※ 자체 서명 인증서라 직원 브라우저에 '안전하지 않음' 경고가 뜹니다.");
+      console.log("     회사 인증서 파일을 certs 폴더에 넣고  npm run cert:setup  을 실행하세요.");
+    } else {
+      if (!info.intermediates) {
+        console.log("   ※ 중간 인증서가 빠져 있어 일부 PC 에서 경고가 뜰 수 있습니다. npm run cert:setup 을 다시 실행하세요.");
+      }
+      if (info.left < 0) console.log("   !! 인증서가 만료됐습니다. 전산팀에 새 인증서를 요청하세요.");
+      else if (info.left < 30) console.log(`   ※ 만료까지 ${info.left}일 — 전산팀에 갱신을 미리 요청하세요.`);
+    }
+    if (domain && !domainMatches(domain, info.names)) {
+      console.log(`   !! ${domain} 은 이 인증서에 없는 주소입니다. 이 주소로 접속하면 인증서 오류가 납니다.`);
     }
   }
-  const domain = (process.env.SITE_DOMAIN ?? "").trim();
   if (tls && domain) {
     // 도메인 인증서는 IP 로 접속하면 '주소가 다르다'는 오류가 난다 — 도메인만 안내한다.
     console.log("");
@@ -272,9 +298,8 @@ server.listen(port, "0.0.0.0", async () => {
     console.log("");
     console.log("※ 지금은 http 입니다. 로그인처럼 정보를 입력하는 화면에서");
     console.log("   브라우저가 '제출하려는 정보가 보안되지 않음' 경고를 띄웁니다.");
-    console.log("   사내 포털(https)에 넣으려면 인증서를 받아 .env 에 아래를 넣으세요:");
-    console.log("      SSL_CERT=인증서경로   SSL_KEY=개인키경로");
-    console.log("      (또는 SSL_PFX=pfx경로  SSL_PASSPHRASE=비밀번호)");
+    console.log("   https 로 바꾸려면 회사 인증서 파일을 certs 폴더에 넣고:");
+    console.log("      npm run cert:setup");
   }
   console.log("=====================================================");
 });

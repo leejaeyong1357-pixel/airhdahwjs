@@ -42,8 +42,11 @@ src/routeTree.gen.ts
 data/
 public/media/
 
-# 자체 서명 SSL 인증서 (개인키 포함 — 저장소에 올리지 않는다)
+# SSL 인증서·개인키 (cert.pem / key.pem 포함 — 저장소에 올리지 않는다)
 certs/
+*.pem
+*.key
+*.pfx
 
 # 이 서버에만 있는 비밀 설정 (인증서 경로·암호 등) — 저장소에 올리지 않는다
 .env.local
