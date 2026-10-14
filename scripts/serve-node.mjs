@@ -4,6 +4,7 @@
 import { createReadStream, existsSync, statSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
+import { createSecureContext } from "node:tls";
 import { join, normalize, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
@@ -11,9 +12,12 @@ import { Readable } from "node:stream";
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // .env 를 process.env 로 로드 (Node는 자동으로 읽지 않음)
-const envFile = join(rootDir, ".env");
-if (existsSync(envFile)) {
-  for (const line of readFileSync(envFile, "utf8").split("\n")) {
+// .env.local 을 먼저 읽어 우선한다. 인증서 경로·암호처럼 이 서버에만 있고
+// 저장소(git)에 올라가면 안 되는 값은 .env.local 에 둔다.
+for (const name of [".env.local", ".env"]) {
+  const envFile = join(rootDir, name);
+  if (!existsSync(envFile)) continue;
+  for (const line of readFileSync(envFile, "utf8").split(/\r?\n/)) {
     const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
     if (m && process.env[m[1]] === undefined) {
       process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
@@ -48,28 +52,44 @@ function readTls() {
     if (!existsSync(p)) throw new Error(`${label} 파일을 찾을 수 없습니다: ${p}`);
     return readFileSync(p);
   };
+  let opts = null;
   try {
     if (SSL_PFX) {
-      return {
+      opts = {
         pfx: read(SSL_PFX, "SSL_PFX"),
         ...(SSL_PASSPHRASE ? { passphrase: SSL_PASSPHRASE } : {}),
       };
-    }
-    if (SSL_CERT && SSL_KEY) {
-      return {
+    } else if (SSL_CERT && SSL_KEY) {
+      opts = {
         cert: read(SSL_CERT, "SSL_CERT"),
         key: read(SSL_KEY, "SSL_KEY"),
         ...(SSL_CA ? { ca: read(SSL_CA, "SSL_CA") } : {}),
+        // 개인키가 암호로 잠겨 있으면(회사 인증서처럼) 그 암호
+        ...(SSL_PASSPHRASE ? { passphrase: SSL_PASSPHRASE } : {}),
       };
     }
+    if (!opts) return null;
+    // 미리 한 번 열어본다. 암호가 틀리거나 인증서·키 짝이 안 맞으면
+    // 서버를 띄우는 순간 죽어버리므로, 여기서 잡아 이유를 알려준다.
+    createSecureContext(opts);
+    return opts;
   } catch (err) {
+    const msg = String(err?.message ?? err);
+    let hint = "경로를 확인하세요.";
+    if (/bad decrypt|bad password|mac verify|wrong password/i.test(msg)) {
+      hint = "개인키 암호(SSL_PASSPHRASE)가 틀렸습니다. 받은 암호를 다시 확인하세요.";
+    } else if (/no start line|bad base64|PEM/i.test(msg) && !SSL_PASSPHRASE) {
+      hint = "개인키가 암호로 잠겨 있을 수 있습니다. SSL_PASSPHRASE 를 넣어보세요.";
+    } else if (/key values mismatch|KEY_VALUES_MISMATCH/i.test(msg)) {
+      hint = "인증서와 개인키가 서로 짝이 아닙니다. 같이 받은 파일인지 확인하세요.";
+    }
     console.error("");
-    console.error("!! HTTPS 인증서를 읽지 못했습니다:", err.message);
-    console.error("   경로를 확인하세요. 우선 http 로 실행합니다.");
+    console.error("!! HTTPS 인증서를 쓸 수 없습니다:", msg);
+    console.error("   " + hint);
+    console.error("   우선 http 로 실행합니다.");
     console.error("");
     return null;
   }
-  return null;
 }
 
 const tls = readTls();
@@ -174,7 +194,14 @@ server.listen(port, "0.0.0.0", async () => {
     .map((i) => i.address);
   console.log("=====================================================");
   console.log(`TECZEN 서버 실행 중  (이 컴퓨터에서: ${scheme}://localhost:${port})`);
-  if (lanIps.length) {
+  const domain = (process.env.SITE_DOMAIN ?? "").trim();
+  if (tls && domain) {
+    // 도메인 인증서는 IP 로 접속하면 '주소가 다르다'는 오류가 난다 — 도메인만 안내한다.
+    console.log("");
+    console.log("직원들에게 공유할 접속 주소:");
+    console.log(`   https://${domain}${port === 443 ? "" : `:${port}`}`);
+    console.log("   (IP 주소로 접속하면 인증서 오류가 납니다. 반드시 위 도메인으로 접속하세요)");
+  } else if (lanIps.length) {
     console.log("");
     console.log("직원들에게 공유할 접속 주소:");
     for (const ip of lanIps) console.log(`   ${scheme}://${ip}:${port}`);
