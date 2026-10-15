@@ -59,7 +59,8 @@ function axWorkIds(store: any): string[] {
 function newWorkMedia(w: any) {
   const files = (w.files ?? []).map((f: any) => ({ file_name: f.name, signedUrl: f.path }));
   const img = (w.files ?? []).find((f: any) => /\.(png|jpe?g|gif|webp)$/i.test(f.name ?? ""));
-  return { thumbnailUrl: img?.path ?? "", files };
+  // 대표 이미지를 따로 올렸으면 그것, 없으면 첨부 중 첫 이미지
+  return { thumbnailUrl: w.thumbnail || img?.path || "", files };
 }
 
 async function resolveWork(store: any, roster: any, workId: string) {
@@ -271,8 +272,8 @@ export const axListTeamWorks = createServerFn({ method: "GET" })
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stageOf(stage, w.id),
         request: reqByWork.get(w.id) ?? null,
-        description: w.description ?? "", features: "",
-        techStack: w.techStack ?? "", expectedImpact: "",
+        description: w.description ?? "", features: w.features ?? "",
+        techStack: w.techStack ?? "", expectedImpact: w.expectedImpact ?? "",
       }));
 
     return [...contest, ...news];
@@ -318,8 +319,8 @@ export const axListWorksBy = createServerFn({ method: "GET" })
         id: w.id, source: "new" as const, title: w.title, ...newWorkMedia(w),
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stageOf(stage, w.id), request: reqByWork.get(w.id) ?? null,
-        description: w.description ?? "", features: "",
-        techStack: w.techStack ?? "", expectedImpact: "",
+        description: w.description ?? "", features: w.features ?? "",
+        techStack: w.techStack ?? "", expectedImpact: w.expectedImpact ?? "",
       };
     });
 
@@ -393,8 +394,12 @@ export const axRegisterNewWork = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
       title: z.string().trim().min(1).max(120),
-      description: z.string().trim().min(1).max(3000),
-      techStack: z.string().trim().max(500).optional().default(""),
+      // 경진대회 제출 양식과 같은 항목
+      features: z.string().trim().min(1).max(2000),
+      description: z.string().trim().min(1).max(5000),
+      techStack: z.string().trim().min(1).max(2000),
+      expectedImpact: z.string().trim().min(1).max(2000),
+      thumbnail: z.string().max(500).regex(/^\/media\/ax-newworks\/[^/]+$/).optional(),
       // 첨부 — 업로드는 /api/media 로 먼저 하고 여기엔 경로만 받는다
       files: z.array(z.object({
         name: z.string().max(200),
@@ -407,12 +412,17 @@ export const axRegisterNewWork = createServerFn({ method: "POST" })
     const user = requireUser();
     const store = readStore();
     store.axNewWorks ??= [];
+    const id = crypto.randomUUID();
     store.axNewWorks.push({
-      id: crypto.randomUUID(), user_id: user.empNo,
-      title: data.title, description: data.description, techStack: data.techStack ?? "",
+      id, user_id: user.empNo,
+      title: data.title, description: data.description, techStack: data.techStack,
+      features: data.features, expectedImpact: data.expectedImpact, thumbnail: data.thumbnail,
       files: data.files,
       createdAt: new Date().toISOString(),
     });
+    // 새 작품은 분류 단계를 거치지 않고 바로 3단계(고도화)
+    store.axStage ??= {};
+    store.axStage[id] = 3;
     writeStore(store);
     return { ok: true };
   });
@@ -507,8 +517,8 @@ export const axAdminListWorks = createServerFn({ method: "GET" })
         id: w.id, source: "new" as const, title: w.title, ...newWorkMedia(w),
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stageOf(stage, w.id), request: reqByWork.get(w.id) ?? null,
-        description: w.description ?? "", features: "",
-        techStack: w.techStack ?? "", expectedImpact: "",
+        description: w.description ?? "", features: w.features ?? "",
+        techStack: w.techStack ?? "", expectedImpact: w.expectedImpact ?? "",
       };
     });
     return [...contest, ...news];

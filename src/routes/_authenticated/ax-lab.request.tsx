@@ -43,6 +43,26 @@ function AxRequestWizard() {
   const [nwTitle, setNwTitle] = useState("");
   const [nwDesc, setNwDesc] = useState("");
   const [nwTech, setNwTech] = useState("");
+  const [nwFeatures, setNwFeatures] = useState("");
+  const [nwImpact, setNwImpact] = useState("");
+  const [nwThumb, setNwThumb] = useState<{ name: string; path: string } | null>(null);
+  async function onNewWorkThumb(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (!f.type.startsWith("image/")) {
+      toast.error("대표 이미지는 이미지 파일만 올릴 수 있습니다.");
+      return;
+    }
+    setNwUploading((n) => n + 1);
+    try {
+      setNwThumb({ name: f.name, path: `/media/ax-newworks/${await uploadFile("ax-newworks", f)}` });
+    } catch (err: any) {
+      toast.error(err?.message ?? "업로드에 실패했습니다.");
+    } finally {
+      setNwUploading((n) => n - 1);
+    }
+  }
   const [nwFiles, setNwFiles] = useState<{ name: string; path: string }[]>([]);
   const [nwUploading, setNwUploading] = useState(0);
   async function onNewWorkFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -65,13 +85,20 @@ function AxRequestWizard() {
     }
   }
   const registerMut = useMutation({
-    mutationFn: () => registerFn({ data: { title: nwTitle, description: nwDesc, techStack: nwTech, files: nwFiles } }),
+    mutationFn: () =>
+      registerFn({
+        data: {
+          title: nwTitle, features: nwFeatures, description: nwDesc, techStack: nwTech, expectedImpact: nwImpact,
+          thumbnail: nwThumb?.path, files: nwFiles,
+        },
+      }),
     onSuccess: async () => {
       toast.success("작품이 등록되었습니다.");
       const fresh = await refetch();
       const created = fresh.data?.newWorks.find((w: any) => w.title === nwTitle && !w.request);
       if (created) setSelected({ id: created.id, source: "new", title: created.title, description: created.description, stage: created.stage });
       setNwTitle(""); setNwDesc(""); setNwTech(""); setNwFiles([]);
+      setNwFeatures(""); setNwImpact(""); setNwThumb(null);
       setTab("existing");
     },
     onError: (e: any) => toast.error(e.message),
@@ -271,13 +298,38 @@ function AxRequestWizard() {
                     </div>
                   ) : (
                     <div className="mt-4 space-y-3">
-                      <Input placeholder="작품명" value={nwTitle} onChange={(e) => setNwTitle(e.target.value)} />
-                      <Textarea placeholder="작품 설명" rows={4} value={nwDesc} onChange={(e) => setNwDesc(e.target.value)} />
-                      <Input placeholder="사용 AI · 기술 스택 (선택)" value={nwTech} onChange={(e) => setNwTech(e.target.value)} />
+                      <p className="text-[12.5px] text-muted-foreground">
+                        경진대회 제출 양식과 같습니다. 등록하면 아래 <b>모두의 AI 작품</b>에도 함께 보이고, 바로 3단계(고도화)로 분류됩니다.
+                      </p>
+                      <NwField label="1. 제목">
+                        <Input placeholder="작품 제목을 입력하세요" maxLength={120} value={nwTitle} onChange={(e) => setNwTitle(e.target.value)} />
+                      </NwField>
+                      <NwField label="2. 주요 기능">
+                        <Textarea placeholder="핵심 기능을 요약해 주세요" rows={3} maxLength={2000} value={nwFeatures} onChange={(e) => setNwFeatures(e.target.value)} />
+                      </NwField>
+                      <NwField label="3. 설명">
+                        <Textarea placeholder="작품에 대한 자세한 설명" rows={4} maxLength={5000} value={nwDesc} onChange={(e) => setNwDesc(e.target.value)} />
+                      </NwField>
+                      <NwField label="4. 사용한 AI · 기술 · 스택 · 알고리즘 · 아키텍처">
+                        <Textarea placeholder="예: OpenAI GPT-5, LangChain, React, PostgreSQL, Vector DB..." rows={2} maxLength={2000} value={nwTech} onChange={(e) => setNwTech(e.target.value)} />
+                      </NwField>
+                      <NwField label="5. 기대 효과">
+                        <Textarea placeholder="업무·조직·비즈니스에 기대되는 효과" rows={2} maxLength={2000} value={nwImpact} onChange={(e) => setNwImpact(e.target.value)} />
+                      </NwField>
+                      <NwField label="6. 대표 이미지 (썸네일 · 선택)">
+                        <label className="flex aspect-[16/6] cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-muted/30 text-center text-[13px] text-muted-foreground hover:border-primary/40">
+                          {nwThumb ? (
+                            <img src={nwThumb.path} alt="대표 이미지" className="h-full w-full object-cover" />
+                          ) : (
+                            <span>클릭하여 대표 이미지를 올리세요</span>
+                          )}
+                          <input type="file" accept="image/*" className="hidden" onChange={onNewWorkThumb} />
+                        </label>
+                      </NwField>
                       <div>
                         <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-3 text-center text-[13px] text-muted-foreground hover:border-primary/40">
                           <Paperclip className="h-4 w-4 shrink-0" />
-                          {nwUploading > 0 ? "업로드 중…" : "파일 첨부 (선택 · 여러 개 가능, 이미지는 썸네일로 쓰입니다)"}
+                          {nwUploading > 0 ? "업로드 중…" : "7. 첨부 파일 (선택 · 여러 개 가능)"}
                           <input type="file" multiple className="hidden" onChange={onNewWorkFiles} />
                         </label>
                         {nwFiles.length > 0 && (
@@ -300,7 +352,10 @@ function AxRequestWizard() {
                       </div>
                       <Button
                         className="w-full"
-                        disabled={!nwTitle.trim() || !nwDesc.trim() || nwUploading > 0 || registerMut.isPending}
+                        disabled={
+                          !nwTitle.trim() || !nwFeatures.trim() || !nwDesc.trim() || !nwTech.trim() || !nwImpact.trim()
+                          || nwUploading > 0 || registerMut.isPending
+                        }
                         onClick={() => registerMut.mutate()}
                       >
                         등록하고 계속하기
@@ -483,6 +538,15 @@ function AxRequestWizard() {
         </div>
       )}
       <AxSecurityGuideDialog open={security} onOpenChange={setSecurity} />
+    </div>
+  );
+}
+
+function NwField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-1.5 text-[13px] font-bold text-foreground">{label}</div>
+      {children}
     </div>
   );
 }

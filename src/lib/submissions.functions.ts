@@ -22,32 +22,61 @@ const SubmissionInput = z.object({
 const MAX_LIKES_PER_USER = 3;
 
 /** List submissions (authenticated users only). */
+/** AX 신규 등록작 — 갤러리·상세에서 경진대회 출품작과 같은 모양으로 보여준다 */
+function axNewWorkThumb(w: any): string {
+  const img = (w.files ?? []).find((f: any) => /\.(png|jpe?g|gif|webp)$/i.test(f.name ?? ""));
+  return w.thumbnail || img?.path || "";
+}
+
+/** 경진대회 출품작 목록 (관리 · 마이페이지 등 경진대회 기준 화면용) */
 export const listSubmissions = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const { readStore, requireUser, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
-    const user = requireUser();
-    const store = readStore();
-    const roster = await loadRoster();
-    const likeCounts = new Map<string, number>();
-    for (const l of store.likes) {
-      likeCounts.set(l.submission_id, (likeCounts.get(l.submission_id) ?? 0) + 1);
-    }
-    return [...store.submissions]
-      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
-      .map((s) => {
-        const author = liveProfile(roster, s.user_id, s.profiles);
-        return {
-          id: s.id,
-          title: s.title,
-          thumbnailUrl: mediaUrl("thumbnails", s.thumbnail_url),
-          createdAt: s.created_at,
-          author: { name: author.name, team: author.team, position: author.position },
-          authorEmpNo: s.user_id,
-          likeCount: likeCounts.get(s.id) ?? 0,
-          mine: s.user_id === user.empNo,
-        };
-      });
+  .handler(async () => (await galleryRows()).filter((r) => !r.isAxNew));
+
+/** 메인 갤러리 — 경진대회 출품작 + 고도화 신청에서 새로 등록한 AX 작품 */
+export const listGalleryWorks = createServerFn({ method: "GET" })
+  .handler(async () => galleryRows());
+
+async function galleryRows() {
+  const { readStore, requireUser, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+  const user = requireUser();
+  const store = readStore();
+  const roster = await loadRoster();
+  const likeCounts = new Map<string, number>();
+  for (const l of store.likes) {
+    likeCounts.set(l.submission_id, (likeCounts.get(l.submission_id) ?? 0) + 1);
+  }
+  const contest = [...store.submissions]
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+    .map((s) => {
+      const author = liveProfile(roster, s.user_id, s.profiles);
+      return {
+        id: s.id,
+        title: s.title,
+        thumbnailUrl: mediaUrl("thumbnails", s.thumbnail_url),
+        createdAt: s.created_at,
+        author: { name: author.name, team: author.team, position: author.position },
+        authorEmpNo: s.user_id,
+        likeCount: likeCounts.get(s.id) ?? 0,
+        mine: s.user_id === user.empNo,
+        isAxNew: false,
+      };
+    });
+  const news = (store.axNewWorks ?? []).map((w: any) => {
+    const author = liveProfile(roster, w.user_id, undefined);
+    return {
+      id: w.id as string,
+      title: w.title as string,
+      thumbnailUrl: axNewWorkThumb(w),
+      createdAt: w.createdAt as string,
+      author: { name: author.name, team: author.team, position: author.position },
+      authorEmpNo: w.user_id as string,
+      likeCount: likeCounts.get(w.id) ?? 0,
+      mine: w.user_id === user.empNo,
+      isAxNew: true,
+    };
   });
+  return [...contest, ...news];
+}
 
 /**
  * 평가자 전용 목록 — 밴 대상 + (팀장/실장의) 자기 소속 작품을 서버(로스터 기준)에서 제외.
@@ -105,7 +134,30 @@ export const getSubmission = createServerFn({ method: "GET" })
     const store = readStore();
     const roster = await loadRoster();
     const s = store.submissions.find((x) => x.id === data.id);
-    if (!s) throw new Error("작품을 찾을 수 없습니다.");
+    if (!s) {
+      // AX 신규 등록작 — 경진대회 출품작과 같은 상세 화면으로 보여준다 (평가 · 수정 대상 아님)
+      const w = (store.axNewWorks ?? []).find((x: any) => x.id === data.id);
+      if (!w) throw new Error("작품을 찾을 수 없습니다.");
+      return {
+        submission: {
+          id: w.id, user_id: w.user_id, title: w.title,
+          features: w.features ?? "", description: w.description ?? "",
+          tech_stack: w.techStack ?? "", expected_impact: w.expectedImpact ?? "",
+          created_at: w.createdAt,
+          profiles: liveProfile(roster, w.user_id, undefined),
+          thumbnailSignedUrl: axNewWorkThumb(w),
+        },
+        files: (w.files ?? []).map((f: any, i: number) => ({ id: `${w.id}-${i}`, file_name: f.name, signedUrl: f.path })),
+        comments: store.comments
+          .filter((c) => c.submission_id === data.id)
+          .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+          .map((c) => ({ ...c, profiles: liveProfile(roster, c.user_id, c.profiles) })),
+        likeCount: store.likes.filter((l) => l.submission_id === data.id).length,
+        mine: false,
+        canEvaluate: false,
+        isAxNew: true,
+      };
+    }
     const files = store.submissions
       .find((x) => x.id === data.id)!
       .files.map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) }));
@@ -242,7 +294,10 @@ export const addComment = createServerFn({ method: "POST" })
     const { readStore, writeStore, requireUser, profileOf } = await import("@/lib/local-store.server");
     const user = requireUser();
     const store = readStore();
-    if (!store.submissions.some((s) => s.id === data.submissionId)) {
+    if (
+      !store.submissions.some((s) => s.id === data.submissionId) &&
+      !(store.axNewWorks ?? []).some((w: any) => w.id === data.submissionId)
+    ) {
       throw new Error("작품을 찾을 수 없습니다.");
     }
     store.comments.push({

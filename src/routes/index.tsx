@@ -9,7 +9,7 @@ import { ContestGuideModal } from "@/components/ContestGuideModal";
 import { AxIntroPopup } from "@/components/AxIntroPopup";
 import { SubmissionCard } from "@/components/SubmissionCard";
 import { AxLabOverview } from "@/components/AxLabOverview";
-import { listSubmissions } from "@/lib/submissions.functions";
+import { listGalleryWorks } from "@/lib/submissions.functions";
 import { ExternalLink, Heart } from "lucide-react";
 import { SiteImage } from "@/components/SiteImage";
 import { getLocalUser } from "@/integrations/supabase/demo";
@@ -58,9 +58,9 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const nav = useNavigate();
-  const fn = useServerFn(listSubmissions);
+  const fn = useServerFn(listGalleryWorks);
   const { data: rawSubs = [] } = useQuery({
-    queryKey: ["submissions", "public"],
+    queryKey: ["submissions", "gallery"],
     queryFn: () => fn(),
   });
   // 좋아요 많은 순으로 정렬 + 순위 부여 (동점은 최신순)

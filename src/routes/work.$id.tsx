@@ -117,7 +117,9 @@ function WorkPage() {
       <article className="mt-6 overflow-hidden rounded-2xl border border-border bg-card">
         <div className="border-b border-border px-8 py-6">
           <div className="flex items-start justify-between gap-4">
-            <div className="text-[11px] font-semibold uppercase tracking-widest text-accent">SUBMISSION</div>
+            <div className="text-[11px] font-semibold uppercase tracking-widest text-accent">
+              {(data as any).isAxNew ? "AX 신규 작품" : "SUBMISSION"}
+            </div>
             {(data as any).mine && (
               <SubmissionActions
                 id={id}

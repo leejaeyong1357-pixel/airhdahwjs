@@ -9,6 +9,7 @@ interface Props {
   likeCount: number;
   rank?: number; // 좋아요 순위 (1,2,3 이면 뱃지 표시)
   hideLikes?: boolean; // 평가자 화면: 순위/좋아요 노출 금지
+  isAxNew?: boolean; // 고도화 신청에서 새로 등록한 작품
 }
 
 const RANK_BADGE: Record<number, { emoji: string; label: string; ring: string }> = {
@@ -17,7 +18,7 @@ const RANK_BADGE: Record<number, { emoji: string; label: string; ring: string }>
   3: { emoji: "🥉", label: "3위", ring: "ring-2 ring-orange-400" },
 };
 
-export function SubmissionCard({ id, title, thumbnailUrl, author, likeCount, rank, hideLikes }: Props) {
+export function SubmissionCard({ id, title, thumbnailUrl, author, likeCount, rank, hideLikes, isAxNew }: Props) {
   const badge = !hideLikes && rank ? RANK_BADGE[rank] : undefined;
   return (
     <Link
@@ -41,6 +42,11 @@ export function SubmissionCard({ id, title, thumbnailUrl, author, likeCount, ran
         {badge && (
           <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-xs font-black text-white backdrop-blur">
             <span className="text-sm">{badge.emoji}</span> {badge.label}
+          </div>
+        )}
+        {isAxNew && (
+          <div className="absolute right-2 top-2 rounded-full bg-blue-600 px-2.5 py-1 text-[11px] font-black text-white shadow">
+            AX 신규
           </div>
         )}
       </div>

@@ -47,6 +47,11 @@ export type Store = {
     id: string; user_id: string; title: string; description: string; techStack: string; createdAt: string;
     /** 첨부 파일 — path 는 /media/ax-newworks/... */
     files?: { name: string; path: string }[];
+    /** 경진대회 제출 양식과 같은 항목 */
+    features?: string;
+    expectedImpact?: string;
+    /** 대표 이미지 — /media/ax-newworks/... */
+    thumbnail?: string;
   }[];
   /** AX LAB — 안내 자료 (관리자가 직접 등록): 1차 보안검증 프롬프트·배너, SaaS 인증서 */
   axSecurityGuide?: {
@@ -166,6 +171,14 @@ export function readStore(): Store {
       store.bannedFromJudges = [];
       store.banSeedCleared = true;
       dirty = true;
+    }
+    // 새로 등록한 작품은 분류를 거치지 않고 바로 3단계(고도화)로 둔다.
+    for (const w of store.axNewWorks ?? []) {
+      store.axStage ??= {};
+      if (store.axStage[w.id] === undefined) {
+        store.axStage[w.id] = 3;
+        dirty = true;
+      }
     }
     // 4단계(적용완료)를 없앴다 — 남아 있던 4단계 작품은 3단계(고도화)로 옮긴다.
     for (const [id, v] of Object.entries(store.axStage ?? {})) {
