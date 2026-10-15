@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AX_AFTER_SUBMIT_STEPS } from "@/components/AxPipeline";
-import { AX_STAGES, AX_STAGE_LIST } from "@/lib/ax-stages";
+import { AxSecurityGuideDialog } from "@/components/AxSecurityGuideDialog";
+import { AX_AFTER_SUBMIT_STEPS, AX_STAGES, AX_STAGE_LIST, SECURITY_PASS_SCORE } from "@/lib/ax-stages";
 import { uploadFile } from "@/lib/upload";
 import { toast } from "sonner";
 import {
   FileText, Sparkles, PlusCircle, ArrowRight, ArrowLeft, CheckCircle2, Paperclip,
-  AlertTriangle, ExternalLink, Check,
+  AlertTriangle, ExternalLink, Check, ShieldCheck,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/ax-lab/request")({ component: AxRequestWizard });
@@ -70,6 +70,12 @@ function AxRequestWizard() {
   const [attachmentPath, setAttachmentPath] = useState("");
   const [uploading, setUploading] = useState(false);
   const [consent, setConsent] = useState(false);
+  // 셀프 보안점검 — 70점 이상이어야 신청할 수 있다
+  const [score, setScore] = useState("");
+  const [security, setSecurity] = useState(false);
+  const scoreNum = Number(score);
+  const scoreOk = score !== "" && Number.isInteger(scoreNum) && scoreNum >= SECURITY_PASS_SCORE && scoreNum <= 100;
+  const scoreLow = score !== "" && Number.isFinite(scoreNum) && scoreNum < SECURITY_PASS_SCORE;
 
   // 작품 변경 시 임시 저장된 초안 불러오기
   useEffect(() => {
@@ -104,7 +110,7 @@ function AxRequestWizard() {
     setAttachment(f);
     setUploading(true);
     try {
-      setAttachmentPath(await uploadFile("ax-attachments", f));
+      setAttachmentPath(`/media/ax-attachments/${await uploadFile("ax-attachments", f)}`);
     } catch (err: any) {
       toast.error(err?.message ?? "파일 업로드에 실패했습니다.");
       setAttachment(null);
@@ -123,6 +129,7 @@ function AxRequestWizard() {
             painPoint, improvementTypes, improvementDetail, neededSupport, expectedDone, expectedUsers, expectedImpact, dataTypes, referenceLink,
             attachmentPath: attachmentPath || undefined, attachmentName: attachment?.name,
           },
+          securityScore: scoreNum,
         },
       }),
     onSuccess: () => {
@@ -142,7 +149,9 @@ function AxRequestWizard() {
       .map((w: any) => ({ id: w.id, source: "new" as const, title: w.title, description: w.description, stage: w.stage }))),
   ];
 
-  const canSubmit = selected && painPoint.trim() && improvementDetail.trim() && improvementTypes.length > 0 && dataTypes.length > 0 && consent && !submitMut.isPending;
+  const hasResult = !!attachmentPath || !!referenceLink.trim();
+  const canSubmit = selected && painPoint.trim() && improvementDetail.trim() && improvementTypes.length > 0 && dataTypes.length > 0
+    && scoreOk && hasResult && !uploading && consent && !submitMut.isPending;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
@@ -166,7 +175,7 @@ function AxRequestWizard() {
           <CheckCircle2 className="h-14 w-14 text-emerald-500" />
           <div className="mt-4 text-2xl font-black text-foreground">고도화 신청이 접수되었습니다</div>
           <div className="mt-2 text-[15px] text-muted-foreground">
-            {selected?.title} · {myWorks?.orgLabel} — AX협의체가 검토 후 다음 단계를 안내드립니다.
+            {selected?.title} · {myWorks?.orgLabel} — AX 담당자 승인 후 지원방안을 메일로 안내드립니다.
           </div>
           <div className="mt-6 flex gap-3">
             <Button asChild><Link to="/ax-lab">AX LAB으로 돌아가기</Link></Button>
@@ -258,7 +267,7 @@ function AxRequestWizard() {
                 <div className="mt-4 rounded-2xl border border-border bg-card p-5">
                   <div className="text-[14px] font-black text-foreground">신청 전에 확인해 주세요</div>
                   <ul className="mt-2 space-y-1.5 text-[13.5px] text-foreground/85">
-                    <li className="flex items-start gap-1.5"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> 아이디어 단계의 작품도 신청할 수 있습니다.</li>
+                    <li className="flex items-start gap-1.5"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> 셀프 보안점검 {SECURITY_PASS_SCORE}점 이상이어야 신청할 수 있습니다. 미만이면 보완 후 다시 점검하세요.</li>
                     <li className="flex items-start gap-1.5"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> 신청 후 AX협의체가 고도화 방향을 함께 검토합니다.</li>
                     <li className="flex items-start gap-1.5"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> 고도화 대상(3단계) 작품도 보안검증과 최종 승인을 거쳐 등록됩니다.</li>
                   </ul>
@@ -332,18 +341,35 @@ function AxRequestWizard() {
                     )}
                   </Field>
 
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field n={9} label="프로그램 · 문서 링크">
-                      <Input value={referenceLink} onChange={(e) => setReferenceLink(e.target.value)} placeholder="https://" />
-                    </Field>
-                    <Field n={10} label="소개 자료 첨부">
+                  <Field n={9} label="최신 결과물" required hint="지금 버전을 링크 또는 파일로 올려주세요. (둘 중 하나 이상)">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Input value={referenceLink} onChange={(e) => setReferenceLink(e.target.value)} placeholder="https:// (프로그램 · 문서 링크)" />
                       <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-center text-[12.5px] text-muted-foreground hover:border-primary/40">
-                        <Paperclip className="h-4 w-4" />
-                        {attachment ? attachment.name : uploading ? "업로드 중…" : "파일을 클릭하여 첨부하세요. (선택)"}
+                        <Paperclip className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{uploading ? "업로드 중…" : attachment ? attachment.name : "최신 파일을 클릭하여 첨부하세요."}</span>
                         <input type="file" className="hidden" onChange={onAttachmentChange} />
                       </label>
-                    </Field>
-                  </div>
+                    </div>
+                  </Field>
+
+                  <Field n={10} label="셀프 보안점검 점수" required hint={`${SECURITY_PASS_SCORE}점 이상이어야 신청할 수 있습니다.`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        type="number" min={0} max={100} inputMode="numeric"
+                        value={score} onChange={(e) => setScore(e.target.value)}
+                        placeholder="0 ~ 100" className="w-40"
+                      />
+                      <Button type="button" variant="outline" onClick={() => setSecurity(true)}>
+                        <ShieldCheck className="mr-1.5 h-4 w-4" /> 보안점검 프롬프트 열기
+                      </Button>
+                    </div>
+                    {scoreLow && (
+                      <div className="mt-2 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-[12.5px] font-semibold text-destructive">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        {SECURITY_PASS_SCORE}점 미만입니다. 보완해서 다시 점검한 뒤 신청해 주세요.
+                      </div>
+                    )}
+                  </Field>
                 </div>
               </div>
             )}
@@ -375,8 +401,8 @@ function AxRequestWizard() {
               ) : (
                 <>
                   <div className="mt-3 space-y-1.5">
-                    <span className="inline-block rounded-full bg-primary/10 px-2.5 py-1 text-[11.5px] font-bold text-primary">접수 후 다음 단계 · AX협의체 검토</span>
-                    <p className="text-[12.5px] leading-relaxed text-muted-foreground">작성한 내용을 바탕으로 고도화 방향과 지원 범위를 검토합니다.</p>
+                    <span className="inline-block rounded-full bg-primary/10 px-2.5 py-1 text-[11.5px] font-bold text-primary">접수 후 다음 단계 · 신청 승인</span>
+                    <p className="text-[12.5px] leading-relaxed text-muted-foreground">AX 담당자가 승인하면 AX협의체가 고도화 지원방안을 세워 메일로 안내합니다.</p>
                   </div>
                   <label className="mt-3 flex items-start gap-2 text-[12.5px] text-foreground/85">
                     <Checkbox checked={consent} onCheckedChange={(v) => setConsent(!!v)} className="mt-0.5" />
@@ -411,6 +437,7 @@ function AxRequestWizard() {
           </div>
         </div>
       )}
+      <AxSecurityGuideDialog open={security} onOpenChange={setSecurity} />
     </div>
   );
 }

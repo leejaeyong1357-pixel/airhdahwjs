@@ -187,9 +187,9 @@ export function Header() {
                     <Lightbulb className="mr-2 h-4 w-4" /> 핵심과제 확인하기
                   </DropdownMenuItem>
                 )}
-                {me.profile && isAxLabAdminViewer(me.profile.employee_no) && (
+                {me.profile && (isAxLabAdminViewer(me.profile.employee_no) || me.role === "admin") && (
                   <DropdownMenuItem onClick={() => navigate({ to: "/ax-lab/manage" })}>
-                    <FlaskConical className="mr-2 h-4 w-4" /> AX LAB 관리
+                    <FlaskConical className="mr-2 h-4 w-4" /> AX Hub 관리
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />

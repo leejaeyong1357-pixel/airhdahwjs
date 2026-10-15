@@ -68,11 +68,33 @@ export type Store = {
     workSource: "contest" | "new";
     user_id: string;
     /**
-     * 1단계 신청(requested) → [협의체 승인] → 2단계 고도화(developing)
-     * → [본인 요청] → 3단계 승인 검토(review) → [협의체 승인] → 발급 완료(issued)
-     * 반려는 rejected. 3단계에서 반려하면 developing 으로 되돌린다.
+     * 신청(requested) → [AX 담당자 승인] → 지원방안 수립(planning) → [이메일 통보]
+     * → 고도화·재점검(developing) → [본인 SaaS 승인 신청] → 승인 협의(review)
+     * → [AX협의체 승인] → SaaS 인증(issued, 번호 발급 → registeredAt 업무시스템 등록)
+     * 반려는 rejected. 승인 협의에서 반려하면 developing 으로 되돌린다.
      */
-    status: "requested" | "developing" | "review" | "issued" | "rejected";
+    status: "requested" | "planning" | "developing" | "review" | "issued" | "rejected";
+    /** AX협의체가 세운 고도화 지원방안 — 신청자에게 그대로 보인다 */
+    plan?: { text: string; by: string; byName: string; at: string };
+    /** 지원방안을 이메일로 통보한 시각 (= 고도화 시작) */
+    notifiedAt?: string;
+    /** 업무시스템 등록 완료 */
+    registeredAt?: string;
+    registeredBy?: string;
+    registeredByName?: string;
+    /**
+     * 단계마다 올린 최신 결과물 — 마지막 것이 현재 버전.
+     * request: 고도화 신청 때 / saas: SaaS 승인 신청 때
+     */
+    versions?: {
+      kind: "request" | "saas";
+      at: string;
+      securityScore: number;
+      note: string;
+      link: string;
+      filePath?: string;
+      fileName?: string;
+    }[];
     createdAt: string;
     updatedAt: string;
     /** 반려 사유 — 신청자에게 그대로 보여준다. */

@@ -1,26 +1,18 @@
 import { Fragment, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { axListWorksBy } from "@/lib/ax-lab.functions";
-import { AxWorkCard, AxWorkDetailDialog } from "@/components/AxWorkDetailDialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AxWorksListDialog, type AxWorksPick } from "@/components/AxWorkDetailDialog";
 import { AX_STAGES, AX_STAGE_LIST } from "@/lib/ax-stages";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
-type Filter = "all" | "stage1" | "stage2" | "stage3" | "stage4" | "requested" | "approved";
-type Pick = { scope: "sil" | "team"; name: string; filter: Filter; title: string };
+type Filter = AxWorksPick["filter"];
 
 const sum = (rows: any[], key: string) => rows.reduce((a: number, r: any) => a + (r[key] ?? 0), 0);
 
 /** 실별/팀별 고도화 현황 표 — 숫자를 누르면 해당 작품 목록이 열린다. */
 export function AxOrgBoard({ board }: { board: any[] }) {
-  const listByFn = useServerFn(axListWorksBy);
-
   const [tab, setTab] = useState<"sil" | "team">("sil");
   const [silFilter, setSilFilter] = useState("전체 실");
   const [openSils, setOpenSils] = useState<Set<string>>(new Set());
-  const [pick, setPick] = useState<Pick | null>(null);
-  const [detail, setDetail] = useState<any | null>(null);
+  const [pick, setPick] = useState<AxWorksPick | null>(null);
 
   const toggleSil = (sil: string) =>
     setOpenSils((prev) => {
@@ -29,12 +21,6 @@ export function AxOrgBoard({ board }: { board: any[] }) {
       else next.add(sil);
       return next;
     });
-
-  const { data: pickWorks = [], isFetching } = useQuery({
-    queryKey: ["axWorksBy", pick?.scope, pick?.name, pick?.filter],
-    queryFn: () => listByFn({ data: { scope: pick!.scope, name: pick!.name, filter: pick!.filter } }),
-    enabled: !!pick,
-  });
 
   const flatTeams = useMemo(
     () => board.flatMap((g: any) => g.teams.map((t: any) => ({ ...t, sil: g.sil }))),
@@ -196,23 +182,7 @@ export function AxOrgBoard({ board }: { board: any[] }) {
       </div>
 
       {/* 숫자 클릭 → 해당 작품 목록 */}
-      <Dialog open={!!pick} onOpenChange={(o) => !o && setPick(null)}>
-        <DialogContent className="max-h-[80vh] max-w-3xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{pick?.title} {!isFetching && `· ${pickWorks.length}건`}</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3">
-            {pickWorks.map((w: any) => (
-              <AxWorkCard key={w.id} work={w} onClick={() => { setPick(null); setDetail(w); }} />
-            ))}
-            {!isFetching && pickWorks.length === 0 && (
-              <div className="col-span-full p-6 text-center text-sm text-muted-foreground">작품이 없습니다.</div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <AxWorkDetailDialog work={detail} onClose={() => setDetail(null)} />
+      <AxWorksListDialog pick={pick} onClose={() => setPick(null)} />
     </section>
   );
 }

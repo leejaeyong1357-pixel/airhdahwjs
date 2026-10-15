@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Lightbulb, Send, ClipboardList, Package, BarChart3,
-  Bell, ChevronDown, LogOut, User as UserIcon, Shield, Upload, Gavel,
+  Bell, ChevronDown, LogOut, User as UserIcon, Shield, Upload, Gavel, FlaskConical,
 } from "lucide-react";
 
 type NavItem = { label: string; icon: any; to?: string; href?: string; adminOnly?: boolean };
@@ -19,7 +19,7 @@ const NAV: NavItem[] = [
   { label: "대시보드", icon: LayoutDashboard, to: "/" },
   { label: "경진대회 작품", icon: Lightbulb, href: "/#gallery" },
   { label: "고도화 신청", icon: Send, to: "/ax-lab/request" },
-  { label: "과제 관리", icon: ClipboardList, to: "/ax-lab/manage", adminOnly: true },
+  { label: "AX Hub 관리", icon: ClipboardList, to: "/ax-lab/manage", adminOnly: true },
   { label: "SaaS 승인·등록", icon: Package, to: "/ax-lab/manage", adminOnly: true },
   { label: "우수 사례", icon: BarChart3, href: "/#gallery" },
 ];
@@ -28,7 +28,7 @@ const CRUMB: Record<string, string> = {
   "/": "대시보드",
   "/ax-lab": "고도화 현황",
   "/ax-lab/request": "고도화 신청",
-  "/ax-lab/manage": "과제 관리",
+  "/ax-lab/manage": "AX Hub 관리",
 };
 
 /** AX 플랫폼 공통 레이아웃 — 좌측 사이드바 + 상단 바. */
@@ -105,6 +105,15 @@ export function AxShell({ children }: { children: React.ReactNode }) {
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
+                {/* AX협의체 · 김충환 팀장 · 관리자 — 이름만 누르면 바로 관리 화면으로 */}
+                {canManage && (
+                  <>
+                    <DropdownMenuItem onClick={() => navigate({ to: "/ax-lab/manage" })} className="font-bold text-blue-600">
+                      <FlaskConical className="mr-2 h-4 w-4" /> AX Hub 관리
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem onClick={() => navigate({ to: "/my-page" })}>
                   <UserIcon className="mr-2 h-4 w-4" /> 마이페이지
                 </DropdownMenuItem>

@@ -5,16 +5,18 @@ import {
   axGetOverview, axGetOrgBoard, axAdminSetGoal, axAdminListWorks, axAdminSetStage,
   axAdminListRequests, axAdminSetRequestStatus, axAdminDeleteRequest,
   axAdminDecideRequest, axAdminDecideReview, axAdminIssueSaasNumber, axAdminCancelSaas,
+  axAdminSavePlan, axAdminNotifyPlan, axAdminMarkRegistered,
 } from "@/lib/ax-lab.functions";
-import { AxPipeline } from "@/components/AxPipeline";
 import { AxOrgBoard } from "@/components/AxOrgBoard";
-import { AxWorkDetailDialog } from "@/components/AxWorkDetailDialog";
+import {
+  AxWorkDetailDialog, AxWorksListDialog, AxVersionHistory, AX_STAT_PICKS, type AxWorksPick,
+} from "@/components/AxWorkDetailDialog";
 import { AxSecurityGuideAdmin } from "@/components/AxSecurityGuideAdmin";
 import { AxSaasCertificate, type SaasCertInfo } from "@/components/AxSaasCertificate";
 import { AxRequestBoard } from "@/components/AxRequestBoard";
 import { AxSaasRegistry } from "@/components/AxSaasRegistry";
 import {
-  AX_STAGES, AX_STAGE_LIST, AX_STATUS, SAAS_CATEGORIES, type AxStage,
+  AX_STAGES, AX_STAGE_LIST, AX_STATUS, SAAS_CATEGORIES, axFileUrl, mailOf, openMail, type AxStage,
 } from "@/lib/ax-stages";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -27,7 +29,7 @@ import { toast } from "sonner";
 import {
   Target, ListChecks, ClipboardList, Search, Rocket, TrendingUp, Send, CheckCircle2,
   FileText, ArrowRight, MousePointerClick, Paperclip, Ban, Check, X, Award, Hash,
-  RotateCcw, Undo2,
+  RotateCcw, Undo2, PenLine, Mail, Database,
 } from "lucide-react";
 
 export function AdminAxLabView() {
@@ -75,6 +77,7 @@ export function AdminAxLabView() {
   /** 반려 사유 입력 — gate 는 어느 관문인지 */
   const [rejectTarget, setRejectTarget] = useState<{ row: any; gate: "request" | "review" } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [rejectMail, setRejectMail] = useState(true);
 
   const decideMut = useMutation({
     mutationFn: (v: { row: any; gate: "request" | "review"; approve: boolean; reason?: string }) =>
@@ -84,9 +87,11 @@ export function AdminAxLabView() {
     onSuccess: (_r, v) => {
       toast.success(
         v.approve
-          ? v.gate === "request" ? "승인했습니다. 2단계 고도화로 넘어갑니다." : "승인했습니다. SaaS 등록번호를 발급하세요."
-          : v.gate === "request" ? "반려했습니다. 신청자에게 사유가 표시됩니다." : "반려했습니다. 2단계 고도화로 되돌렸습니다.",
+          ? v.gate === "request" ? "승인했습니다. 지원방안 수립 단계로 넘어갑니다." : "승인했습니다. SaaS 인증번호를 발급하세요."
+          : v.gate === "request" ? "반려했습니다. 신청자에게 사유가 표시됩니다." : "반려했습니다. 고도화 · 재점검 단계로 되돌렸습니다.",
       );
+      // 반려 사유 안내 메일 (AX 담당자)
+      if (!v.approve && rejectMail) mailReject(v.row, v.gate, v.reason ?? "");
       setRejectTarget(null);
       setRejectReason("");
       invalidate();
@@ -121,7 +126,7 @@ export function AdminAxLabView() {
       toast.success(
         v.mode === "reissue"
           ? `번호 ${r.released} 를 취소했습니다. 다시 발급할 수 있습니다.`
-          : `SaaS 등록을 취소하고 승인 검토 단계로 되돌렸습니다.`,
+          : `SaaS 인증을 취소하고 승인 협의 단계로 되돌렸습니다.`,
       );
       setCancelTarget(null);
       setCancelReason("");
@@ -129,6 +134,45 @@ export function AdminAxLabView() {
     },
     onError: (e: any) => toast.error(e.message),
   });
+
+  // ── 지원방안 수립 → 이메일 통보 ─────────────────────────────
+  const savePlanFn = useServerFn(axAdminSavePlan);
+  const notifyFn = useServerFn(axAdminNotifyPlan);
+  const registerFn = useServerFn(axAdminMarkRegistered);
+  const [planTarget, setPlanTarget] = useState<any | null>(null);
+  const [planText, setPlanText] = useState("");
+  const [notifyTarget, setNotifyTarget] = useState<any | null>(null);
+
+  const planMut = useMutation({
+    mutationFn: (v: { requestId: string; text: string }) => savePlanFn({ data: v }),
+    onSuccess: () => {
+      toast.success("지원방안을 저장했습니다. [메일 통보]로 신청자에게 알려주세요.");
+      setPlanTarget(null);
+      invalidate();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const notifyMut = useMutation({
+    mutationFn: (requestId: string) => notifyFn({ data: { requestId } }),
+    onSuccess: () => {
+      toast.success("통보 완료로 처리했습니다. 신청자가 고도화를 시작합니다.");
+      setNotifyTarget(null);
+      invalidate();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const registerMut = useMutation({
+    mutationFn: (v: { requestId: string; undo?: boolean }) => registerFn({ data: v }),
+    onSuccess: (_r, v) => {
+      toast.success(v.undo ? "업무시스템 등록을 되돌렸습니다." : "업무시스템 등록 완료로 처리했습니다.");
+      invalidate();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const openPlan = (r: any) => { setPlanText(r.plan?.text ?? ""); setPlanTarget(r); };
+
+  // 상단 숫자 → 작품 목록
+  const [statPick, setStatPick] = useState<AxWorksPick | null>(null);
 
   // 신청 초기화(삭제) — 되돌릴 수 없어 확인을 받는다.
   const [excludeTarget, setExcludeTarget] = useState<any | null>(null);
@@ -189,27 +233,29 @@ export function AdminAxLabView() {
 
       {/* 통계 */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard icon={Rocket} tone="slate" label="경진대회 작품" value={overview?.totalContestWorks ?? 0} />
-        <StatCard icon={TrendingUp} tone="orange" label="고도화 대상 · 3단계" value={overview?.advancementTargetCount ?? 0} />
-        <StatCard icon={Send} tone="blue" label="고도화 신청" value={overview?.requestedCount ?? 0} />
-        <StatCard icon={CheckCircle2} tone="emerald" label="SaaS 승인" value={overview?.saasApprovedCount ?? 0} />
+        <StatCard icon={Rocket} tone="slate" label="경진대회 작품" value={overview?.totalContestWorks ?? 0} onClick={() => setStatPick(AX_STAT_PICKS.total)} />
+        <StatCard icon={TrendingUp} tone="orange" label="고도화 대상 · 3단계" value={overview?.advancementTargetCount ?? 0} onClick={() => setStatPick(AX_STAT_PICKS.target)} />
+        <StatCard icon={Send} tone="blue" label="고도화 신청 · 진행 중" value={overview?.requestedCount ?? 0} onClick={() => setStatPick(AX_STAT_PICKS.requested)} />
+        <StatCard icon={CheckCircle2} tone="emerald" label="SaaS 승인" value={overview?.saasApprovedCount ?? 0} onClick={() => setStatPick(AX_STAT_PICKS.approved)} />
       </div>
-
-      <AxPipeline />
+      <AxWorksListDialog pick={statPick} onClose={() => setStatPick(null)} />
 
       <AxOrgBoard board={board} />
 
       {/* 단계별 신청 현황 보드 */}
       <AxRequestBoard
         requests={requests}
-        busy={decideMut.isPending}
+        busy={decideMut.isPending || notifyMut.isPending || registerMut.isPending}
         onDetail={(r) => setReqDetail(r)}
         onApprove={(r, gate) => decideMut.mutate({ row: r, gate, approve: true })}
-        onReject={(r, gate) => { setRejectReason(""); setRejectTarget({ row: r, gate }); }}
+        onReject={(r, gate) => { setRejectReason(""); setRejectMail(true); setRejectTarget({ row: r, gate }); }}
         onIssue={(r) => { setIssueCategory(SAAS_CATEGORIES[0].code); setIssueTarget(r); }}
         onCert={(r) => setCert(certInfoOf(r))}
         onExclude={(r) => setExcludeTarget(r)}
         onCancelSaas={(r) => { setCancelReason(""); setCancelTarget(r); }}
+        onPlan={openPlan}
+        onNotify={(r) => setNotifyTarget(r)}
+        onRegister={(r, undo) => registerMut.mutate({ requestId: r.id, undo })}
       />
 
       {/* 작품 단계 분류 (썸네일 카드 + 우클릭 지정) */}
@@ -331,9 +377,9 @@ export function AdminAxLabView() {
           <h2 className="text-[20px] font-black tracking-tight text-slate-900">고도화 신청 검토 — 전체</h2>
           <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[13px] font-bold text-blue-600">총 {requests.length}건</span>
         </div>
-        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200">
+        <div className="mt-3 max-h-[560px] overflow-auto rounded-2xl border border-slate-200">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-slate-500">
+            <thead className="sticky top-0 z-[1] bg-slate-50 text-xs text-slate-500">
               <tr>
                 <th className="px-3 py-3 text-left font-bold">신청일</th>
                 <th className="px-3 py-3 text-left font-bold">작품</th>
@@ -374,11 +420,14 @@ export function AdminAxLabView() {
                     <GateActions
                       row={r}
                       onApprove={(gate) => decideMut.mutate({ row: r, gate, approve: true })}
-                      onReject={(gate) => { setRejectReason(""); setRejectTarget({ row: r, gate }); }}
+                      onReject={(gate) => { setRejectReason(""); setRejectMail(true); setRejectTarget({ row: r, gate }); }}
                       onIssue={() => { setIssueCategory(SAAS_CATEGORIES[0].code); setIssueTarget(r); }}
                       onCert={() => setCert(certInfoOf(r))}
                       onCancelSaas={() => { setCancelReason(""); setCancelTarget(r); }}
-                      busy={decideMut.isPending}
+                      onPlan={() => openPlan(r)}
+                      onNotify={() => setNotifyTarget(r)}
+                      onRegister={(undo) => registerMut.mutate({ requestId: r.id, undo })}
+                      busy={decideMut.isPending || registerMut.isPending}
                     />
                   </td>
                   <td className="px-3 py-2.5 text-center">
@@ -405,7 +454,7 @@ export function AdminAxLabView() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {rejectTarget?.gate === "request" ? "고도화 신청을 반려합니다" : "고도화 승인 검토를 반려합니다"}
+              {rejectTarget?.gate === "request" ? "고도화 신청을 반려합니다" : "SaaS 승인 신청을 반려합니다"}
             </DialogTitle>
           </DialogHeader>
           {rejectTarget && (
@@ -429,8 +478,12 @@ export function AdminAxLabView() {
           <p className="break-keep text-[12.5px] leading-relaxed text-slate-500">
             {rejectTarget?.gate === "request"
               ? "반려하면 신청자가 사유를 확인하고 보완해 다시 신청할 수 있습니다."
-              : "반려하면 처음이 아니라 바로 전 단계인 2단계(고도화)로 돌아갑니다."}
+              : "반려하면 고도화 · 재점검 단계로 돌아가, 보완 후 셀프 보안점검을 다시 하고 승인을 신청합니다."}
           </p>
+          <label className="flex items-center gap-2 text-[13px] font-semibold text-slate-600">
+            <input type="checkbox" checked={rejectMail} onChange={(e) => setRejectMail(e.target.checked)} />
+            반려 사유를 메일로도 안내 (반려 후 메일 작성 창이 열립니다)
+          </label>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectTarget(null)}>취소</Button>
             <Button
@@ -533,9 +586,9 @@ export function AdminAxLabView() {
 
             {/* 2) 승인 검토로 되돌리기 */}
             <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-3.5">
-              <div className="text-[14px] font-black text-slate-900">등록을 취소하고 승인 검토로</div>
+              <div className="text-[14px] font-black text-slate-900">인증을 취소하고 승인 협의로</div>
               <p className="mt-1 break-keep text-[12.5px] leading-relaxed text-slate-500">
-                번호를 반납하고 3단계(승인 검토)로 되돌립니다. 사유는 신청자에게 그대로 보입니다.
+                번호를 반납하고 SaaS 승인 협의 단계로 되돌립니다. 사유는 신청자에게 그대로 보입니다.
               </p>
               <Textarea
                 rows={3}
@@ -562,6 +615,73 @@ export function AdminAxLabView() {
           <p className="text-[12px] leading-relaxed text-slate-400">
             취소한 번호는 다시 쓰지 않고 비워 둡니다. 같은 번호가 두 곳에 남지 않도록 다음 발급은 그 다음 번호부터 이어집니다.
           </p>
+        </DialogContent>
+      </Dialog>
+
+      {/* 고도화 지원방안 작성 (AX협의체) */}
+      <Dialog open={!!planTarget} onOpenChange={(o) => !o && setPlanTarget(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>고도화 지원방안 수립</DialogTitle></DialogHeader>
+          {planTarget && (
+            <div className="rounded-xl border border-slate-200 p-3.5">
+              <div className="text-[15px] font-black text-slate-900">{planTarget.title}</div>
+              <div className="mt-0.5 text-[12.5px] text-slate-500">{planTarget.authorTeam} · {planTarget.authorName}</div>
+              {planTarget.form?.neededSupport && (
+                <div className="mt-2 rounded-lg bg-slate-50 p-2.5 text-[12.5px] text-slate-600">
+                  <b className="text-slate-700">신청자가 요청한 지원</b>
+                  <div className="mt-0.5 whitespace-pre-wrap break-keep">{planTarget.form.neededSupport}</div>
+                </div>
+              )}
+            </div>
+          )}
+          <Textarea
+            rows={7}
+            value={planText}
+            onChange={(e) => setPlanText(e.target.value)}
+            placeholder="예: 사내 데이터 조회 권한 부여, API 사용료 지원, 기술 자문 담당 ○○○ 매니저 배정, 완료 목표 11월 말"
+          />
+          <p className="text-[12px] text-slate-400">저장한 뒤 [메일 통보]를 하면 신청자 화면에도 이 내용이 보입니다.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPlanTarget(null)}>취소</Button>
+            <Button
+              disabled={planMut.isPending || !planText.trim()}
+              onClick={() => planMut.mutate({ requestId: planTarget.id, text: planText.trim() })}
+            >
+              <PenLine className="mr-1.5 h-4 w-4" /> 저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 이메일 통보 (AX 담당자) */}
+      <Dialog open={!!notifyTarget} onOpenChange={(o) => !o && setNotifyTarget(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>지원방안 이메일 통보</DialogTitle></DialogHeader>
+          {notifyTarget && (
+            <>
+              <div className="rounded-xl border border-slate-200 p-3.5 text-[13px]">
+                <div className="text-[15px] font-black text-slate-900">{notifyTarget.title}</div>
+                <div className="mt-0.5 text-slate-500">
+                  받는 사람: {notifyTarget.authorName} {notifyTarget.authorPosition} · {mailOf(notifyTarget.authorEmpNo)}
+                </div>
+                <p className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-keep rounded-lg bg-slate-50 p-2.5 text-slate-700">
+                  {notifyTarget.plan?.text}
+                </p>
+              </div>
+              <ol className="list-decimal space-y-1 pl-5 text-[13px] text-slate-600">
+                <li>[메일 쓰기]를 누르면 아웃룩에 받는 사람 · 제목 · 내용이 채워져 열립니다. 주소를 확인하고 보내세요.</li>
+                <li>보낸 뒤 [통보 완료]를 누르면 신청자가 고도화 단계로 넘어갑니다.</li>
+              </ol>
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button variant="outline" onClick={() => mailPlan(notifyTarget)}>
+                  <Mail className="mr-1.5 h-4 w-4" /> 메일 쓰기
+                </Button>
+                <Button disabled={notifyMut.isPending} onClick={() => notifyMut.mutate(notifyTarget.id)}>
+                  <Check className="mr-1.5 h-4 w-4" /> 통보 완료 → 고도화 시작
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -700,7 +820,7 @@ export function AdminAxLabView() {
                   {reqDetail.form.attachmentPath && (
                     <ReqItem n={9} label="소개 자료">
                       <a
-                        href={reqDetail.form.attachmentPath}
+                        href={axFileUrl(reqDetail.form.attachmentPath)}
                         target="_blank"
                         rel="noopener noreferrer"
                         download={reqDetail.form.attachmentName}
@@ -715,6 +835,23 @@ export function AdminAxLabView() {
               ) : (
                 <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">
                   신청서 상세 내용이 없습니다. (신청서 양식 도입 전 접수 건)
+                </div>
+              )}
+
+              {reqDetail.plan?.text && (
+                <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-3.5">
+                  <div className="text-[12px] font-black text-sky-800">
+                    AX협의체 고도화 지원방안 · {reqDetail.plan.byName} · {formatDate(reqDetail.plan.at)}
+                    {reqDetail.notifiedAt ? ` · ${formatDate(reqDetail.notifiedAt)} 메일 통보` : " · 아직 통보 전"}
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap break-keep text-[13.5px] leading-relaxed text-slate-700">{reqDetail.plan.text}</p>
+                </div>
+              )}
+
+              {reqDetail.versions?.length > 0 && (
+                <div>
+                  <div className="mb-2 text-[12px] font-bold text-slate-500">단계별로 올린 결과물 (최신이 위)</div>
+                  <AxVersionHistory request={reqDetail} />
                 </div>
               )}
 
@@ -767,8 +904,8 @@ function FilterPill({ active, onClick, label, tone }: { active: boolean; onClick
   );
 }
 
-function StatCard({ icon: Icon, tone, label, value }: {
-  icon: any; tone: "slate" | "orange" | "blue" | "emerald"; label: string; value: number;
+function StatCard({ icon: Icon, tone, label, value, onClick }: {
+  icon: any; tone: "slate" | "orange" | "blue" | "emerald"; label: string; value: number; onClick?: () => void;
 }) {
   const tones = {
     slate: { box: "border-slate-200 bg-white", text: "text-slate-500" },
@@ -777,12 +914,17 @@ function StatCard({ icon: Icon, tone, label, value }: {
     emerald: { box: "border-emerald-200 bg-emerald-50/70", text: "text-emerald-600" },
   }[tone];
   return (
-    <div className={`rounded-2xl border p-5 ${tones.box}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      title={`${label} 목록 보기`}
+      className={`rounded-2xl border p-5 text-left transition hover:shadow-md ${tones.box}`}
+    >
       <div className={`flex items-center gap-2 text-[14px] font-bold ${tones.text}`}>
         <Icon className="h-[18px] w-[18px]" /> {label}
       </div>
       <div className="mt-2 text-[34px] font-black leading-none tabular-nums text-slate-900">{value}</div>
-    </div>
+    </button>
   );
 }
 
@@ -801,70 +943,127 @@ function certInfoOf(r: any): SaasCertInfo | null {
   };
 }
 
+/** 지원방안 안내 메일 — 아웃룩에 채워서 연다 */
+function mailPlan(r: any) {
+  openMail(
+    mailOf(r.authorEmpNo),
+    `[AX LAB] '${r.title}' 고도화 지원방안 안내`,
+    `${r.authorName} ${r.authorPosition ?? ""}님, 안녕하세요.
+
+신청하신 '${r.title}' 고도화 신청이 승인되어 AX협의체 고도화 지원방안을 안내드립니다.
+
+[고도화 지원방안]
+${r.plan?.text ?? ""}
+
+지원방안을 확인하신 뒤 고도화를 진행해 주세요.
+고도화를 마치면 셀프 보안점검(70점 이상) 후 AX LAB [내 신청 현황]에서 최신 결과물을 올려 SaaS 승인을 신청하시면 됩니다.
+
+AX LAB: ${window.location.origin}
+
+TECZEN AX협의체 드림`,
+  );
+}
+
+/** 반려 사유 안내 메일 */
+function mailReject(r: any, gate: "request" | "review", reason: string) {
+  const what = gate === "request" ? "고도화 신청" : "SaaS 승인 신청";
+  const after = gate === "request"
+    ? "사유를 보완해서 AX LAB에서 다시 신청해 주세요."
+    : "보완 후 셀프 보안점검(70점 이상)을 다시 하고, AX LAB [내 신청 현황]에서 최신 결과물로 SaaS 승인을 다시 신청해 주세요.";
+  openMail(
+    mailOf(r.authorEmpNo),
+    `[AX LAB] '${r.title}' ${what} 반려 안내`,
+    `${r.authorName} ${r.authorPosition ?? ""}님, 안녕하세요.
+
+'${r.title}' ${what}이 아래 사유로 반려되었습니다.
+
+[반려 사유]
+${reason}
+
+${after}
+
+AX LAB: ${window.location.origin}
+
+TECZEN AX협의체 드림`,
+  );
+}
+
 /**
  * 현재 단계에 맞는 처리 버튼만 보여준다.
  *   승인 대기 → [승인] [반려]      2차 검토 대기 → [승인] [반려]
  *   고도화 중 → 본인이 검토 요청할 때까지 대기
  *   승인 완료 → [번호 발급] → 발급 후 [인증서]
  */
-function GateActions({ row, onApprove, onReject, onIssue, onCert, onCancelSaas, busy }: {
+function GateActions({ row, onApprove, onReject, onIssue, onCert, onCancelSaas, onPlan, onNotify, onRegister, busy }: {
   row: any;
   onApprove: (gate: "request" | "review") => void;
   onReject: (gate: "request" | "review") => void;
   onIssue: () => void;
   onCert: () => void;
   onCancelSaas: () => void;
+  onPlan: () => void;
+  onNotify: () => void;
+  onRegister: (undo?: boolean) => void;
   busy?: boolean;
 }) {
   const gate: "request" | "review" | null =
     row.status === "requested" ? "request" : row.status === "review" ? "review" : null;
+  const small = "inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-bold transition disabled:opacity-50";
 
   if (gate) {
     return (
       <div className="flex shrink-0 items-center gap-1.5">
-        <button
-          disabled={busy}
-          onClick={() => onApprove(gate)}
-          className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[12px] font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-        >
+        <button disabled={busy} onClick={() => onApprove(gate)} className={`${small} bg-emerald-600 text-white hover:bg-emerald-700`}>
           <Check className="h-3.5 w-3.5" /> 승인
         </button>
-        <button
-          disabled={busy}
-          onClick={() => onReject(gate)}
-          className="inline-flex items-center gap-1 rounded-lg border border-destructive/30 px-2.5 py-1.5 text-[12px] font-bold text-destructive transition hover:bg-destructive/5 disabled:opacity-50"
-        >
+        <button disabled={busy} onClick={() => onReject(gate)} className={`${small} border border-destructive/30 text-destructive hover:bg-destructive/5`}>
           <X className="h-3.5 w-3.5" /> 반려
         </button>
       </div>
     );
   }
 
-  if (row.status === "issued") {
-    return row.saas?.number ? (
+  if (row.status === "planning") {
+    return (
       <div className="flex shrink-0 items-center gap-1.5">
-        <button
-          onClick={onCert}
-          className="inline-flex items-center gap-1 rounded-lg border border-[#dbe5f5] px-2.5 py-1.5 text-[12px] font-bold text-blue-600 transition hover:bg-[#eef4ff]"
-        >
-          <Award className="h-3.5 w-3.5" /> 인증서
+        <button onClick={onPlan} className={`${small} border border-sky-300 text-sky-700 hover:bg-sky-50`}>
+          <PenLine className="h-3.5 w-3.5" /> {row.plan?.text ? "방안 수정" : "방안 작성"}
         </button>
-        <button
-          onClick={onCancelSaas}
-          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12px] font-bold text-slate-500 transition hover:border-destructive/40 hover:text-destructive"
-        >
-          <Undo2 className="h-3.5 w-3.5" /> 등록 취소
+        <button disabled={!row.plan?.text} onClick={onNotify} className={`${small} bg-sky-600 text-white hover:bg-sky-700`}>
+          <Mail className="h-3.5 w-3.5" /> 메일 통보
         </button>
       </div>
-    ) : (
-      <button
-        onClick={onIssue}
-        className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[12px] font-bold text-white transition hover:bg-blue-700"
-      >
-        <Hash className="h-3.5 w-3.5" /> 번호 발급
-      </button>
     );
   }
 
-  return <span className="shrink-0 text-[12px] text-slate-400">본인 진행 중</span>;
+  if (row.status === "issued") {
+    if (!row.saas?.number) {
+      return (
+        <button onClick={onIssue} className={`${small} shrink-0 bg-blue-600 text-white hover:bg-blue-700`}>
+          <Hash className="h-3.5 w-3.5" /> 인증번호 발급
+        </button>
+      );
+    }
+    return (
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+        {row.registeredAt ? (
+          <button disabled={busy} onClick={() => onRegister(true)} className={`${small} border border-slate-200 text-slate-500 hover:text-destructive`}>
+            <Undo2 className="h-3.5 w-3.5" /> 등록 되돌리기
+          </button>
+        ) : (
+          <button disabled={busy} onClick={() => onRegister()} className={`${small} bg-teal-600 text-white hover:bg-teal-700`}>
+            <Database className="h-3.5 w-3.5" /> 등록 완료
+          </button>
+        )}
+        <button onClick={onCert} className={`${small} border border-[#dbe5f5] text-blue-600 hover:bg-[#eef4ff]`}>
+          <Award className="h-3.5 w-3.5" /> 인증서
+        </button>
+        <button onClick={onCancelSaas} className={`${small} border border-slate-200 text-slate-500 hover:border-destructive/40 hover:text-destructive`}>
+          <Undo2 className="h-3.5 w-3.5" /> 인증 취소
+        </button>
+      </div>
+    );
+  }
+
+  return <span className="shrink-0 text-[12px] text-slate-400">신청자 진행 중</span>;
 }
