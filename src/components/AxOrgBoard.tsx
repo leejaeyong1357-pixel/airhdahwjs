@@ -45,7 +45,8 @@ export function AxOrgBoard({ board }: { board: any[] }) {
             onPick={() => open(scope, key, `stage${st}` as Filter, AX_STAGES[st].label)}
           />
         ))}
-        <NumCell value={row.approved} tone="text-emerald-600" onPick={() => open(scope, key, "approved", "SaaS 승인")} />
+        <NumCell value={row.requested} pill onPick={() => open(scope, key, "requested", "고도화 신청")} />
+        <NumCell value={row.approved} tone="text-emerald-600" onPick={() => open(scope, key, "approved", "승인")} />
       </>
     );
   };
@@ -91,7 +92,8 @@ export function AxOrgBoard({ board }: { board: any[] }) {
                 <Th className="text-left">실</Th>
                 <Th>전체 작품</Th>
                 {AX_STAGE_LIST.map((st) => <StageTh key={st} stage={st} />)}
-                <Th>SaaS 승인</Th>
+                <Th>신청</Th>
+                <Th>승인</Th>
               </tr>
             </thead>
             <tbody>
@@ -124,13 +126,14 @@ export function AxOrgBoard({ board }: { board: any[] }) {
                 );
               })}
               {visibleSils.length === 0 && (
-                <tr><td colSpan={8} className="p-8 text-center text-sm text-slate-400">데이터가 없습니다.</td></tr>
+                <tr><td colSpan={9} className="p-8 text-center text-sm text-slate-400">데이터가 없습니다.</td></tr>
               )}
               <tr className="border-t border-[#e9ecf2] bg-[#f7f9fc]">
                 <Td></Td>
                 <Td className="font-black text-slate-800">합계</Td>
                 <TotalCell value={sum(visibleSils, "total")} />
                 {AX_STAGE_LIST.map((st) => <TotalCell key={st} value={sum(visibleSils, `stage${st}`)} tone={AX_STAGES[st].num} />)}
+                <TotalCell value={sum(visibleSils, "requested")} pill />
                 <TotalCell value={sum(visibleSils, "approved")} />
               </tr>
             </tbody>
@@ -143,7 +146,8 @@ export function AxOrgBoard({ board }: { board: any[] }) {
                 <Th className="text-left">팀</Th>
                 <Th>전체 작품</Th>
                 {AX_STAGE_LIST.map((st) => <StageTh key={st} stage={st} />)}
-                <Th>SaaS 승인</Th>
+                <Th>신청</Th>
+                <Th>승인</Th>
               </tr>
             </thead>
             <tbody>
@@ -162,13 +166,14 @@ export function AxOrgBoard({ board }: { board: any[] }) {
                 </tr>
               ))}
               {visibleTeams.length === 0 && (
-                <tr><td colSpan={8} className="p-8 text-center text-sm text-slate-400">데이터가 없습니다.</td></tr>
+                <tr><td colSpan={9} className="p-8 text-center text-sm text-slate-400">데이터가 없습니다.</td></tr>
               )}
               <tr className="border-t border-[#e9ecf2] bg-[#f7f9fc]">
                 <Td></Td>
                 <Td className="font-black text-slate-800">합계</Td>
                 <TotalCell value={sum(visibleTeams, "total")} />
                 {AX_STAGE_LIST.map((st) => <TotalCell key={st} value={sum(visibleTeams, `stage${st}`)} tone={AX_STAGES[st].num} />)}
+                <TotalCell value={sum(visibleTeams, "requested")} pill />
                 <TotalCell value={sum(visibleTeams, "approved")} />
               </tr>
             </tbody>
