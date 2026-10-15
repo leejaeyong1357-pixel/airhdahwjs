@@ -1,9 +1,9 @@
 // AX LAB 작품 분류 단계 — 라벨·색상은 이 파일 하나만 고치면 전 화면에 반영된다.
-export type AxStage = 1 | 2 | 3 | 4;
+export type AxStage = 1 | 2 | 3;
 
 export const AX_STAGES: Record<AxStage, {
   stage: AxStage;
-  /** 단계 이름만 (보류 / 과제성 / 고도화 / 적용완료) */
+  /** 단계 이름만 (보류 / 과제성 / 고도화) */
   name: string;
   /** 표 머리글용 — "1단계 (보류)" */
   head: string;
@@ -41,16 +41,9 @@ export const AX_STAGES: Record<AxStage, {
     num: "text-blue-600", soft: "bg-blue-500/15 text-blue-600", solid: "bg-blue-600 text-white",
     card: "border-blue-300 bg-blue-50", dot: "bg-blue-600",
   },
-  4: {
-    stage: 4, name: "적용완료", head: "4단계 (적용완료)", label: "4단계 · 적용완료",
-    desc: "사용 중 · 선승인 후 고도화",
-    note: "이미 업무에 적용해 쓰고 있는 작품입니다. 전사 확산 전에 보안검증과 고도화를 거쳐야 하므로 '선승인 후 고도화'로 진행합니다.",
-    num: "text-emerald-600", soft: "bg-emerald-500/15 text-emerald-600", solid: "bg-emerald-500 text-white",
-    card: "border-emerald-300 bg-emerald-50", dot: "bg-emerald-500",
-  },
 };
 
-export const AX_STAGE_LIST: AxStage[] = [1, 2, 3, 4];
+export const AX_STAGE_LIST: AxStage[] = [1, 2, 3];
 
 // ── AI 개발 · 고도화 및 SaaS 인증 절차 ──────────────────────
 // 신청 건의 status 가 곧 현재 위치다.

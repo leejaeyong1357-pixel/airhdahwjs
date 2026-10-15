@@ -38,8 +38,8 @@ export type Store = {
   councilPicks?: { empNo: string; submissionId: string; reason: string; createdAt: string; updatedAt: string }[];
   /** AI 협의체 정체성 — 위원 사번 → 협의체명·미션·슬로건·바램 */
   councilIdentity?: Record<string, { councilName: string; mission: string; slogan: string; hope: string; updatedAt: string }>;
-  /** AX LAB — 경진대회 작품(및 신규 등록작)의 1/2/3/4단계 분류. key = 작품 id */
-  axStage?: Record<string, 1 | 2 | 3 | 4>;
+  /** AX LAB — AX 작품(경진대회 출품작 + 신규 등록작)의 1/2/3단계 분류. key = 작품 id */
+  axStage?: Record<string, 1 | 2 | 3>;
   /** AX LAB — 실별 고도화 목표 건수. key = 실 이름(직속 포함) */
   axGoals?: Record<string, number>;
   /** AX LAB — 경진대회 이후 새로 등록한 아이디어(1인당 여러 개 가능) */
@@ -166,6 +166,13 @@ export function readStore(): Store {
       store.bannedFromJudges = [];
       store.banSeedCleared = true;
       dirty = true;
+    }
+    // 4단계(적용완료)를 없앴다 — 남아 있던 4단계 작품은 3단계(고도화)로 옮긴다.
+    for (const [id, v] of Object.entries(store.axStage ?? {})) {
+      if ((v as number) === 4) {
+        store.axStage![id] = 3;
+        dirty = true;
+      }
     }
     if (dirty) writeStore(store);
   }

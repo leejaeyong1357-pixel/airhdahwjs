@@ -186,15 +186,16 @@ export function AdminAxLabView() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  // 목표 편집 다이얼로그
+  // 목표 편집 다이얼로그 — 조직도에 없는 소속을 모은 '기타' 줄은 목표 대상이 아니다
+  const goalGroups = board.filter((g: any) => g.sil !== "기타");
   const [goalOpen, setGoalOpen] = useState(false);
   const [goalDraft, setGoalDraft] = useState<Record<string, number>>({});
   const openGoalDialog = () => {
-    setGoalDraft(Object.fromEntries(board.map((g: any) => [g.sil, g.goal])));
+    setGoalDraft(Object.fromEntries(goalGroups.map((g: any) => [g.sil, g.goal])));
     setGoalOpen(true);
   };
   const saveGoals = async () => {
-    await Promise.all(board.map((g: any) => (goalDraft[g.sil] !== g.goal ? goalMut.mutateAsync({ sil: g.sil, goal: goalDraft[g.sil] ?? 0 }) : null)));
+    await Promise.all(goalGroups.map((g: any) => (goalDraft[g.sil] !== g.goal ? goalMut.mutateAsync({ sil: g.sil, goal: goalDraft[g.sil] ?? 0 }) : null)));
     toast.success("실별 고도화 목표를 저장했습니다.");
     setGoalOpen(false);
   };
@@ -233,7 +234,7 @@ export function AdminAxLabView() {
 
       {/* 통계 */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard icon={Rocket} tone="slate" label="경진대회 작품" value={overview?.totalContestWorks ?? 0} onClick={() => setStatPick(AX_STAT_PICKS.total)} />
+        <StatCard icon={Rocket} tone="slate" label="AX 작품" value={overview?.totalWorks ?? 0} onClick={() => setStatPick(AX_STAT_PICKS.total)} />
         <StatCard icon={TrendingUp} tone="orange" label="고도화 대상 · 3단계" value={overview?.advancementTargetCount ?? 0} onClick={() => setStatPick(AX_STAT_PICKS.target)} />
         <StatCard icon={Send} tone="blue" label="고도화 신청 · 진행 중" value={overview?.requestedCount ?? 0} onClick={() => setStatPick(AX_STAT_PICKS.requested)} />
         <StatCard icon={CheckCircle2} tone="emerald" label="SaaS 승인" value={overview?.saasApprovedCount ?? 0} onClick={() => setStatPick(AX_STAT_PICKS.approved)} />
@@ -279,7 +280,7 @@ export function AdminAxLabView() {
         </div>
 
         {/* 각 단계가 무슨 뜻인지 */}
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {AX_STAGE_LIST.map((st) => (
             <div key={st} className={`flex items-center gap-3 rounded-2xl border-2 p-4 ${AX_STAGES[st].card}`}>
               <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-[15px] font-black ${AX_STAGES[st].solid}`}>
@@ -738,7 +739,7 @@ export function AdminAxLabView() {
         <DialogContent className="max-h-[80vh] overflow-y-auto">
           <DialogHeader><DialogTitle>실별 고도화 목표 편집</DialogTitle></DialogHeader>
           <div className="space-y-2">
-            {board.map((g: any) => (
+            {goalGroups.map((g: any) => (
               <div key={g.sil} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
                 <span className="font-semibold text-foreground">{g.sil}</span>
                 <input

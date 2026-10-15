@@ -173,13 +173,13 @@ export function AxVersionHistory({ request }: { request: any }) {
 export type AxWorksPick = {
   scope: "sil" | "team" | "all";
   name: string;
-  filter: "all" | "stage1" | "stage2" | "stage3" | "stage4" | "requested" | "approved" | "target";
+  filter: "all" | "stage1" | "stage2" | "stage3" | "requested" | "approved" | "target";
   title: string;
 };
 
 /** 상단 숫자 4개 — 누르면 그 숫자에 해당하는 작품 목록이 열린다. */
 export const AX_STAT_PICKS: Record<"total" | "target" | "requested" | "approved", AxWorksPick> = {
-  total: { scope: "all", name: "", filter: "all", title: "경진대회 작품" },
+  total: { scope: "all", name: "", filter: "all", title: "AX 작품" },
   target: { scope: "all", name: "", filter: "target", title: "고도화 대상 · 3단계" },
   requested: { scope: "all", name: "", filter: "requested", title: "고도화 신청 · 진행 중" },
   approved: { scope: "all", name: "", filter: "approved", title: "SaaS 승인" },

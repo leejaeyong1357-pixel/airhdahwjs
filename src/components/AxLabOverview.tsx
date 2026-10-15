@@ -101,7 +101,7 @@ export function AxLabOverview() {
       {/* 통계 — 숫자를 누르면 목록 */}
       <section className="rounded-2xl border border-[#e9ecf2] bg-white px-2 py-3">
         <div className="grid grid-cols-2 gap-y-2 lg:grid-cols-4">
-          <Stat icon={FileText} tone="blue" label="경진대회 작품" value={overview?.totalContestWorks ?? 0} onClick={() => setPick(AX_STAT_PICKS.total)} />
+          <Stat icon={FileText} tone="blue" label="AX 작품" value={overview?.totalWorks ?? 0} onClick={() => setPick(AX_STAT_PICKS.total)} />
           <Stat icon={TrendingUp} tone="rose" label="고도화 대상" value={overview?.advancementTargetCount ?? 0} divider onClick={() => setPick(AX_STAT_PICKS.target)} />
           <Stat icon={Send} tone="blue" label="고도화 신청" value={overview?.requestedCount ?? 0} divider onClick={() => setPick(AX_STAT_PICKS.requested)} />
           <Stat icon={CheckCircle2} tone="emerald" label="SaaS 승인" value={overview?.saasApprovedCount ?? 0} divider onClick={() => setPick(AX_STAT_PICKS.approved)} />

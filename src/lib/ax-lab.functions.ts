@@ -5,8 +5,11 @@ import { z } from "zod";
 // 구성원이 직접 고도화를 신청 → AX협의체 검토 → 보안검증 → 승인 → SaaS 등록까지
 // 이어지는 파이프라인. 저장은 기존 data/db.json (local-store.server.ts) 그대로 사용.
 
-const STAGE = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]);
+const STAGE = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 const STATUS = z.enum(["requested", "planning", "developing", "review", "issued", "rejected"]);
+
+/** 조직도에 없는 소속을 묶는 이름 (실별/팀별 현황 표의 '기타' 줄) */
+const ETC_GROUP = "기타";
 
 /** 셀프 보안점검 통과 점수 (ax-stages 의 SECURITY_PASS_SCORE 와 같다) */
 const PASS = 70;
@@ -26,11 +29,12 @@ async function requireAxLabAdmin() {
 }
 
 /**
- * 작품의 단계. 아직 분류하지 않은 작품은 1단계(보류)로 본다.
- * 그래야 1~4단계를 더한 값이 전체 작품 수와 맞는다.
+ * 작품의 단계. 아직 분류하지 않은 작품은 1단계(보류), 예전 4단계(적용완료)는 3단계(고도화).
+ * 그래야 1~3단계를 더한 값이 전체 작품 수와 맞는다.
  */
-function stageOf(stage: Record<string, 1 | 2 | 3 | 4>, workId: string): 1 | 2 | 3 | 4 {
-  return stage[workId] ?? 1;
+function stageOf(stage: Record<string, number>, workId: string): 1 | 2 | 3 {
+  const v = stage[workId];
+  return v === 2 ? 2 : v === 3 || v === 4 ? 3 : 1;
 }
 
 /**
@@ -41,6 +45,14 @@ function stageOf(stage: Record<string, 1 | 2 | 3 | 4>, workId: string): 1 | 2 | 
 function liveRequestsByWork(store: any) {
   const live = (store.axRequests ?? []).filter((r: any) => r.status !== "rejected");
   return new Map<string, any>(live.map((r: any) => [r.workId, r]));
+}
+
+/** AX 작품 전체 id — 경진대회 출품작 + 이후 새로 등록한 작품 */
+function axWorkIds(store: any): string[] {
+  return [
+    ...store.submissions.map((s: any) => s.id),
+    ...(store.axNewWorks ?? []).map((w: any) => w.id),
+  ];
 }
 
 /** 신규 등록작의 첨부 — 작품 상세의 [첨부 파일]과 카드 썸네일(첫 이미지)에 쓴다 */
@@ -74,18 +86,19 @@ export const axGetOverview = createServerFn({ method: "GET" })
     const store = readStore();
     const stage = store.axStage ?? {};
     const requests = store.axRequests ?? [];
-    const totalContestWorks = store.submissions.length;
-    const advancementTargetCount = Object.values(stage).filter((s) => s === 3).length;
+    // AX 작품 = 경진대회 출품작 + 이후 새로 등록한 작품. 새 작품이 들어오면 105, 106… 으로 늘어난다.
+    const allWorkIds = axWorkIds(store);
+    const totalWorks = allWorkIds.length;
+    // 고도화 대상 = 실별 현황 표의 3단계 합계와 같은 기준
+    const advancementTargetCount = allWorkIds.filter((id) => stageOf(stage, id) === 3).length;
     // '신청'은 아직 진행 중인 건만 센다. 승인(SaaS 인증)되면 '승인'으로 넘어가고,
     // 반려된 건은 어디에도 세지 않는다 → 신청 + 승인 = 살아있는 전체 신청.
     const requestedCount = requests.filter((r) => r.status !== "rejected" && r.status !== "issued").length;
     const saasApprovedCount = requests.filter((r) => r.status === "issued").length;
-    // 단계별 건수 — 실별 현황 표와 같은 기준(경진대회 출품작)으로 센다.
-    const stageCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    for (const s of store.submissions) {
-      stageCounts[stageOf(stage, s.id)] += 1;
-    }
-    return { totalContestWorks, advancementTargetCount, requestedCount, saasApprovedCount, stageCounts };
+    // 단계별 건수 — 실별 현황 표와 같은 기준(AX 작품 전체)으로 센다.
+    const stageCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
+    for (const id of allWorkIds) stageCounts[stageOf(stage, id)] += 1;
+    return { totalWorks, advancementTargetCount, requestedCount, saasApprovedCount, stageCounts };
   });
 
 // ── 1차 보안검증 안내 (프롬프트 + 배너) ─────────────────────
@@ -175,37 +188,51 @@ export const axGetOrgBoard = createServerFn({ method: "GET" })
     for (const s of store.submissions) teamOfWork.set(s.id, normalizeTeam(liveProfile(roster, s.user_id, s.profiles).team) || "미지정");
     for (const w of store.axNewWorks ?? []) teamOfWork.set(w.id, normalizeTeam(liveProfile(roster, w.user_id, undefined).team) || "미지정");
 
-    const silTeams = ORG.map((g) => {
-      const teamStats = g.teams.map((team) => {
-        const contestInTeam = store.submissions.filter((s: any) => teamOfWork.get(s.id) === team);
-        const c1 = contestInTeam.filter((s: any) => stageOf(stage, s.id) === 1).length;
-        const c2 = contestInTeam.filter((s: any) => stageOf(stage, s.id) === 2).length;
-        const c3 = contestInTeam.filter((s: any) => stageOf(stage, s.id) === 3).length;
-        const c4 = contestInTeam.filter((s: any) => stageOf(stage, s.id) === 4).length;
-        const reqInTeam = requests.filter((r) => teamOfWork.get(r.workId) === team);
-        const approvedInTeam = reqInTeam.filter((r) => r.status === "issued").length;
-        return {
-          team, total: contestInTeam.length, stage1: c1, stage2: c2, stage3: c3, stage4: c4,
-          requested: reqInTeam.length - approvedInTeam, approved: approvedInTeam,
-        };
-      });
-      const contestInSil = store.submissions.filter((s: any) => silOfWork.get(s.id) === g.name);
-      const reqInSil = requests.filter((r) => silOfWork.get(r.workId) === g.name);
+    // 한 묶음(팀/실)의 숫자 — AX 작품 전체(경진대회 출품작 + 새로 등록한 작품) 기준
+    const allWorkIds = axWorkIds(store);
+    const statsOf = (inGroup: (workId: string) => boolean) => {
+      const ids = allWorkIds.filter(inGroup);
+      const reqs = requests.filter((r) => inGroup(r.workId));
+      return {
+        total: ids.length,
+        stage1: ids.filter((id) => stageOf(stage, id) === 1).length,
+        stage2: ids.filter((id) => stageOf(stage, id) === 2).length,
+        stage3: ids.filter((id) => stageOf(stage, id) === 3).length,
+        // 신청 = 진행 중, 승인 = SaaS 인증 완료 (승인되면 신청에서 빠진다)
+        requested: reqs.filter((r) => r.status !== "issued").length,
+        approved: reqs.filter((r) => r.status === "issued").length,
+      };
+    };
+
+    const silTeams: any[] = ORG.map((g) => {
+      const teamStats: any[] = g.teams.map((team) => ({ team, ...statsOf((id) => teamOfWork.get(id) === team) }));
+      // 실장처럼 팀 칸에 실 이름이 적힌 사람의 작품 — 팀별 표에서도 빠지지 않게 줄을 하나 둔다
+      const silOwn = statsOf((id) => teamOfWork.get(id) === g.name);
+      if (!g.isDept && (silOwn.total || silOwn.requested || silOwn.approved)) {
+        teamStats.push({ team: g.name, label: `${g.name} (실장)`, ...silOwn });
+      }
       return {
         sil: g.name,
         isDept: !!g.isDept,
-        total: contestInSil.length,
-        stage1: contestInSil.filter((s: any) => stageOf(stage, s.id) === 1).length,
-        stage2: contestInSil.filter((s: any) => stageOf(stage, s.id) === 2).length,
-        stage3: contestInSil.filter((s: any) => stageOf(stage, s.id) === 3).length,
-        stage4: contestInSil.filter((s: any) => stageOf(stage, s.id) === 4).length,
+        ...statsOf((id) => silOfWork.get(id) === g.name),
         goal: goals[g.name] ?? 0,
-        // 신청 = 진행 중, 승인 = SaaS 인증 완료 (승인되면 신청에서 빠진다)
-        requested: reqInSil.filter((r) => r.status !== "issued").length,
-        approved: reqInSil.filter((r) => r.status === "issued").length,
         teams: teamStats,
       };
     });
+
+    // 조직도에 없는 소속(대표이사·팀 미입력 등) — 있을 때만 '기타' 줄로 보여 합계가 항상 전체와 맞게 한다
+    const etc = statsOf((id) => silOfWork.get(id) === null);
+    if (etc.total || etc.requested || etc.approved) {
+      const names = [...new Set(
+        [...store.submissions.map((s: any) => s.id), ...(store.axNewWorks ?? []).map((w: any) => w.id)]
+          .filter((id) => silOfWork.get(id) === null)
+          .map((id) => (teamOfWork.get(id) === "미지정" ? "소속 미입력" : teamOfWork.get(id))),
+      )];
+      silTeams.push({
+        sil: ETC_GROUP, isDept: true, ...etc, goal: 0,
+        teams: [{ team: ETC_GROUP, label: names.join(" · ") || "소속 미입력", ...etc }],
+      });
+    }
 
     return silTeams;
   });
@@ -261,7 +288,7 @@ export const axListWorksBy = createServerFn({ method: "GET" })
     z.object({
       scope: z.enum(["sil", "team", "all"]),
       name: z.string(),
-      filter: z.enum(["all", "stage1", "stage2", "stage3", "stage4", "requested", "approved", "target"]),
+      filter: z.enum(["all", "stage1", "stage2", "stage3", "requested", "approved", "target"]),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -299,21 +326,24 @@ export const axListWorksBy = createServerFn({ method: "GET" })
     const inScope = (rows: any[]) =>
       data.scope === "all"
         ? rows
-        : rows.filter((r) =>
-            data.scope === "team" ? normalizeTeam(r.authorTeam) === data.name : silOfTeam(r.authorTeam) === data.name,
-          );
+        : data.name === ETC_GROUP
+          ? rows.filter((r) => silOfTeam(r.authorTeam) === null)
+          : rows.filter((r) =>
+              data.scope === "team" ? normalizeTeam(r.authorTeam) === data.name : silOfTeam(r.authorTeam) === data.name,
+            );
 
     if (data.filter === "requested") {
       return inScope([...contest, ...news]).filter((r) => r.request && r.request.status !== "issued");
     }
     if (data.filter === "target") {
-      // 상단 '고도화 대상' — 3단계로 분류된 작품 (신규 등록작 포함)
-      return inScope([...contest, ...news]).filter((r) => stage[r.id] === 3);
+      // 상단 '고도화 대상' — 3단계 작품
+      return inScope([...contest, ...news]).filter((r) => r.stage === 3);
     }
     if (data.filter === "approved") {
       return inScope([...contest, ...news]).filter((r) => r.request?.status === "issued");
     }
-    const scoped = inScope(contest);
+    // 전체·단계 — AX 작품 전체(경진대회 출품작 + 새로 등록한 작품)
+    const scoped = inScope([...contest, ...news]);
     if (data.filter === "all") return scoped;
     const want = Number(data.filter.replace("stage", ""));
     return scoped.filter((r) => r.stage === want);
@@ -485,7 +515,7 @@ export const axAdminListWorks = createServerFn({ method: "GET" })
   });
 
 export const axAdminSetStage = createServerFn({ method: "POST" })
-  .inputValidator((d: { workId: string; stage: 1 | 2 | 3 | 4 | null }) =>
+  .inputValidator((d: { workId: string; stage: 1 | 2 | 3 | null }) =>
     z.object({ workId: z.string().min(1), stage: STAGE.nullable() }).parse(d),
   )
   .handler(async ({ data }) => {

@@ -29,24 +29,25 @@ export function AxOrgBoard({ board }: { board: any[] }) {
   const visibleSils = silFilter === "전체 실" ? board : board.filter((g: any) => g.sil === silFilter);
   const visibleTeams = silFilter === "전체 실" ? flatTeams : flatTeams.filter((t: any) => t.sil === silFilter);
 
-  const open = (scope: "sil" | "team", name: string, filter: Filter, what: string) =>
-    setPick({ scope, name, filter, title: `${name} · ${what}` });
+  const open = (scope: "sil" | "team", name: string, filter: Filter, what: string, label?: string) =>
+    setPick({ scope, name, filter, title: `${label ?? name} · ${what}` });
 
   const cells = (row: any, scope: "sil" | "team") => {
     const key = scope === "sil" ? row.sil : row.team;
+    const label = row.label;
     return (
       <>
-        <NumCell value={row.total} onPick={() => open(scope, key, "all", "전체 작품")} />
+        <NumCell value={row.total} onPick={() => open(scope, key, "all", "전체 작품", label)} />
         {AX_STAGE_LIST.map((st) => (
           <NumCell
             key={st}
             value={row[`stage${st}`]}
             tone={AX_STAGES[st].num}
-            onPick={() => open(scope, key, `stage${st}` as Filter, AX_STAGES[st].label)}
+            onPick={() => open(scope, key, `stage${st}` as Filter, AX_STAGES[st].label, label)}
           />
         ))}
-        <NumCell value={row.requested} pill onPick={() => open(scope, key, "requested", "고도화 신청")} />
-        <NumCell value={row.approved} tone="text-emerald-600" onPick={() => open(scope, key, "approved", "승인")} />
+        <NumCell value={row.requested} pill onPick={() => open(scope, key, "requested", "고도화 신청", label)} />
+        <NumCell value={row.approved} tone="text-emerald-600" onPick={() => open(scope, key, "approved", "승인", label)} />
       </>
     );
   };
@@ -113,10 +114,10 @@ export function AxOrgBoard({ board }: { board: any[] }) {
                         <Td></Td>
                         <Td>
                           <button
-                            onClick={() => open("team", t.team, "all", "전체 작품")}
+                            onClick={() => open("team", t.team, "all", "전체 작품", t.label)}
                             className="rounded-md px-1 py-0.5 font-semibold text-slate-500 underline-offset-4 hover:bg-slate-100 hover:underline"
                           >
-                            └ {t.team}
+                            └ {t.label ?? t.team}
                           </button>
                         </Td>
                         {cells(t, "team")}
@@ -156,10 +157,10 @@ export function AxOrgBoard({ board }: { board: any[] }) {
                   <Td className="text-slate-400">{t.sil}</Td>
                   <Td>
                     <button
-                      onClick={() => open("team", t.team, "all", "전체 작품")}
+                      onClick={() => open("team", t.team, "all", "전체 작품", t.label)}
                       className="rounded-md px-1 py-0.5 font-bold text-slate-800 underline-offset-4 hover:bg-slate-100 hover:underline"
                     >
-                      {t.team}
+                      {t.label ?? t.team}
                     </button>
                   </Td>
                   {cells(t, "team")}
@@ -219,7 +220,7 @@ function TotalCell({ value, pill, tone }: { value: number; pill?: boolean; tone?
   );
 }
 
-function StageTh({ stage }: { stage: 1 | 2 | 3 | 4 }) {
+function StageTh({ stage }: { stage: 1 | 2 | 3 }) {
   return (
     <th className="px-2 py-2.5 text-center">
       <div className="text-[12.5px] font-semibold text-slate-400">{stage}단계</div>
