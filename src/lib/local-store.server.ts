@@ -45,6 +45,8 @@ export type Store = {
   /** AX LAB — 경진대회 이후 새로 등록한 아이디어(1인당 여러 개 가능) */
   axNewWorks?: {
     id: string; user_id: string; title: string; description: string; techStack: string; createdAt: string;
+    /** 첨부 파일 — path 는 /media/ax-newworks/... */
+    files?: { name: string; path: string }[];
   }[];
   /** AX LAB — 안내 자료 (관리자가 직접 등록): 1차 보안검증 프롬프트·배너, SaaS 인증서 */
   axSecurityGuide?: {

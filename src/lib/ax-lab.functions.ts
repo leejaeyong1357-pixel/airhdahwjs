@@ -43,6 +43,13 @@ function liveRequestsByWork(store: any) {
   return new Map<string, any>(live.map((r: any) => [r.workId, r]));
 }
 
+/** 신규 등록작의 첨부 — 작품 상세의 [첨부 파일]과 카드 썸네일(첫 이미지)에 쓴다 */
+function newWorkMedia(w: any) {
+  const files = (w.files ?? []).map((f: any) => ({ file_name: f.name, signedUrl: f.path }));
+  const img = (w.files ?? []).find((f: any) => /\.(png|jpe?g|gif|webp)$/i.test(f.name ?? ""));
+  return { thumbnailUrl: img?.path ?? "", files };
+}
+
 async function resolveWork(store: any, roster: any, workId: string) {
   const c = store.submissions.find((s: any) => s.id === workId);
   if (c) {
@@ -233,7 +240,7 @@ export const axListTeamWorks = createServerFn({ method: "GET" })
       .map((w: any) => ({ w, author: liveProfile(roster, w.user_id, undefined) }))
       .filter(({ author }) => normalizeTeam(author.team) === data.team)
       .map(({ w, author }) => ({
-        id: w.id, source: "new" as const, title: w.title, thumbnailUrl: "", files: [],
+        id: w.id, source: "new" as const, title: w.title, ...newWorkMedia(w),
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stageOf(stage, w.id),
         request: reqByWork.get(w.id) ?? null,
@@ -281,7 +288,7 @@ export const axListWorksBy = createServerFn({ method: "GET" })
     const news = (store.axNewWorks ?? []).map((w: any) => {
       const author = liveProfile(roster, w.user_id, undefined);
       return {
-        id: w.id, source: "new" as const, title: w.title, thumbnailUrl: "", files: [],
+        id: w.id, source: "new" as const, title: w.title, ...newWorkMedia(w),
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stageOf(stage, w.id), request: reqByWork.get(w.id) ?? null,
         description: w.description ?? "", features: "",
@@ -358,6 +365,11 @@ export const axRegisterNewWork = createServerFn({ method: "POST" })
       title: z.string().trim().min(1).max(120),
       description: z.string().trim().min(1).max(3000),
       techStack: z.string().trim().max(500).optional().default(""),
+      // 첨부 — 업로드는 /api/media 로 먼저 하고 여기엔 경로만 받는다
+      files: z.array(z.object({
+        name: z.string().max(200),
+        path: z.string().max(500).regex(/^\/media\/ax-newworks\/[^/]+$/),
+      })).max(10).optional().default([]),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -368,6 +380,7 @@ export const axRegisterNewWork = createServerFn({ method: "POST" })
     store.axNewWorks.push({
       id: crypto.randomUUID(), user_id: user.empNo,
       title: data.title, description: data.description, techStack: data.techStack ?? "",
+      files: data.files,
       createdAt: new Date().toISOString(),
     });
     writeStore(store);
@@ -461,7 +474,7 @@ export const axAdminListWorks = createServerFn({ method: "GET" })
     const news = (store.axNewWorks ?? []).map((w: any) => {
       const author = liveProfile(roster, w.user_id, undefined);
       return {
-        id: w.id, source: "new" as const, title: w.title, thumbnailUrl: "", files: [],
+        id: w.id, source: "new" as const, title: w.title, ...newWorkMedia(w),
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stageOf(stage, w.id), request: reqByWork.get(w.id) ?? null,
         description: w.description ?? "", features: "",

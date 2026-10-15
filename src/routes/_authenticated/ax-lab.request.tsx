@@ -43,14 +43,35 @@ function AxRequestWizard() {
   const [nwTitle, setNwTitle] = useState("");
   const [nwDesc, setNwDesc] = useState("");
   const [nwTech, setNwTech] = useState("");
+  const [nwFiles, setNwFiles] = useState<{ name: string; path: string }[]>([]);
+  const [nwUploading, setNwUploading] = useState(0);
+  async function onNewWorkFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (nwFiles.length + picked.length > 10) {
+      toast.error("첨부는 10개까지 올릴 수 있습니다.");
+      return;
+    }
+    for (const f of picked) {
+      setNwUploading((n) => n + 1);
+      try {
+        const rel = await uploadFile("ax-newworks", f);
+        setNwFiles((list) => [...list, { name: f.name, path: `/media/ax-newworks/${rel}` }]);
+      } catch (err: any) {
+        toast.error(`${f.name}: ${err?.message ?? "업로드에 실패했습니다."}`);
+      } finally {
+        setNwUploading((n) => n - 1);
+      }
+    }
+  }
   const registerMut = useMutation({
-    mutationFn: () => registerFn({ data: { title: nwTitle, description: nwDesc, techStack: nwTech } }),
+    mutationFn: () => registerFn({ data: { title: nwTitle, description: nwDesc, techStack: nwTech, files: nwFiles } }),
     onSuccess: async () => {
       toast.success("작품이 등록되었습니다.");
       const fresh = await refetch();
       const created = fresh.data?.newWorks.find((w: any) => w.title === nwTitle && !w.request);
       if (created) setSelected({ id: created.id, source: "new", title: created.title, description: created.description, stage: created.stage });
-      setNwTitle(""); setNwDesc(""); setNwTech("");
+      setNwTitle(""); setNwDesc(""); setNwTech(""); setNwFiles([]);
       setTab("existing");
     },
     onError: (e: any) => toast.error(e.message),
@@ -253,9 +274,33 @@ function AxRequestWizard() {
                       <Input placeholder="작품명" value={nwTitle} onChange={(e) => setNwTitle(e.target.value)} />
                       <Textarea placeholder="작품 설명" rows={4} value={nwDesc} onChange={(e) => setNwDesc(e.target.value)} />
                       <Input placeholder="사용 AI · 기술 스택 (선택)" value={nwTech} onChange={(e) => setNwTech(e.target.value)} />
+                      <div>
+                        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-3 text-center text-[13px] text-muted-foreground hover:border-primary/40">
+                          <Paperclip className="h-4 w-4 shrink-0" />
+                          {nwUploading > 0 ? "업로드 중…" : "파일 첨부 (선택 · 여러 개 가능, 이미지는 썸네일로 쓰입니다)"}
+                          <input type="file" multiple className="hidden" onChange={onNewWorkFiles} />
+                        </label>
+                        {nwFiles.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {nwFiles.map((f, i) => (
+                              <li key={f.path} className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5 text-[12.5px]">
+                                <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setNwFiles((list) => list.filter((_, j) => j !== i))}
+                                  className="shrink-0 text-[12px] font-semibold text-muted-foreground hover:text-destructive"
+                                >
+                                  삭제
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                       <Button
                         className="w-full"
-                        disabled={!nwTitle.trim() || !nwDesc.trim() || registerMut.isPending}
+                        disabled={!nwTitle.trim() || !nwDesc.trim() || nwUploading > 0 || registerMut.isPending}
                         onClick={() => registerMut.mutate()}
                       >
                         등록하고 계속하기
