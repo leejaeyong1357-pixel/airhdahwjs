@@ -5,7 +5,7 @@ import { axListWorksBy } from "@/lib/ax-lab.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AX_STAGES, AX_STATUS, axFileUrl } from "@/lib/ax-stages";
 import { formatDate } from "@/lib/utils";
-import { Download, Paperclip, Link2, ShieldCheck, Sparkles } from "lucide-react";
+import { Download, Paperclip, Link2, ShieldCheck, Sparkles, ExternalLink } from "lucide-react";
 
 /** 작품 카드/썸네일을 눌렀을 때 뜨는 상세 팝업 — 설명 + 첨부파일 다운로드. */
 export function AxWorkDetailDialog({ work, onClose }: { work: any | null; onClose: () => void }) {
@@ -204,7 +204,16 @@ export function AxWorksListDialog({ pick, onClose }: { pick: AxWorksPick | null;
           </DialogHeader>
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3">
             {works.map((w: any) => (
-              <AxWorkCard key={w.id} work={w} onClick={() => { onClose(); setDetail(w); }} />
+              <AxWorkCard
+                key={w.id}
+                work={w}
+                onClick={() => {
+                  // 서비스 링크가 있는 SaaS 작품은 정보 대신 서비스로 바로 접속
+                  const url = w.request?.serviceUrl;
+                  if (url) window.open(url, "_blank", "noopener,noreferrer");
+                  else { onClose(); setDetail(w); }
+                }}
+              />
             ))}
             {!isFetching && works.length === 0 && (
               <div className="col-span-full p-6 text-center text-sm text-muted-foreground">작품이 없습니다.</div>
@@ -236,7 +245,11 @@ export function AxWorkCard({ work, onClick }: { work: any; onClick?: () => void 
             <span className="rounded-full bg-black/60 px-2 py-1 text-[11px] font-bold text-white backdrop-blur">미분류</span>
           )}
         </div>
-        {work.files?.length > 0 && (
+        {work.request?.serviceUrl ? (
+          <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-blue-600 px-2 py-1 text-[11px] font-bold text-white shadow">
+            바로가기 <ExternalLink className="h-3 w-3" />
+          </div>
+        ) : work.files?.length > 0 && (
           <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[11px] font-bold text-white backdrop-blur">
             <Paperclip className="h-3 w-3" /> {work.files.length}
           </div>

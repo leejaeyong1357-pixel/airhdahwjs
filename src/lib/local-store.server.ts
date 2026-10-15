@@ -84,6 +84,8 @@ export type Store = {
     registeredAt?: string;
     registeredBy?: string;
     registeredByName?: string;
+    /** 서비스 접속 링크 — 관리자가 넣는다. 작품을 누르면 이 주소로 바로 열린다 */
+    serviceUrl?: string;
     /**
      * 단계마다 올린 최신 결과물 — 마지막 것이 현재 버전.
      * request: 고도화 신청 때 / saas: SaaS 승인 신청 때

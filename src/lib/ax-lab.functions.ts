@@ -537,6 +537,7 @@ export const axAdminListRequests = createServerFn({ method: "GET" })
         plan: r.plan ?? null,
         notifiedAt: r.notifiedAt ?? "",
         registeredAt: r.registeredAt ?? "",
+        serviceUrl: r.serviceUrl ?? "",
         versions: r.versions ?? [],
         authorPosition: work?.author?.position ?? "",
         authorEmpNo: work?.user_id ?? "",
@@ -803,6 +804,27 @@ export const axAdminMarkRegistered = createServerFn({ method: "POST" })
       r.registeredByName = admin.name;
     }
     r.updatedAt = now;
+    save();
+    return { ok: true };
+  });
+
+/**
+ * 서비스 접속 링크 — SaaS 인증 작품을 누르면 정보 대신 이 주소로 바로 열린다.
+ * 빈 값이면 링크를 지운다.
+ */
+export const axAdminSetServiceUrl = createServerFn({ method: "POST" })
+  .inputValidator((d: { requestId: string; url: string }) =>
+    z.object({
+      requestId: z.string().min(1),
+      url: z.string().trim().max(1000)
+        .refine((u) => !u || /^https?:\/\/\S+$/i.test(u), "http:// 또는 https:// 로 시작하는 주소를 넣어주세요."),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await requireAxLabAdmin();
+    const { r, save } = await takeRequest(data.requestId);
+    r.serviceUrl = data.url || undefined;
+    r.updatedAt = new Date().toISOString();
     save();
     return { ok: true };
   });
