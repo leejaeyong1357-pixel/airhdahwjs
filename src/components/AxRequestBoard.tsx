@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { AX_STAGES, type AxStage } from "@/lib/ax-stages";
 import {
   Check, X, Hash, Award, Ban, AlertCircle, Paperclip, Undo2, PenLine, Mail, Database, Search,
-  ShieldCheck, ChevronDown, ChevronUp,
+  ShieldCheck, ChevronDown, ChevronUp, Link2, ExternalLink,
 } from "lucide-react";
 
 /** 보드 한 칸(단계)의 정의 — 어떤 신청이 여기에 들어오는지와 색. */
@@ -65,7 +65,7 @@ type Gate = "request" | "review";
  */
 export function AxRequestBoard({
   requests, onApprove, onReject, onIssue, onCert, onDetail, onExclude, onCancelSaas,
-  onPlan, onNotify, onRegister, busy,
+  onPlan, onNotify, onRegister, onLink, busy,
 }: {
   requests: any[];
   onApprove: (row: any, gate: Gate) => void;
@@ -78,6 +78,7 @@ export function AxRequestBoard({
   onPlan: (row: any) => void;
   onNotify: (row: any) => void;
   onRegister: (row: any, undo?: boolean) => void;
+  onLink: (row: any) => void;
   busy?: boolean;
 }) {
   const [q, setQ] = useState("");
@@ -156,7 +157,7 @@ export function AxRequestBoard({
                   row={r}
                   colKey={col.key}
                   busy={busy}
-                  on={{ onApprove, onReject, onIssue, onCert, onDetail, onExclude, onCancelSaas, onPlan, onNotify, onRegister }}
+                  on={{ onApprove, onReject, onIssue, onCert, onDetail, onExclude, onCancelSaas, onPlan, onNotify, onRegister, onLink }}
                 />
               ))}
               {rows.length === 0 && (
@@ -173,6 +174,32 @@ export function AxRequestBoard({
 }
 
 const btn = "inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition disabled:opacity-50";
+
+/** 서비스 접속 링크 — 넣어 두면 대시보드에서 이 작품을 누를 때 바로 접속된다 */
+function LinkButton({ row: r, onLink }: { row: any; onLink: (row: any) => void }) {
+  if (!r.serviceUrl) {
+    return (
+      <button onClick={() => onLink(r)} className={`${btn} basis-full border border-blue-300 bg-white py-1.5 text-blue-600 hover:bg-blue-50`}>
+        <Link2 className="h-3 w-3" /> 접속 링크 넣기
+      </button>
+    );
+  }
+  return (
+    <div className="flex basis-full items-center gap-1 rounded-lg bg-blue-50 px-2 py-1">
+      <a
+        href={r.serviceUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={r.serviceUrl}
+        className="inline-flex min-w-0 flex-1 items-center gap-1 text-[11px] font-semibold text-blue-600 hover:underline"
+      >
+        <ExternalLink className="h-3 w-3 shrink-0" />
+        <span className="truncate">{r.serviceUrl}</span>
+      </a>
+      <button onClick={() => onLink(r)} className="shrink-0 text-[11px] font-bold text-slate-400 hover:text-slate-700">수정</button>
+    </div>
+  );
+}
 
 function Card({ row: r, colKey, busy, on }: { row: any; colKey: string; busy?: boolean; on: any }) {
   const gate: Gate | null = colKey === "requested" ? "request" : colKey === "review" ? "review" : null;
@@ -284,6 +311,7 @@ function Card({ row: r, colKey, busy, on }: { row: any; colKey: string; busy?: b
             </button>
           </>
         )}
+        {(colKey === "toRegister" || colKey === "done") && <LinkButton row={r} onLink={on.onLink} />}
         {colKey === "done" && (
           <>
             <button onClick={() => on.onCert(r)} className={`${btn} border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50`}>

@@ -14,7 +14,7 @@ import {
 import { AxSecurityGuideAdmin } from "@/components/AxSecurityGuideAdmin";
 import { AxSaasCertificate, type SaasCertInfo } from "@/components/AxSaasCertificate";
 import { AxRequestBoard } from "@/components/AxRequestBoard";
-import { AxSaasRegistry } from "@/components/AxSaasRegistry";
+import { AxSaasRegistry, AxServiceLinkDialog } from "@/components/AxSaasRegistry";
 import {
   AX_STAGES, AX_STAGE_LIST, AX_STATUS, SAAS_CATEGORIES, axFileUrl, mailOf, openMail, type AxStage,
 } from "@/lib/ax-stages";
@@ -171,6 +171,9 @@ export function AdminAxLabView() {
   });
   const openPlan = (r: any) => { setPlanText(r.plan?.text ?? ""); setPlanTarget(r); };
 
+  // 서비스 접속 링크 (등록 완료 카드)
+  const [linkTarget, setLinkTarget] = useState<any | null>(null);
+
   // 상단 숫자 → 작품 목록
   const [statPick, setStatPick] = useState<AxWorksPick | null>(null);
 
@@ -257,7 +260,9 @@ export function AdminAxLabView() {
         onPlan={openPlan}
         onNotify={(r) => setNotifyTarget(r)}
         onRegister={(r, undo) => registerMut.mutate({ requestId: r.id, undo })}
+        onLink={(r) => setLinkTarget(r)}
       />
+      <AxServiceLinkDialog target={linkTarget} onClose={() => setLinkTarget(null)} />
 
       {/* 작품 단계 분류 (썸네일 카드 + 우클릭 지정) */}
       <section id="classify" className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">

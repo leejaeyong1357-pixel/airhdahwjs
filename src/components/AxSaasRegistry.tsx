@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -24,22 +24,8 @@ export function AxSaasRegistry({ requests, onCancelSaas }: {
   const [cert, setCert] = useState<SaasCertInfo | null>(null);
 
   // 서비스 접속 링크 — 작품을 누르면 이 주소로 바로 열린다
-  const qc = useQueryClient();
-  const setUrlFn = useServerFn(axAdminSetServiceUrl);
   const [linkTarget, setLinkTarget] = useState<any | null>(null);
-  const [linkUrl, setLinkUrl] = useState("");
-  const linkMut = useMutation({
-    mutationFn: (v: { requestId: string; url: string }) => setUrlFn({ data: v }),
-    onSuccess: (_r, v) => {
-      toast.success(v.url ? "접속 링크를 저장했습니다. 작품을 누르면 이 주소로 열립니다." : "접속 링크를 지웠습니다.");
-      setLinkTarget(null);
-      qc.invalidateQueries({ queryKey: ["admin", "ax"] });
-      qc.invalidateQueries({ queryKey: ["ax"] });
-    },
-    onError: (e: any) => toast.error(e?.message?.includes("http") ? "http:// 또는 https:// 로 시작하는 주소를 넣어주세요." : e.message),
-  });
-  const openLink = (r: any) => { setLinkUrl(r.serviceUrl ?? ""); setLinkTarget(r); };
-  const urlOk = !linkUrl.trim() || /^https?:\/\/\S+$/i.test(linkUrl.trim());
+  const openLink = (r: any) => setLinkTarget(r);
 
   const registered = useMemo(
     () =>
@@ -193,43 +179,56 @@ export function AxSaasRegistry({ requests, onCancelSaas }: {
 
       <AxSaasCertificate info={cert} open={!!cert} onOpenChange={(o) => !o && setCert(null)} />
 
-      {/* 서비스 접속 링크 입력 */}
-      <Dialog open={!!linkTarget} onOpenChange={(o) => !o && setLinkTarget(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>서비스 접속 링크</DialogTitle></DialogHeader>
-          {linkTarget && (
-            <div className="rounded-xl border border-slate-200 p-3.5">
-              <div className="text-[15px] font-black text-slate-900">{linkTarget.title}</div>
-              <div className="mt-0.5 text-[12.5px] text-slate-500">
-                {linkTarget.saas?.number} · {linkTarget.authorTeam} · {linkTarget.authorName}
-              </div>
-            </div>
-          )}
-          <Input
-            value={linkUrl}
-            onChange={(e) => setLinkUrl(e.target.value)}
-            placeholder="https://"
-            autoFocus
-          />
-          {!urlOk && (
-            <p className="text-[12.5px] font-semibold text-destructive">http:// 또는 https:// 로 시작하는 주소를 넣어주세요.</p>
-          )}
-          <p className="text-[12.5px] leading-relaxed text-slate-500">
-            저장하면 대시보드의 [SaaS 승인] 목록 등에서 이 작품을 눌렀을 때 정보 화면 대신 이 주소가 새 창으로 바로 열립니다.
-            비워서 저장하면 링크가 지워집니다.
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLinkTarget(null)}>취소</Button>
-            <Button
-              disabled={linkMut.isPending || !urlOk}
-              onClick={() => linkMut.mutate({ requestId: linkTarget.id, url: linkUrl.trim() })}
-            >
-              저장
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AxServiceLinkDialog target={linkTarget} onClose={() => setLinkTarget(null)} />
     </section>
+  );
+}
+
+/**
+ * 서비스 접속 링크 입력 — SaaS 인증 작품을 누르면 정보 대신 이 주소가 새 창으로 열린다.
+ * 관리 화면의 단계별 신청 현황 카드와 SaaS 등록 현황 표에서 함께 쓴다.
+ */
+export function AxServiceLinkDialog({ target, onClose }: { target: any | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const setUrlFn = useServerFn(axAdminSetServiceUrl);
+  const [url, setUrl] = useState("");
+  useEffect(() => { if (target) setUrl(target.serviceUrl ?? ""); }, [target]);
+  const mut = useMutation({
+    mutationFn: (v: { requestId: string; url: string }) => setUrlFn({ data: v }),
+    onSuccess: (_r, v) => {
+      toast.success(v.url ? "접속 링크를 저장했습니다. 작품을 누르면 이 주소로 열립니다." : "접속 링크를 지웠습니다.");
+      onClose();
+      qc.invalidateQueries({ queryKey: ["admin", "ax"] });
+      qc.invalidateQueries({ queryKey: ["ax"] });
+    },
+    onError: (e: any) => toast.error(e?.message?.includes("http") ? "http:// 또는 https:// 로 시작하는 주소를 넣어주세요." : e.message),
+  });
+  const ok = !url.trim() || /^https?:\/\/\S+$/i.test(url.trim());
+
+  return (
+    <Dialog open={!!target} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>서비스 접속 링크</DialogTitle></DialogHeader>
+        {target && (
+          <div className="rounded-xl border border-slate-200 p-3.5">
+            <div className="text-[15px] font-black text-slate-900">{target.title}</div>
+            <div className="mt-0.5 text-[12.5px] text-slate-500">
+              {target.saas?.number} · {target.authorTeam} · {target.authorName}
+            </div>
+          </div>
+        )}
+        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" autoFocus />
+        {!ok && <p className="text-[12.5px] font-semibold text-destructive">http:// 또는 https:// 로 시작하는 주소를 넣어주세요.</p>}
+        <p className="text-[12.5px] leading-relaxed text-slate-500">
+          저장하면 대시보드의 [SaaS 승인] 목록 등에서 이 작품을 눌렀을 때 정보 화면 대신 이 주소가 새 창으로 바로 열립니다.
+          비워서 저장하면 링크가 지워집니다.
+        </p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>취소</Button>
+          <Button disabled={mut.isPending || !ok} onClick={() => mut.mutate({ requestId: target.id, url: url.trim() })}>저장</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
