@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Lightbulb, Send, ClipboardList, Package, BarChart3,
-  Bell, ChevronDown, LogOut, User as UserIcon, Shield, Upload, Gavel, FlaskConical,
+  Bell, ChevronDown, LogOut, User as UserIcon, Shield, Upload, Gavel, FlaskConical, Code2,
 } from "lucide-react";
 
 type NavItem = { label: string; icon: any; to?: string; href?: string; adminOnly?: boolean };
@@ -22,6 +22,7 @@ const NAV: NavItem[] = [
   { label: "AX Hub 관리", icon: ClipboardList, to: "/ax-lab/manage", adminOnly: true },
   { label: "SaaS 승인·등록", icon: Package, to: "/ax-lab/manage", adminOnly: true },
   { label: "우수 사례", icon: BarChart3, href: "/#gallery" },
+  { label: "표준소스코드", icon: Code2, to: "/ax-lab/code" },
 ];
 
 const CRUMB: Record<string, string> = {
@@ -29,6 +30,7 @@ const CRUMB: Record<string, string> = {
   "/ax-lab": "고도화 현황",
   "/ax-lab/request": "고도화 신청",
   "/ax-lab/manage": "AX Hub 관리",
+  "/ax-lab/code": "표준소스코드",
 };
 
 /** AX 플랫폼 공통 레이아웃 — 좌측 사이드바 + 상단 바. */

@@ -62,6 +62,14 @@ export type Store = {
     openCriteriaImage?: string;
     saasCertImage?: string;
   };
+  /**
+   * 표준소스코드 — 관리자가 화면에서 추가 · 수정한 코드 목록.
+   * 없으면 기본 코드(ax-code-defaults.ts)를 보여주고, 처음 수정하는 순간 기본 코드째로 저장된다.
+   */
+  axCodeLib?: {
+    id: string; category: string; title: string; description: string; language: string; code: string;
+    updatedAt?: string; updatedByName?: string;
+  }[];
   /** AX LAB — 취소되어 반납된 SaaS 번호. 같은 번호를 다시 발급하지 않기 위해 남겨 둔다. */
   axRetiredSaas?: {
     number: string; category: string; year: string; seq: number;
