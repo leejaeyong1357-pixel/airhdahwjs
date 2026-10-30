@@ -19,6 +19,9 @@ setup.cmd
 - 중간에 **서버 관리자 닉네임**을 묻습니다. 영문 · 숫자만 됩니다. (예: `admin`)
   이 닉네임으로 접속하면 모든 권한(킥 · 밴 · 날기 · 시간 바꾸기 등)을 갖습니다.
 - 회사망에서 다운로드가 막히면 화면에 나오는 안내대로 브라우저로 받아 `luanti\downloads` 에 넣고 다시 실행하세요.
+- **Mineclonia 는 공식 저장소에서 직접 받는 것을 권장합니다**: https://codeberg.org/mineclonia/mineclonia/releases →
+  최신 버전의 **Source code (ZIP)** → `luanti\downloads` 에 넣고 `setup.cmd` 다시 실행.
+  (2026-10 ContentDB 보안 사고로 content.luanti.org 웹 다운로드가 몇 주간 중단됨)
 - Mineclonia 만 못 받았다면: `play.cmd` → **[콘텐츠 / Content]** → **[온라인 콘텐츠 탐색 / Browse online content]** → Mineclonia → **[설치 / Install]**
 
 ## 2. 서버 켜기 / 끄기

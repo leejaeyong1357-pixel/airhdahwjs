@@ -96,11 +96,12 @@ goto :step3
 :gamefail
 del "%DL%\mineclonia.zip" >nul 2>&1
 echo.
-echo [안내] Mineclonia 를 자동으로 받지 못했습니다. 회사망에서 content.luanti.org 가 막혔을 수 있습니다.
+echo [안내] Mineclonia 를 자동으로 받지 못했습니다. ^(ContentDB 점검 중이거나 회사망에서 막힘^)
 echo   아래 둘 중 하나로 설치한 뒤 start-server.cmd 를 실행하세요.
 echo.
-echo   방법 1^) 브라우저로 아래 주소에 들어가 [Download] 를 눌러 zip 을 받고,
-echo          https://content.luanti.org/packages/ryvnf/mineclonia/
+echo   방법 1^) 브라우저로 Mineclonia 공식 저장소 Releases 에 들어가
+echo          https://codeberg.org/mineclonia/mineclonia/releases
+echo          맨 위^(최신^) 버전의 [Source code (ZIP)] 을 받고,
 echo          받은 zip 을 이 폴더에 넣은 뒤 setup.cmd 를 다시 실행
 echo          %DL%
 echo.
