@@ -59,3 +59,5 @@ luanti/server.conf
 luanti/server.log
 luanti/client.log
 luanti/debug.txt
+luanti/client.conf
+luanti/client.conf.tmp
