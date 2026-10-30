@@ -61,3 +61,6 @@ luanti/client.log
 luanti/debug.txt
 luanti/client.conf
 luanti/client.conf.tmp
+
+# 테크젠 크래프트 — 월드 저장 파일은 서버 PC 에만
+blockcraft/data/

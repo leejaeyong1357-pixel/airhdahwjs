@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>테크젠 크래프트</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 fill=%22%23183878%22/%3E%3Cpath d=%22M3 3h10v3H9.5v7h-3V6H3z%22 fill=%22%23fff%22/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- 접속 화면 -->
+  <div id="start" class="overlay">
+    <div class="panel">
+      <div class="logo">TECZEN</div>
+      <h1>테크젠 크래프트</h1>
+      <p class="sub">사내 멀티플레이 블록 게임</p>
+      <form id="joinForm">
+        <input id="nameInput" maxlength="16" placeholder="닉네임 (한글 · 영문 · 숫자)" autocomplete="off" />
+        <button id="joinBtn" type="submit">접속하기</button>
+      </form>
+      <div id="startError" class="error"></div>
+      <div class="keys">
+        <div><b>WASD</b> 이동</div><div><b>마우스</b> 둘러보기</div>
+        <div><b>Space</b> 점프</div><div><b>Shift</b> 달리기</div>
+        <div><b>왼쪽 클릭</b> 부수기</div><div><b>오른쪽 클릭</b> 놓기</div>
+        <div><b>1~9 · 휠</b> 블록 고르기</div><div><b>E</b> 블록 목록</div>
+        <div><b>F</b> 날기 켜기/끄기</div><div><b>T</b> 채팅</div>
+        <div><b>Tab</b> 접속자</div><div><b>Esc</b> 마우스 풀기</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 게임 화면 -->
+  <div id="hud" class="hidden">
+    <div id="crosshair"></div>
+    <div id="debug" class="hidden"></div>
+    <div id="mode"></div>
+    <div id="chatLog"></div>
+    <input id="chatInput" class="hidden" maxlength="200" placeholder="메시지 입력 후 Enter (/spawn: 처음 위치로)" autocomplete="off" />
+    <div id="blockName"></div>
+    <div id="hotbar"></div>
+  </div>
+
+  <!-- 일시정지 -->
+  <div id="pause" class="overlay hidden">
+    <div class="panel">
+      <h2>일시정지</h2>
+      <button id="resumeBtn">클릭해서 계속하기</button>
+      <div id="pausePlayers" class="players"></div>
+      <div class="hint">E 블록 목록 · F 날기 · T 채팅 · F3 좌표 보기</div>
+    </div>
+  </div>
+
+  <!-- 블록 목록 -->
+  <div id="inventory" class="overlay hidden">
+    <div class="panel wide">
+      <h2>블록 목록</h2>
+      <p class="hint">누르면 지금 고른 단축칸(<span id="invSlot">1</span>번)에 들어갑니다. E 또는 Esc 로 닫기</p>
+      <div id="invGrid"></div>
+    </div>
+  </div>
+
+  <!-- 접속자 (Tab) -->
+  <div id="playerList" class="hidden"></div>
+
+  <div id="loading" class="hidden">월드 불러오는 중...</div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

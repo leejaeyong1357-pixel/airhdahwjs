@@ -1,0 +1,7 @@
+{
+  "name": "teczen-craft",
+  "private": true,
+  "type": "module",
+  "description": "테크젠 크래프트 — 브라우저 멀티플레이 블록 게임 (의존성 없음)",
+  "scripts": { "start": "node server.js" }
+}
