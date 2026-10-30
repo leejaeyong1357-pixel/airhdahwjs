@@ -4,7 +4,7 @@
 그 위에서 돌아가는 **Mineclonia** 게임은 마인크래프트와 거의 같게 만든 게임입니다.
 (서바이벌 · 조합 · 몹 · 레드스톤 · 네더 등. 마인크래프트 원작 코드나 그림은 쓰지 않음)
 
-모든 작업은 **명령 프롬프트(cmd)** 로 합니다. PowerShell · 관리자 권한 없이 됩니다. (방화벽만 예외)
+AX LAB 사이트와는 상관없는 별도 폴더입니다. 모든 작업은 **명령 프롬프트(cmd)** 로 합니다. PowerShell · 관리자 권한 없이 됩니다. (방화벽만 예외)
 
 ## 1. 서버 PC — 처음 한 번 설치
 
@@ -45,9 +45,8 @@ start-server.cmd
 ## 4. 직원 PC — 접속 방법
 
 1. Luanti 받기
-   - AX LAB 서버가 켜져 있으면: `http://<서버 PC 주소>:2222/downloads/luanti-win64.zip`
-     (setup.cmd 가 이 파일을 넣어 둡니다)
-   - 또는 https://github.com/luanti-org/luanti/releases 에서 `luanti-…-win64.zip`
+   - 서버 PC 의 `luanti\downloads\luanti-…-win64.zip` 을 메신저 · 공유폴더로 나눠 주거나
+   - https://github.com/luanti-org/luanti/releases 에서 `luanti-…-win64.zip` 을 받습니다
 2. 압축을 풀고 `bin\luanti.exe` 실행 (설치 필요 없음)
 3. **[게임 참가 / Join Game]** 탭 → 주소 · 포트(30000) 입력 → 닉네임(영문) · 비밀번호 → **[접속]**
    - 처음 접속할 때 넣은 비밀번호가 그 닉네임의 비밀번호가 됩니다.

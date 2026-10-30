@@ -28,10 +28,10 @@ if not exist "%DL%" mkdir "%DL%"
 
 rem ── 1. 엔진 ──────────────────────────────────────────────
 if exist "%APP%\bin\luanti.exe" (
-  echo [1/4] 엔진: 이미 설치되어 있습니다. ^(app 폴더^)
+  echo [1/3] 엔진: 이미 설치되어 있습니다. ^(app 폴더^)
 ) else (
   if not exist "%DL%\%ZIPNAME%" (
-    echo [1/4] 엔진 내려받는 중... ^(약 17MB^)
+    echo [1/3] 엔진 내려받는 중... ^(약 17MB^)
     curl -L --fail -o "%DL%\%ZIPNAME%" "%ENGINE_URL%"
     if errorlevel 1 (
       del "%DL%\%ZIPNAME%" >nul 2>&1
@@ -44,7 +44,7 @@ if exist "%APP%\bin\luanti.exe" (
       goto :fail
     )
   ) else (
-    echo [1/4] 엔진: downloads 폴더의 %ZIPNAME% 를 사용합니다.
+    echo [1/3] 엔진: downloads 폴더의 %ZIPNAME% 를 사용합니다.
   )
   if exist "%TMPX%" rmdir /s /q "%TMPX%"
   mkdir "%TMPX%"
@@ -58,9 +58,9 @@ if exist "%APP%\bin\luanti.exe" (
 
 rem ── 2. 게임 (Mineclonia) ──────────────────────────────────
 if exist "%APP%\games\mineclonia\game.conf" (
-  echo [2/4] 게임: Mineclonia 가 이미 설치되어 있습니다.
+  echo [2/3] 게임: Mineclonia 가 이미 설치되어 있습니다.
 ) else (
-  echo [2/4] 게임 Mineclonia 내려받는 중...
+  echo [2/3] 게임 Mineclonia 내려받는 중...
   curl -L --fail -o "%DL%\mineclonia.zip" "%GAME_URL%"
   if errorlevel 1 (
     del "%DL%\mineclonia.zip" >nul 2>&1
@@ -92,11 +92,11 @@ if exist "%APP%\games\mineclonia\game.conf" (
 rem ── 3. 서버 설정 ──────────────────────────────────────────
 rem   (닉네임을 다시 묻는 반복은 괄호 블록 밖에 둬야 cmd 가 제대로 처리한다)
 if exist "%HERE%server.conf" (
-  echo [3/4] 서버 설정: server.conf 가 이미 있습니다. ^(그대로 둡니다^)
+  echo [3/3] 서버 설정: server.conf 가 이미 있습니다. ^(그대로 둡니다^)
   goto :step4
 )
 copy /y "%HERE%server.conf.template" "%HERE%server.conf" >nul
-echo [3/4] 서버 설정 파일을 만들었습니다: server.conf
+echo [3/3] 서버 설정 파일을 만들었습니다: server.conf
 echo.
 echo   서버 관리자로 쓸 게임 닉네임을 정하세요.
 echo   영문 · 숫자 · _ · - 만 됩니다. (예: admin, TZ82211489)
@@ -111,21 +111,11 @@ echo !ADMIN!| findstr /r /x "[A-Za-z0-9_-]*" >nul || (echo   영문 · 숫자 · _ �
 echo   관리자 닉네임: !ADMIN!
 
 :step4
-rem ── 4. 직원용 내려받기 파일 (AX LAB 사이트에서 받을 수 있게) ──
-set "PUB=%HERE%..\public\downloads"
-if exist "%DL%\%ZIPNAME%" (
-  if not exist "%PUB%" mkdir "%PUB%"
-  copy /y "%DL%\%ZIPNAME%" "%PUB%\luanti-win64.zip" >nul
-  echo [4/4] 직원용 설치파일 복사: public\downloads\luanti-win64.zip
-  echo       AX LAB 서버가 켜져 있으면 직원은 http://^<이 PC 주소^>:2222/downloads/luanti-win64.zip 으로 받습니다.
-) else (
-  echo [4/4] 직원용 설치파일: 건너뜀
-)
-
 echo.
 echo ==========================================================
 echo   설치 끝. 서버 켜기:  start-server.cmd
 echo   이 PC 에서 같이 하기: play.cmd
+echo   직원에게 줄 설치파일: downloads\%ZIPNAME%
 echo ==========================================================
 echo.
 pause

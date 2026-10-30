@@ -57,5 +57,3 @@ luanti/downloads/
 luanti/_tmp/
 luanti/server.conf
 luanti/server.log
-# 직원용 Luanti 설치파일 (setup.cmd 가 복사)
-public/downloads/
