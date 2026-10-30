@@ -1,0 +1,2 @@
+# 사내 마크 서버 cmd 파일 — 한국어 Windows 인코딩(CP949) + CRLF 를 그대로 둔다
+luanti/*.cmd -text

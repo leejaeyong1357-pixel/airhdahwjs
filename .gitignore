@@ -50,3 +50,12 @@ certs/
 
 # 이 서버에만 있는 비밀 설정 (인증서 경로·암호 등) — 저장소에 올리지 않는다
 .env.local
+
+# 사내 마크 서버 (Luanti) — 엔진 · 월드 · 설정은 서버 PC 에만
+luanti/app/
+luanti/downloads/
+luanti/_tmp/
+luanti/server.conf
+luanti/server.log
+# 직원용 Luanti 설치파일 (setup.cmd 가 복사)
+public/downloads/
