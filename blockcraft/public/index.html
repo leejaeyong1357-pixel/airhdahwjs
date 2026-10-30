@@ -19,6 +19,7 @@
       <button id="btnSettings" class="tbtn" style="top:59.5%"><svg viewBox="0 0 24 24"><path d="M10 2h4l.6 3 2.2 1 2.6-1.7 2.8 2.8L20.5 9.7l1 2.3 2.5.5v4l-3 .6-1 2.2 1.7 2.6-2.8 2.8-2.6-1.7-2.2 1-.6 3h-4l-.6-3-2.2-1-2.6 1.7-2.8-2.8L4.3 19.3l-1-2.3-3-.5v-4l3-.6 1-2.2L2.6 7.1l2.8-2.8L8 6l2.2-1zM12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5z" transform="scale(.92) translate(1 0)"/></svg><span>설정</span></button>
       <button id="btnQuit" class="tbtn" style="top:68.5%"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.3 6.6a8 8 0 1 0 11.4 0"/></svg><span>종료</span></button>
       <div id="titleStatus"></div>
+      <div id="titleVersion"></div>
     </div>
   </div>
 
@@ -46,6 +47,18 @@
     </div>
   </div>
 
+  <!-- 게임 시작 → 월드 고르기 -->
+  <div id="playModal" class="modal hidden">
+    <div class="glass">
+      <button class="x" data-close>✕</button>
+      <h3>어디서 할까요?</h3>
+      <button id="playContinue" class="primaryBtn hidden">이어하기</button>
+      <button id="playMulti" class="ghostBtn big"><b>멀티플레이</b><small>회사 서버 월드 — 접속한 직원들과 같이</small></button>
+      <button id="playSolo" class="ghostBtn big"><b>싱글플레이</b><small>나만의 월드 — 혼자 (치트 명령 가능)</small></button>
+      <p class="hintSmall" id="playWho"></p>
+    </div>
+  </div>
+
   <!-- 설정 -->
   <div id="settingsModal" class="modal hidden">
     <div class="glass">
@@ -56,9 +69,11 @@
       <label class="range">시야각 <b id="vFov"></b><input id="sFov" type="range" min="55" max="110" step="1" /></label>
       <label class="range">밝기 <b id="vBright"></b><input id="sBright" type="range" min="0" max="100" step="5" /></label>
       <label class="range">소리 크기 <b id="vVol"></b><input id="sVol" type="range" min="0" max="100" step="5" /></label>
+      <label class="range">그래픽 <select id="sGfx"><option value="high">고급</option><option value="mid">보통</option><option value="low">저사양 (느린 PC)</option></select></label>
       <div class="keysHelp">
         <div><b>WASD</b> 이동</div><div><b>Space</b> 점프</div>
-        <div><b>Shift</b> 달리기</div><div><b>왼쪽 (꾹)</b> 캐기 · 공격</div>
+        <div><b>Ctrl · W 두 번</b> 달리기</div><div><b>Shift</b> 웅크리기</div>
+        <div><b>왼쪽 (꾹)</b> 캐기 · 공격</div><div><b>F5</b> 3인칭</div>
         <div><b>오른쪽</b> 놓기 · 열기 · 먹기</div><div><b>E · Tab</b> 인벤토리 · 조합</div>
         <div><b>1~9 · 휠</b> 단축칸</div><div><b>Q</b> 버리기</div>
         <div><b>T · /</b> 채팅 · 명령어</div><div><b>F3</b> 좌표</div>
@@ -74,18 +89,23 @@
     <div id="crosshair"></div>
     <div id="debug" class="hidden"></div>
     <div id="mode"></div>
+    <div id="topRight"></div>
     <div id="chatLog"></div>
     <input id="chatInput" class="hidden" maxlength="200" placeholder="메시지 입력 후 Enter  (/help 명령어 목록)" autocomplete="off" />
     <div id="itemName"></div>
     <div id="bars">
+      <div id="armorBar" class="bar top"></div>
       <div id="hearts" class="bar"></div>
       <div id="food" class="bar right"></div>
-      <div id="air" class="bar right"></div>
+      <div id="air" class="bar right top"></div>
+      <div id="xp"><i id="xpFill"></i><b id="xpLvl"></b></div>
     </div>
     <div id="hotbar"></div>
   </div>
   <div id="hurtFx"></div>
   <div id="water" class="hidden"></div>
+  <div id="fireFx" class="hidden"></div>
+  <div id="flash"></div>
 
   <!-- 일시정지 -->
   <div id="pause" class="overlay hidden">

@@ -273,6 +273,7 @@ export class WorldView {
 
   // ── 빛 계산 + 메시 ──────────────────────────────────────
   build(c) {
+    const t0 = performance.now();
     const nbs = [];
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) nbs.push(this.data(c.cx + dx, c.cz + dz).data);
     // 3x3 청크 블록을 한 배열로
@@ -320,6 +321,7 @@ export class WorldView {
     c.sky = sky; c.blk = blk;
 
     this.mesh(c);
+    this.buildMs = (this.buildMs ?? 0) * 0.9 + (performance.now() - t0) * 0.1; // 평균 (F3 화면)
   }
 
   mesh(c) {

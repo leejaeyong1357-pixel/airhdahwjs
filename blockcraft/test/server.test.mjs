@@ -152,14 +152,25 @@ test("작업대 · 곡괭이 · 화로 굽기 · 상자", async () => {
 
   // 작업대 놓기
   const [sx, sy, sz] = A.welcome.spawn;
-  const tx = Math.floor(sx) + 2, tz = Math.floor(sz);
-  let ty = Math.floor(sy) + 3;
+  // 스폰 근처에서 위로 4칸이 비어 있는 땅 찾기 (나뭇잎 · 나무 피하기)
+  const { generateChunk, index, CHUNK, HEIGHT } = await import("../shared/worldgen.js");
+  let tx = 0, tz = 0, ty = 0;
+  search: for (let r = 2; r < 20; r++) for (let dx = -r; dx <= r; dx++) {
+    const x = Math.floor(sx) + dx, z = Math.floor(sz) + r;
+    const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
+    const d = generateChunk(cx, cz, A.welcome.seed);
+    const at = (y) => d[index(x - cx * CHUNK, y, z - cz * CHUNK)];
+    for (let y = HEIGHT - 6; y > 30; y--) {
+      if (at(y) === 0 || at(y) === 31) continue;
+      if ([1, 2, 3, 5].includes(at(y)) && [1, 2, 3, 4].every((k) => at(y + k) === 0 || at(y + k) === 31)) { tx = x; ty = y + 1; tz = z; break search; }
+      break;
+    }
+  }
+  assert.ok(ty, "놓을 자리를 찾음");
   await A.ask({ t: "chat", msg: `/give 작업대 1` }, (m) => m.t === "give");
   const s1 = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
   await A.ask({ t: "chat", msg: "/gamemode creative" }, (m) => m.t === "mode");
   // 놓을 자리 위에 받침이 필요 없도록 공중이 아닌 땅 위를 찾는다
-  const { heightAt } = await import("../shared/worldgen.js");
-  ty = heightAt(tx, tz, A.welcome.seed) + 1;
   await A.ask({ t: "chat", msg: `/tp ${sx} ${ty} ${sz}` }, (m) => m.t === "tp");
   A.send({ t: "move", p: [sx, ty, sz], r: [0, 0] });
   await sleep(100);

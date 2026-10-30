@@ -243,14 +243,22 @@ export function generateChunk(cx, cz, seed) {
   return data;
 }
 
-/** 시작 지점 — (0,0) 근처에서 물 · 사막이 아닌 풀밭을 찾는다 */
+/** 시작 지점 — (0,0) 근처에서 물 · 사막 · 눈밭이 아닌 풀밭, 되도록 숲 가장자리 (나무를 바로 캘 수 있게) */
 export function findSpawn(seed) {
-  for (let r = 0; r < 600; r += 4) {
-    for (let a = 0; a < 16; a++) {
-      const x = Math.round(Math.cos((a / 16) * Math.PI * 2) * r);
-      const z = Math.round(Math.sin((a / 16) * Math.PI * 2) * r);
-      const col = column(x, z, seed);
-      if (col.h > SEA + 1 && col.h < 66 && surfaceFor(col) === 1 && col.river === 0 && col.ravine === 0) return [x + 0.5, col.h + 1, z + 0.5];
+  const okBiome = (b) => b === BIOME.PLAINS || b === BIOME.FOREST || b === BIOME.BIRCH;
+  for (const needForest of [true, false]) {
+    for (let r = 0; r < 800; r += 4) {
+      for (let a = 0; a < 16; a++) {
+        const x = Math.round(Math.cos((a / 16) * Math.PI * 2) * r);
+        const z = Math.round(Math.sin((a / 16) * Math.PI * 2) * r);
+        const col = column(x, z, seed);
+        if (col.h <= SEA + 1 || col.h >= 66 || surfaceFor(col) !== GRASS || col.river > 0 || col.ravine > 0) continue;
+        if (col.biome !== BIOME.PLAINS && col.biome !== BIOME.FOREST) continue;
+        const around = [[24, 0], [-24, 0], [0, 24], [0, -24], [12, 12], [-12, -12]].map(([dx, dz]) => column(x + dx, z + dz, seed).biome);
+        if (!around.every(okBiome)) continue;
+        if (needForest && !around.some((b) => b === BIOME.FOREST || b === BIOME.BIRCH)) continue;
+        return [x + 0.5, col.h + 1, z + 0.5];
+      }
     }
   }
   return [0.5, heightAt(0, 0, seed) + 1, 0.5];

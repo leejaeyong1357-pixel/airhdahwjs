@@ -69,4 +69,9 @@ export const sfx = {
   click: () => tone(1200, 900, 0.04, 0.12, "square"),
   toolBreak: () => { noise(0.2, 3000, 2, 0.4); tone(900, 300, 0.2, 0.2, "square"); },
   splash: () => noise(0.4, 1200, 0.5, 0.4, "bandpass", 0.35),
+  rain: () => noise(0.5, 6000, 0.3, 0.05, "highpass", 0.5),
+  bird: () => { const f = 2400 + Math.random() * 1500; tone(f, f * 1.3, 0.08, 0.05); setTimeout(() => tone(f * 1.1, f * 0.9, 0.1, 0.05), 120); },
+  cricket: () => { for (let i = 0; i < 3; i++) setTimeout(() => tone(4200, 4100, 0.04, 0.03, "square"), i * 70); },
+  cave: () => noise(1.6, 220, 0.4, 0.08, "lowpass", 1.6),
+  mobDie: () => tone(300, 80, 0.3, 0.2, "triangle"),
 };

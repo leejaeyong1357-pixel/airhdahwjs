@@ -206,6 +206,45 @@ const DRAW = {
     }
   },
   flower_yellow: (px) => flower(px, [250, 220, 40], [255, 245, 150]),
+  chest_top: (px) => {
+    DRAW.planks(px);
+    for (let i = 0; i < 16; i++) { px(i, 0, [70, 48, 24]); px(i, 15, [70, 48, 24]); px(0, i, [70, 48, 24]); px(15, i, [70, 48, 24]); }
+  },
+  chest_front: (px) => {
+    DRAW.chest_top(px);
+    for (let x = 0; x < 16; x++) px(x, 5, [70, 48, 24]);
+    for (let y = 4; y < 9; y++) for (let x = 7; x < 9; x++) px(x, y, y === 6 ? [60, 60, 60] : [200, 200, 205]);
+  },
+  lava: (px) => {
+    const r = rng(26);
+    for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+      const v = Math.sin(x * 0.9 + y * 0.4) + Math.sin(y * 0.7 - x * 0.3) + r() * 0.8;
+      px(x, y, v > 1.1 ? [255, 220, 90] : v > 0.2 ? [240, 120, 20] : [200, 70, 10]);
+    }
+  },
+  cactus_side: (px) => {
+    for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) px(x, y, x % 4 === 1 ? [40, 110, 30] : [70, 150, 50]);
+    for (let y = 2; y < 16; y += 4) { px(0, y, [230, 230, 200]); px(15, y + 2, [230, 230, 200]); }
+  },
+  cactus_top: (px) => { speckle(px, [80, 160, 60], 0.08, 27); for (let i = 0; i < 16; i++) { px(i, 0, [40, 110, 30]); px(0, i, [40, 110, 30]); px(15, i, [40, 110, 30]); px(i, 15, [40, 110, 30]); } },
+  birch_side: (px) => {
+    const r = rng(28);
+    for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) px(x, y, shade([220, 220, 210], 0.92 + r() * 0.1));
+    for (let i = 0; i < 9; i++) { const x = Math.floor(r() * 14), y = Math.floor(r() * 16); px(x, y, [40, 40, 36]); px(x + 1, y, [60, 60, 54]); }
+  },
+  birch_top: (px) => { DRAW.log_top(px); for (let i = 0; i < 16; i++) { px(i, 0, [220, 220, 210]); px(0, i, [220, 220, 210]); px(15, i, [220, 220, 210]); px(i, 15, [220, 220, 210]); } },
+  birch_leaves: (px) => { const r = rng(29); for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) px(x, y, r() < 0.16 ? null : shade([110, 160, 70], 0.7 + r() * 0.5)); },
+  spruce_side: (px) => { const r = rng(30); for (let x = 0; x < TILE; x++) { const f = 0.8 + r() * 0.3; for (let y = 0; y < TILE; y++) px(x, y, shade(x % 3 === 0 ? [50, 34, 20] : [72, 50, 30], f)); } },
+  spruce_top: (px) => { for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) { const d = Math.max(Math.abs(x - 7.5), Math.abs(y - 7.5)); px(x, y, d > 6.5 ? [72, 50, 30] : Math.floor(d) % 2 ? [130, 96, 58] : [110, 80, 48]); } },
+  spruce_leaves: (px) => { const r = rng(31); for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) px(x, y, r() < 0.12 ? null : shade([40, 86, 50], 0.7 + r() * 0.45)); },
+  sandstone: (px) => { speckle(px, [216, 200, 150], 0.06, 32); for (let x = 0; x < 16; x++) { px(x, 4, [190, 172, 120]); px(x, 11, [190, 172, 120]); } },
+  sandstone_top: (px) => speckle(px, [222, 208, 160], 0.05, 33),
+  dead_bush: (px) => {
+    clear(px);
+    const c = [130, 90, 40];
+    line(px, 8, 15, 8, 9, c); line(px, 8, 11, 4, 6, c); line(px, 8, 10, 12, 5, c); line(px, 5, 7, 3, 3, c); line(px, 11, 6, 13, 2, c); line(px, 8, 9, 7, 4, c);
+  },
+  obsidian: (px) => { const r = rng(34); for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) px(x, y, r() < 0.12 ? [70, 50, 110] : shade([22, 16, 36], 0.8 + r() * 0.4)); },
   flower_red: (px) => flower(px, [210, 30, 30], [60, 20, 20]),
 };
 
@@ -267,6 +306,15 @@ const ITEM_DRAW = {
     for (let i = 0; i < 8; i++) { const x = 4 + i, y = 12 - i; px(x - 1, y - 1, [250, 250, 250]); px(x + 1, y + 1, [235, 235, 235]); px(x - 2, y - 1, [250, 250, 250]); }
     px(2, 14, [160, 160, 160]);
   },
+  leather: (px) => { clear(px); for (let y = 3; y < 13; y++) for (let x = 3; x < 13; x++) if (!((x === 3 || x === 12) && (y === 3 || y === 12))) px(x, y, (x + y) % 5 === 0 ? [120, 70, 35] : [150, 90, 45]); },
+  bone: (px) => { clear(px); line(px, 4, 11, 11, 4, [235, 230, 215]); line(px, 4, 12, 12, 4, [210, 205, 190]); for (const [x, y] of [[3, 11], [4, 13], [11, 3], [13, 4], [3, 12], [12, 3]]) px(x, y, [240, 236, 222]); },
+  arrow: (px) => {
+    clear(px);
+    line(px, 3, 12, 11, 4, [120, 90, 50]);
+    for (const [x, y] of [[12, 3], [11, 3], [12, 4], [13, 2]]) px(x, y, [150, 150, 155]);
+    for (const [x, y] of [[2, 12], [3, 13], [2, 13], [1, 13], [2, 14]]) px(x, y, [235, 235, 235]);
+  },
+  bread: (px) => { clear(px); for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) { const d = Math.hypot((x - 7.5) / 7, (y - 8.5) / 3.6); if (d < 1) px(x, y, d > 0.8 ? [150, 90, 30] : (x % 4 === 1 && y < 8) ? [230, 180, 100] : [200, 135, 55]); } },
   gunpowder: (px) => {
     clear(px);
     const r = rng(31);
@@ -334,6 +382,24 @@ for (const [tier, [c, d]] of Object.entries(TIER_COLOR)) {
       pattern(px, rows, { m: d, l: c, h: HANDLE[0], d: tool === "sword" ? HANDLE[1] : d }, 0, 2);
     };
   }
+}
+
+// 방어구 — 0 투구 1 갑옷 2 바지 3 신발
+const ARMOR_COLOR = { leather: [[160, 100, 55], [110, 66, 34]], iron: [[225, 225, 228], [150, 150, 156]], diamond: [[95, 230, 220], [35, 150, 150]] };
+const ARMOR_PATTERN = [
+  ["..mmmmmmmmmm..", ".mllllllllllm.", ".ml........lm.", ".ml........lm.", ".mm........mm."],
+  ["mmm......mmm", "mlmmmmmmmmlm", "mlllllllllm.", ".mllllllllm.", ".mllllllllm.", ".mllllllllm.", ".mllllllllm.", ".mmmmmmmmmm."],
+  ["mmmmmmmmmm", "mllllllllm", "mllm..mllm", "mllm..mllm", "mllm..mllm", "mllm..mllm", "mmmm..mmmm"],
+  ["mmm....mmm", "mlm....mlm", "mlm....mlm", "mllm..mllm", "mmmm..mmmm"],
+];
+for (const [tier, [c, d]] of Object.entries(ARMOR_COLOR)) {
+  ARMOR_PATTERN.forEach((rows, slot) => {
+    ITEM_DRAW[`${tier}_armor_${slot}`] = (px) => {
+      clear(px);
+      const ox = Math.floor((16 - rows[0].length) / 2), oy = Math.floor((16 - rows.length) / 2);
+      pattern(px, rows, { m: d, l: c }, ox, oy);
+    };
+  });
 }
 
 // 금 가는 모양 10단계
@@ -439,8 +505,12 @@ const HUD = {
   food_half: ["........", "........", ".....mmb.", "....bmmb.", ".wb.bbb..", "w.w......", ".w......."],
   food_bg: ["....kkk..", "...k...k.", "...k....k", "..kk...k.", ".kk.kkk..", "k.k......", ".k......."],
   air: [".bbb.", "bwccb", "bcccb", "bcccb", ".bbb."],
+  armor: ["kkk.kkk..", "kwwkwwk..", "kwwwwwk..", ".kwwwk...", ".kwwwk...", ".kwwwk...", "..kkk...."],
+  armor_half: ["kkk......", "kwwk.....", "kwwk.....", ".kwk.....", ".kwk.....", ".kwk.....", "..kk....."],
+  armor_bg: ["kkk.kkk..", "k..k..k..", "k.....k..", ".k...k...", ".k...k...", ".k...k...", "..kkk...."],
 };
 const HUD_PAL = { r: [220, 30, 30], h: [255, 160, 160], k: [40, 20, 20], b: [120, 70, 30], m: [190, 120, 60], w: [240, 235, 220], c: [80, 160, 255] };
+const ARMOR_PAL = { k: [40, 40, 50], w: [210, 215, 225] };
 export function hudIcon(name) {
   const key = `hud:${name}`;
   if (iconCache.has(key)) return iconCache.get(key);
@@ -448,7 +518,7 @@ export function hudIcon(name) {
   const c = document.createElement("canvas");
   c.width = 9; c.height = 7;
   const ctx = c.getContext("2d");
-  const pal = name === "air" ? { ...HUD_PAL, b: [40, 90, 200], w: [255, 255, 255] } : HUD_PAL;
+  const pal = name === "air" ? { ...HUD_PAL, b: [40, 90, 200], w: [255, 255, 255] } : name.startsWith("armor") ? ARMOR_PAL : HUD_PAL;
   rows.forEach((row, y) => [...row].forEach((ch, x) => {
     const col = pal[ch];
     if (!col || !Array.isArray(col)) return;
@@ -566,6 +636,37 @@ sp("bomb_top", 12, 12, (px) => { fill(px, 12, 12, BOMB, 0.1, 71); for (let y = 4
 sp("bomb_leg", 4, 4, (px) => fill(px, 4, 4, [30, 32, 38], 0.1, 72));
 sp("fuse", 2, 4, (px) => fill(px, 2, 4, [170, 140, 90], 0.1, 73));
 sp("spark", 2, 2, (px) => { px(0, 0, [255, 240, 120]); px(1, 0, [255, 160, 40]); px(0, 1, [255, 120, 30]); px(1, 1, [255, 230, 90]); });
+
+// 멧돼지 — 갈색 털, 엄니
+const BOAR = [104, 72, 46];
+sp("boar", 8, 8, (px) => { fill(px, 8, 8, BOAR, 0.14, 80); for (let x = 0; x < 8; x++) px(x, 0, [70, 46, 28]); });
+sp("boar_face", 8, 8, (px) => { fill(px, 8, 8, BOAR, 0.1, 81); px(1, 2, [240, 200, 60]); px(2, 2, [20, 10, 10]); px(5, 2, [20, 10, 10]); px(6, 2, [240, 200, 60]); });
+sp("boar_snout", 4, 3, (px) => { fill(px, 4, 3, [150, 105, 80], 0.05, 82); px(1, 1, [60, 30, 20]); px(2, 1, [60, 30, 20]); });
+sp("tusk", 1, 2, (px) => fill(px, 1, 2, [245, 240, 220], 0.02, 83));
+// 해골 궁수 — 뼈 + 낡은 두건 망토
+const BONE = [222, 218, 200], CLOAK = [64, 58, 78];
+sp("s_face", 8, 8, (px) => {
+  fill(px, 8, 8, BONE, 0.05, 90);
+  for (let x = 0; x < 8; x++) { px(x, 0, CLOAK); px(x, 1, CLOAK); }
+  px(0, 2, CLOAK); px(7, 2, CLOAK);
+  px(1, 3, [20, 20, 30]); px(2, 3, [20, 20, 30]); px(5, 3, [20, 20, 30]); px(6, 3, [20, 20, 30]);
+  px(2, 3, [120, 220, 255]); px(5, 3, [120, 220, 255]);
+  px(3, 5, [60, 56, 50]); px(4, 5, [60, 56, 50]);
+  for (let x = 1; x < 7; x += 2) px(x, 6, [60, 56, 50]);
+});
+sp("s_head", 8, 8, (px) => fill(px, 8, 8, CLOAK, 0.1, 91));
+sp("s_body", 8, 12, (px) => {
+  fill(px, 8, 12, CLOAK, 0.1, 92);
+  for (let y = 2; y < 10; y += 2) for (let x = 2; x < 6; x++) px(x, y, BONE);
+  for (let y = 1; y < 11; y++) px(4, y, shade(BONE, 0.85));
+});
+sp("s_arm", 2, 12, (px) => { fill(px, 2, 12, BONE, 0.06, 93); for (let y = 0; y < 4; y++) { px(0, y, CLOAK); px(1, y, CLOAK); } });
+sp("s_leg", 2, 12, (px) => { fill(px, 2, 12, BONE, 0.06, 94); px(0, 11, shade(BONE, 0.7)); });
+sp("bow", 2, 16, (px) => { for (let y = 0; y < 16; y++) px(0, y, [120, 80, 40]); for (let y = 1; y < 15; y++) px(1, y, [230, 230, 230]); });
+sp("arrow", 1, 8, (px) => { fill(px, 1, 8, [120, 90, 50], 0.05, 95); px(0, 0, [170, 170, 175]); px(0, 7, [240, 240, 240]); });
+// 방어구 덧입기 (색은 재질별로 곱한다)
+sp("armor", 8, 8, (px) => { fill(px, 8, 8, [235, 235, 235], 0.06, 96); for (let x = 0; x < 8; x++) { px(x, 0, [180, 180, 180]); px(x, 7, [180, 180, 180]); } });
+sp("shadow", 16, 16, (px) => { for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const d = Math.hypot(x - 7.5, y - 7.5) / 8; if (d < 1) px(x, y, [0, 0, 0, Math.round((1 - d * d) * 150)]); } });
 
 /** 몸 그림 아틀라스 — { canvas, uv(name) } */
 export function buildSkins() {

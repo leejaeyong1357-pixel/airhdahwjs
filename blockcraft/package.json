@@ -1,7 +1,12 @@
 {
-  "name": "teczen-craft",
+  "name": "teczen-world",
   "private": true,
   "type": "module",
-  "description": "테크젠 크래프트 — 브라우저 멀티플레이 블록 게임 (의존성 없음)",
-  "scripts": { "start": "node server.js" }
+  "description": "TECZEN WORLD — 브라우저로 접속하는 사내 3D 복셀 샌드박스 게임 (의존성 없음)",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test --test-concurrency=1 test/shared.test.mjs test/server.test.mjs",
+    "test:browser": "node test/e2e-browser.cjs"
+  },
+  "version": "2.0.0"
 }
