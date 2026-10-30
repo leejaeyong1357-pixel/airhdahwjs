@@ -57,3 +57,5 @@ luanti/downloads/
 luanti/_tmp/
 luanti/server.conf
 luanti/server.log
+luanti/client.log
+luanti/debug.txt
