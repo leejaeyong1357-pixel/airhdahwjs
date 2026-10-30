@@ -1,6 +1,7 @@
 // 접속한 플레이어 — 인벤토리 · 체력 · 배고픔 · 경험치는 서버가 정한다.
 import { ITEMS } from "../shared/items.js";
 import { loadState, armorPoints, wear } from "../shared/invops.js";
+import { cleanLook, defaultLook } from "../shared/look.js";
 
 /** 경험치 합계 → [레벨, 다음 레벨까지 진행 0~1] */
 export function levelOf(xp) {
@@ -17,6 +18,7 @@ export class Player {
     this.key = user.name.toLowerCase();
     this.admin = !!user.admin;
     this.color = user.color ?? 200;
+    this.look = user.look ? cleanLook(user.look, this.admin) : defaultLook(this.color, this.admin);
     this.conn = conn;
     this.realm = realm;
     const s = saved && saved.hp > 0 ? saved : null;

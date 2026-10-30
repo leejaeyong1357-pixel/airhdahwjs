@@ -3,7 +3,8 @@ import * as THREE from "../vendor/three.module.min.js";
 import { BLOCKS } from "/shared/blocks.js";
 import { ITEMS } from "/shared/items.js";
 import { MOB, SHEEP_WOOL } from "/shared/mobs.js";
-import { itemTile, playerLook } from "../textures.js";
+import { itemTile, HAIR_RGB } from "../textures.js";
+import { cleanLook, defaultLook } from "/shared/look.js";
 
 let SK = null, SKIN_TEX = null, ATLAS = null, ATLAS_TEX = null;
 export function initModels(skins, skinTex, atlas, atlasTex) { SK = skins; SKIN_TEX = skinTex; ATLAS = atlas; ATLAS_TEX = atlasTex; }
@@ -49,27 +50,33 @@ export function makeShadow(size = 0.8) {
   return m;
 }
 
-/** kind: "player" | "zombie" | "archer". hue: 계정 색 번호 → 유니폼 · 머리 */
-export function makeHumanoid(kind = "player", hue = 200) {
+/** 모습 값 — 꾸민 모습 객체, 없으면 색 번호로 기본 모습 */
+const lookOf = (look) => (look && typeof look === "object" ? cleanLook(look, true) : defaultLook(Number(look) || 0));
+
+/** kind: "player" | "zombie" | "archer". look: 꾸민 모습(성별 · 옷 · 소매 · 머리) 또는 색 번호 */
+export function makeHumanoid(kind = "player", look = 200) {
   const s = 1.8 / 32;
   const mat = skinMat();
   const mats = [mat];
   const z = kind === "zombie", sk = kind === "archer";
   const root = new THREE.Group();
-  const L = playerLook(hue);
+  const L = lookOf(look);
+  const female = kind === "player" && L.gender === "f";
   const T = z
     ? { face: "z_face", head: "z_head", top: "z_head", back: "z_head", body: "z_body", arm: "z_arm", armEnd: "z_head", leg: "z_leg", foot: "z_leg", bodyB: "z_body", bodyS: "z_body", armTop: "z_body" }
     : sk ? { face: "s_face", head: "s_head", top: "s_head", back: "s_head", body: "s_body", arm: "s_arm", armEnd: "s_arm", leg: "s_leg", foot: "s_leg", bodyB: "s_body", bodyS: "s_head", armTop: "s_head" }
-    : { face: `pf${L.hair}`, head: `ps${L.hair}`, top: `pt${L.hair}`, back: `pk${L.hair}`, body: `${L.jacket}_f`, arm: `${L.jacket}_arm`, armEnd: "p_arm_end",
-        leg: `lg${L.pants}`, foot: "p_foot", bodyB: `${L.jacket}_b`, bodyS: `${L.jacket}_s`, armTop: `${L.jacket}_top` };
+    : { face: `pf_${L.hair}_${L.hairColor}`, head: `ps_${L.hair}_${L.hairColor}`, top: `pt_${L.hairColor}`, back: `pk_${L.hair}_${L.hairColor}`,
+        body: `o_${L.outfit}_f`, arm: `o_${L.outfit}_${L.sleeve}`, armEnd: "p_arm_end", leg: `lg_${L.outfit}`, foot: "p_foot",
+        bodyB: `o_${L.outfit}_b`, bodyS: `o_${L.outfit}_s`, armTop: `o_${L.outfit}_top` };
   const limb = sk ? 2 : 4;
+  const armW = sk ? 2 : female ? 3 : 4; // 여자 캐릭터는 팔이 조금 가늘다
   const head = part(mat, 8, 8, 8, { f: T.face, b: T.back, l: T.head, r: T.head, t: T.top, u: T.head }, s, [0, -4, 0]);
   head.position.y = 24 * s;
   const body = part(mat, 8, 12, 4, { f: T.body, b: T.bodyB, l: T.bodyS, r: T.bodyS, t: T.armTop, u: T.armTop }, s);
   body.position.y = 18 * s;
   const arm = (side) => {
-    const m = part(mat, limb, 12, limb, { f: T.arm, b: T.arm, l: T.arm, r: T.arm, t: T.armTop, u: T.armEnd }, s, [0, 4, 0]);
-    m.position.set(side * 6 * s, 22 * s, 0);
+    const m = part(mat, armW, 12, limb, { f: T.arm, b: T.arm, l: T.arm, r: T.arm, t: T.armTop, u: T.armEnd }, s, [0, 4, 0]);
+    m.position.set(side * (4 + armW / 2) * s, 22 * s, 0);
     return m;
   };
   const leg = (side) => {
@@ -79,12 +86,26 @@ export function makeHumanoid(kind = "player", hue = 200) {
   };
   const armL = arm(-1), armR = arm(1), legL = leg(-1), legR = leg(1);
   root.add(head, body, armL, armR, legL, legR);
-  if (kind === "player" && L.pony) {
-    // 묶은 머리
-    const tail = part(mat, 2, 4, 2, { all: `pt${L.hair}`, f: `pt${L.hair}` }, s, [0, 2, 0]);
-    tail.position.set(0, 4 * s, 4.5 * s);
-    tail.rotation.x = 0.35;
-    head.add(tail);
+  if (kind === "player" && (L.hair === "pony" || L.hair === "long" || L.hair === "bob")) {
+    const hairMat = skinMat();
+    const rgb = HAIR_RGB[L.hairColor];
+    hairMat.userData.base = new THREE.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255);
+    mats.push(hairMat);
+    if (L.hair === "pony") {
+      // 묶은 머리 — 뒤통수에서 아래로
+      const tail = part(hairMat, 2, 6, 2, "hair_tail", s, [0, 3, 0]);
+      tail.position.set(0, 4 * s, 4.6 * s);
+      tail.rotation.x = 0.3;
+      head.add(tail);
+    } else if (L.hair === "long") {
+      // 긴 머리 — 등 위까지 내려옴
+      const back = part(hairMat, 8, 6, 1, "hair_tail", s, [0, 3, 0]);
+      back.position.set(0, 0, 4.4 * s);
+      head.add(back);
+    } else {
+      // 단발 — 옆머리가 볼까지
+      for (const side of [-1, 1]) { const b = part(hairMat, 1, 3, 6, "hair_tail", s, [0, 1.5, 0]); b.position.set(side * 4.4 * s, 1 * s, 0.6 * s); head.add(b); }
+    }
   }
   if (z) { armL.rotation.x = armR.rotation.x = -Math.PI / 2; }
   const hand = new THREE.Group();
@@ -112,7 +133,7 @@ export function makeHumanoid(kind = "player", hue = 200) {
   armorParts[3].forEach((m) => { m.position.y = -10 * s; });
   armorParts.flat().forEach((m) => { m.visible = false; });
   const armorMats = [];
-  const h = { root, head, body, arms: [armL, armR], legs: [legL, legR], hand, mats, kind, walk: 0, swing: 0, zombie: z || sk, archer: sk, armorParts, armorMats };
+  const h = { root, head, body, arms: [armL, armR], legs: [legL, legR], hand, mats, kind, walk: 0, swing: 0, zombie: z || sk, archer: sk, armorParts, armorMats, look: L, armX: (4 + armW / 2) * s };
   const shadow = makeShadow(0.9);
   root.add(shadow);
   h.shadow = shadow;
@@ -345,7 +366,7 @@ export class Hand {
     this.scene.add(this.root);
     this.mat = skinMat();
     const s = 1 / 16;
-    this.arm = part(this.mat, 4, 12, 4, { f: "jw_arm", b: "jw_arm", l: "jw_arm", r: "jw_arm", t: "jw_top", u: "p_arm_end" }, s, [0, 6, 0]);
+    this.arm = part(this.mat, 4, 12, 4, { f: "o_white_long", b: "o_white_long", l: "o_white_long", r: "o_white_long", t: "o_white_top", u: "p_arm_end" }, s, [0, 6, 0]);
     this.arm.rotation.order = "YXZ";
     this.root.add(this.arm);
     this.grip = new THREE.Group();          // 손 끝 — 든 아이템이 여기 붙는다
@@ -358,11 +379,12 @@ export class Hand {
     this.bob = 0;
     this.eat = 0;
   }
-  /** 내 유니폼 소매로 */
-  setLook(hue) {
-    const j = playerLook(hue).jacket;
-    const g = new THREE.BoxGeometry(4 / 16, 12 / 16, 4 / 16);
-    setUV(g, { f: `${j}_arm`, b: `${j}_arm`, l: `${j}_arm`, r: `${j}_arm`, t: `${j}_top`, u: "p_arm_end" }, (n) => SK.uv(n));
+  /** 내 옷 소매로 (긴팔 · 반팔) */
+  setLook(look) {
+    const L = lookOf(look);
+    const a = `o_${L.outfit}_${L.sleeve}`;
+    const g = new THREE.BoxGeometry((L.gender === "f" ? 3 : 4) / 16, 12 / 16, 4 / 16);
+    setUV(g, { f: a, b: a, l: a, r: a, t: `o_${L.outfit}_top`, u: "p_arm_end" }, (n) => SK.uv(n));
     g.translate(0, -6 / 16, 0);
     this.arm.geometry.dispose();
     this.arm.geometry = g;

@@ -536,68 +536,104 @@ const SKIN_PAINT = {};
 const sp = (name, w, h, fn) => { SKIN_PAINT[name] = { w, h, fn }; };
 const fill = (px, w, h, c, vary = 0, seed = 1) => speckle(px, c, vary, seed, w, h);
 
-// 플레이어 — 테크젠 유니폼 (흰 집업 · 남색 작업복) · 머리색은 사람마다
+// 플레이어 — 성별 · 옷(흰 집업 · 남색 작업복 · 관리자 와이셔츠) · 소매 · 머리 모양 · 머리색
 const SKIN = [236, 194, 160], SKIN_D = [214, 166, 132];
-const HAIR = [[34, 32, 36], [96, 64, 40], [126, 88, 54]];
+const HAIR_COLOR = { black: [34, 32, 36], brown: [96, 64, 40], light: [126, 88, 54], blond: [200, 162, 90] };
 const NAVY = [30, 52, 98], NAVY_D = [20, 36, 72], WHITE = [230, 232, 236], WHITE_D = [196, 198, 204];
-const LOGO_BLUE = [40, 84, 176];
-const PANTS = [[118, 118, 122], [48, 50, 54], [206, 206, 210]];
-HAIR.forEach((h, i) => {
-  sp(`pf${i}`, 8, 8, (px) => {
-    fill(px, 8, 8, SKIN, 0.03, 2);
-    for (let x = 0; x < 8; x++) { px(x, 0, h); px(x, 1, h); }
-    px(0, 2, h); px(7, 2, h); px(1, 2, h); px(5, 2, h); px(6, 2, h);  // 앞머리
-    px(2, 4, [24, 24, 28]); px(5, 4, [24, 24, 28]);                     // 눈
-    px(3, 6, [120, 58, 50]); px(4, 6, [120, 58, 50]); px(2, 5, [150, 84, 70]); px(5, 5, [150, 84, 70]); // 웃는 입
-    px(1, 5, [244, 170, 160]); px(6, 5, [244, 170, 160]);                                                   // 볼
-  });
-  sp(`ps${i}`, 8, 8, (px) => { fill(px, 8, 8, SKIN, 0.03, 3); for (let y = 0; y < 3; y++) for (let x = 0; x < 8; x++) px(x, y, h); for (let y = 3; y < 6; y++) for (let x = 4; x < 8; x++) px(x, y, h); px(2, 4, SKIN_D); });
-  sp(`pk${i}`, 8, 8, (px) => { fill(px, 8, 8, h, 0.08, 4); for (let x = 1; x < 7; x++) px(x, 7, SKIN); });
-  sp(`pt${i}`, 8, 8, (px) => fill(px, 8, 8, h, 0.08, 5));
-});
+const SHIRT = [244, 244, 248], SHIRT_D = [214, 216, 224], TIE = [22, 22, 26];
+const LOGO_BLUE = [40, 84, 176], RED = [220, 40, 50];
+const PANTS = { white: [118, 118, 122], navy: [206, 206, 210], admin: [30, 30, 34] };
+const FEMALE = ["bob", "long", "pony"];
+
+for (const [cname, h] of Object.entries(HAIR_COLOR)) {
+  const hl = shade(h, 1.25);
+  sp(`pt_${cname}`, 8, 8, (px) => { fill(px, 8, 8, h, 0.08, 5); px(2, 2, hl); px(5, 4, hl); });
+  for (const style of ["short", "part", "buzz", "bob", "long", "pony"]) {
+    const f = FEMALE.includes(style);
+    // 얼굴 (앞머리 모양이 머리 모양마다 다름)
+    sp(`pf_${style}_${cname}`, 8, 8, (px) => {
+      fill(px, 8, 8, SKIN, 0.03, 2);
+      const rows = style === "buzz" ? 1 : 2;
+      for (let y = 0; y < rows; y++) for (let x = 0; x < 8; x++) px(x, y, h);
+      if (style === "short") { px(0, 2, h); px(7, 2, h); px(1, 2, h); px(4, 2, h); px(6, 2, h); }
+      if (style === "part") { for (let x = 0; x < 5; x++) px(x, 2, h); px(7, 2, h); px(0, 3, h); }
+      if (f) { px(0, 2, h); px(1, 2, h); px(6, 2, h); px(7, 2, h); px(0, 3, h); px(7, 3, h); if (style !== "pony") { px(0, 4, h); px(7, 4, h); px(0, 5, h); px(7, 5, h); } }
+      px(2, 4, [24, 24, 28]); px(5, 4, [24, 24, 28]);                                   // 눈
+      if (f) { px(1, 3, [24, 24, 28]); px(6, 3, [24, 24, 28]); }                        // 속눈썹
+      px(3, 6, f ? [200, 80, 90] : [120, 58, 50]); px(4, 6, f ? [200, 80, 90] : [120, 58, 50]);
+      px(2, 5, [150, 84, 70]); px(5, 5, [150, 84, 70]);                                 // 웃는 입
+      px(1, 5, [244, 170, 160]); px(6, 5, [244, 170, 160]);                             // 볼
+    });
+    // 옆머리
+    sp(`ps_${style}_${cname}`, 8, 8, (px) => {
+      fill(px, 8, 8, SKIN, 0.03, 3);
+      const top = style === "buzz" ? 2 : 3;
+      for (let y = 0; y < top; y++) for (let x = 0; x < 8; x++) px(x, y, h);
+      if (f) { const down = style === "pony" ? 5 : 8; for (let y = top; y < down; y++) for (let x = style === "pony" ? 4 : 2; x < 8; x++) px(x, y, h); }
+      else for (let y = top; y < 6; y++) for (let x = 5; x < 8; x++) px(x, y, h);
+      px(2, 4, SKIN_D);                                                                 // 귀
+    });
+    // 뒷머리
+    sp(`pk_${style}_${cname}`, 8, 8, (px) => {
+      fill(px, 8, 8, h, 0.08, 4);
+      if (style === "buzz") for (let y = 5; y < 8; y++) for (let x = 0; x < 8; x++) px(x, y, SKIN);
+      else if (!f) for (let x = 1; x < 7; x++) px(x, 7, SKIN);
+      if (style === "pony") { px(3, 3, [200, 40, 60]); px(4, 3, [200, 40, 60]); }      // 머리끈
+    });
+  }
+}
 sp("p_skin", 8, 8, (px) => fill(px, 8, 8, SKIN, 0.03, 5));
-// 흰 집업
-sp("jw_f", 8, 12, (px) => {
-  fill(px, 8, 12, WHITE, 0.03, 6);
-  px(3, 0, NAVY); px(4, 0, NAVY); px(2, 0, WHITE_D); px(5, 0, WHITE_D); px(3, 1, NAVY_D); px(4, 1, NAVY_D); // 깃 안쪽 남색
-  for (let y = 1; y < 10; y++) px(4, y, WHITE_D);                                                           // 지퍼
-  px(1, 3, LOGO_BLUE); px(2, 3, LOGO_BLUE); px(3, 3, LOGO_BLUE); px(3, 2, [220, 40, 50]);                   // TECZEN 로고
-  for (let x = 0; x < 8; x++) { px(x, 10, NAVY); px(x, 11, NAVY_D); }                                       // 밑단 남색
-  px(0, 9, WHITE_D); px(7, 9, WHITE_D);
-});
-sp("jw_b", 8, 12, (px) => { fill(px, 8, 12, WHITE, 0.03, 7); for (let x = 2; x < 6; x++) px(x, 0, NAVY); for (let x = 0; x < 8; x++) { px(x, 10, NAVY); px(x, 11, NAVY_D); } });
-sp("jw_s", 4, 12, (px) => { fill(px, 4, 12, WHITE, 0.03, 8); for (let x = 0; x < 4; x++) { px(x, 10, NAVY); px(x, 11, NAVY_D); } });
-sp("jw_arm", 4, 12, (px) => { fill(px, 4, 12, WHITE, 0.03, 9); for (let y = 0; y < 12; y++) px(3, y, WHITE_D); for (let x = 0; x < 4; x++) px(x, 9, WHITE_D); for (let y = 10; y < 12; y++) for (let x = 0; x < 4; x++) px(x, y, SKIN); });
-sp("jw_top", 4, 4, (px) => fill(px, 4, 4, WHITE, 0.03, 10));
-// 남색 작업복
-sp("jn_f", 8, 12, (px) => {
-  fill(px, 8, 12, NAVY, 0.05, 11);
-  px(2, 0, NAVY_D); px(5, 0, NAVY_D); px(3, 0, SKIN); px(4, 0, SKIN); px(3, 1, NAVY_D); px(4, 1, NAVY_D);   // 깃
-  px(1, 1, [44, 70, 124]); px(6, 1, [44, 70, 124]);
-  for (let y = 2; y < 12; y++) px(4, y, NAVY_D);                                                             // 여밈
-  px(1, 3, [240, 240, 244]); px(2, 3, [240, 240, 244]); px(3, 3, [240, 240, 244]); px(3, 2, [220, 40, 50]); // 흰 로고
-  px(1, 8, NAVY_D); px(2, 8, NAVY_D); px(5, 8, NAVY_D); px(6, 8, NAVY_D);                                    // 주머니
-});
-sp("jn_b", 8, 12, (px) => { fill(px, 8, 12, NAVY, 0.05, 12); for (let x = 1; x < 7; x++) px(x, 0, NAVY_D); });
-sp("jn_s", 4, 12, (px) => fill(px, 4, 12, NAVY, 0.05, 13));
-sp("jn_arm", 4, 12, (px) => { fill(px, 4, 12, NAVY, 0.05, 14); for (let x = 0; x < 4; x++) px(x, 9, NAVY_D); for (let y = 10; y < 12; y++) for (let x = 0; x < 4; x++) px(x, y, SKIN); });
-sp("jn_top", 4, 4, (px) => fill(px, 4, 4, NAVY, 0.05, 15));
 sp("p_arm_end", 4, 4, (px) => fill(px, 4, 4, SKIN, 0.03, 16));
-PANTS.forEach((c, i) => {
-  sp(`lg${i}`, 4, 12, (px) => { fill(px, 4, 12, c, 0.05, 17 + i); px(3, 0, shade(c, 0.85)); for (let y = 10; y < 12; y++) for (let x = 0; x < 4; x++) px(x, y, [36, 30, 28]); });
+sp("hair_tail", 2, 6, (px) => fill(px, 2, 6, [255, 255, 255], 0.06, 18)); // 색은 재질 색으로 곱한다
+
+// 옷 — 앞 · 뒤 · 옆 · 어깨 · 팔(긴팔 · 반팔)
+const OUTFIT = {
+  white: { c: WHITE, d: WHITE_D, hem: NAVY, hem2: NAVY_D },
+  navy: { c: NAVY, d: NAVY_D, hem: NAVY_D, hem2: NAVY_D },
+  admin: { c: SHIRT, d: SHIRT_D, hem: TIE, hem2: TIE },
+};
+sp("o_white_f", 8, 12, (px) => {
+  fill(px, 8, 12, WHITE, 0.03, 6);
+  px(3, 0, NAVY); px(4, 0, NAVY); px(2, 0, WHITE_D); px(5, 0, WHITE_D); px(3, 1, NAVY_D); px(4, 1, NAVY_D);
+  for (let y = 1; y < 10; y++) px(4, y, WHITE_D);
+  px(1, 3, LOGO_BLUE); px(2, 3, LOGO_BLUE); px(3, 3, LOGO_BLUE); px(3, 2, RED);
+  for (let x = 0; x < 8; x++) { px(x, 10, NAVY); px(x, 11, NAVY_D); }
 });
+sp("o_navy_f", 8, 12, (px) => {
+  fill(px, 8, 12, NAVY, 0.05, 11);
+  px(2, 0, NAVY_D); px(5, 0, NAVY_D); px(3, 0, SKIN); px(4, 0, SKIN); px(3, 1, NAVY_D); px(4, 1, NAVY_D);
+  px(1, 1, [44, 70, 124]); px(6, 1, [44, 70, 124]);
+  for (let y = 2; y < 12; y++) px(4, y, NAVY_D);
+  px(1, 3, [240, 240, 244]); px(2, 3, [240, 240, 244]); px(3, 3, [240, 240, 244]); px(3, 2, RED);
+  px(1, 8, NAVY_D); px(2, 8, NAVY_D); px(5, 8, NAVY_D); px(6, 8, NAVY_D);
+});
+sp("o_admin_f", 8, 12, (px) => {
+  fill(px, 8, 12, SHIRT, 0.02, 30);
+  px(2, 0, SHIRT_D); px(5, 0, SHIRT_D); px(1, 0, SHIRT_D); px(6, 0, SHIRT_D); px(2, 1, SHIRT_D); px(5, 1, SHIRT_D); // 깃
+  px(3, 0, TIE); px(4, 0, TIE);                                                                                  // 넥타이 매듭
+  for (let y = 1; y < 9; y++) { px(3, y, TIE); px(4, y, y > 6 ? TIE : shade(TIE, 1.6)); }                       // 넥타이
+  px(3, 9, TIE);
+  for (let y = 2; y < 10; y += 2) px(5, y, SHIRT_D);                                                             // 단추
+  for (let x = 0; x < 8; x++) { px(x, 10, [20, 20, 22]); px(x, 11, [30, 30, 34]); }                              // 벨트
+  px(3, 10, [190, 190, 196]); px(4, 10, [190, 190, 196]);
+});
+for (const [o, c] of Object.entries(OUTFIT)) {
+  sp(`o_${o}_b`, 8, 12, (px) => { fill(px, 8, 12, c.c, 0.03, 7); for (let x = 2; x < 6; x++) px(x, 0, o === "admin" ? SHIRT_D : NAVY); for (let x = 0; x < 8; x++) { px(x, 10, c.hem); px(x, 11, c.hem2); } });
+  sp(`o_${o}_s`, 4, 12, (px) => { fill(px, 4, 12, c.c, 0.03, 8); for (let x = 0; x < 4; x++) { px(x, 10, c.hem); px(x, 11, c.hem2); } });
+  sp(`o_${o}_top`, 4, 4, (px) => fill(px, 4, 4, c.c, 0.03, 10));
+  sp(`o_${o}_long`, 4, 12, (px) => { fill(px, 4, 12, c.c, 0.03, 9); for (let y = 0; y < 9; y++) px(3, y, c.d); for (let x = 0; x < 4; x++) px(x, 9, c.d); for (let y = 10; y < 12; y++) for (let x = 0; x < 4; x++) px(x, y, SKIN); });
+  sp(`o_${o}_short`, 4, 12, (px) => { fill(px, 4, 12, SKIN, 0.03, 12); for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) px(x, y, c.c); for (let x = 0; x < 4; x++) px(x, 4, c.d); px(0, 9, SKIN_D); });
+  sp(`lg_${o}`, 4, 12, (px) => {
+    const pc = PANTS[o];
+    fill(px, 4, 12, pc, 0.05, 17);
+    px(3, 0, shade(pc, 0.85));
+    for (let y = 10; y < 12; y++) for (let x = 0; x < 4; x++) px(x, y, o === "admin" ? [14, 14, 16] : [36, 30, 28]);
+    if (o === "admin") px(1, 10, [80, 80, 90]);                                                                  // 구두 광
+  });
+}
 sp("p_foot", 4, 4, (px) => fill(px, 4, 4, [36, 30, 28], 0.05, 21));
 
-/** 계정 색 번호 → 유니폼 · 머리 (사람마다 다르게, 늘 같은 모습) */
-export function playerLook(hue = 0) {
-  const v = Math.abs(Math.round(hue));
-  const navy = v % 3 === 0;
-  const hair = Math.floor(v / 3) % 3;
-  return {
-    jacket: navy ? "jn" : "jw", hair, pants: navy ? 2 : Math.floor(v / 9) % 2,
-    pony: Math.floor(v / 18) % 3 === 0 && hair !== 0,
-  };
-}
+export const HAIR_RGB = HAIR_COLOR;
 
 // 좀비 — 초록 피부, 찢어진 작업복
 const ZSKIN = [92, 140, 84], ZSHIRT = [118, 96, 70], ZPANTS = [70, 72, 80];
@@ -699,7 +735,7 @@ sp("shadow", 16, 16, (px) => { for (let y = 0; y < 16; y++) for (let x = 0; x < 
 
 /** 몸 그림 아틀라스 — { canvas, uv(name) } */
 export function buildSkins() {
-  const S = 256;
+  const S = 512;
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = S;
   const ctx = canvas.getContext("2d");
@@ -709,6 +745,7 @@ export function buildSkins() {
   for (const [name, { w, h, fn }] of Object.entries(SKIN_PAINT)) {
     if (x + w + 1 > S) { x = 0; y += rowH + 1; rowH = 0; }
     where[name] = [x, y, w, h];
+    if (y + h > S) console.warn("몸 그림 아틀라스가 가득 찼습니다:", name);
     const ox = x, oy = y;
     fn((px, py, c) => {
       if (!c || px < 0 || py < 0 || px >= w || py >= h) return;

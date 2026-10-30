@@ -19,6 +19,7 @@ import { createHash } from "node:crypto";
 import { findItem, itemName, maxStack } from "./shared/items.js";
 import { addItem } from "./shared/inventory.js";
 import { MOBS } from "./shared/mobs.js";
+import { cleanLook } from "./shared/look.js";
 import { accept } from "./server/ws.js";
 import { Accounts } from "./server/accounts.js";
 import { Realm } from "./server/realm.js";
@@ -112,6 +113,19 @@ async function api(req, res, path) {
       return json(res, 200, r);
     }
     if (path === "/api/login") return json(res, 200, await accounts.login(body.name, body.password, ip));
+    if (path === "/api/look") {
+      // 캐릭터 꾸미기 저장 — 관리자 옷은 관리자만
+      const u = accounts.byToken(body.token);
+      if (!u) return json(res, 401, { error: "다시 로그인해 주세요." });
+      u.look = cleanLook(body.look, u.admin);
+      accounts.dirty = true;
+      accounts.save();
+      for (const pl of allPlayers().filter((p) => p.key === u.name.toLowerCase())) {
+        pl.look = u.look;
+        pl.realm.broadcast({ t: "look", id: pl.id, look: u.look });
+      }
+      return json(res, 200, { look: u.look });
+    }
     if (path === "/api/logout") { accounts.logout(body.token); return json(res, 200, { ok: true }); }
     if (path === "/api/me") {
       const u = accounts.byToken(body.token);
@@ -119,6 +133,7 @@ async function api(req, res, path) {
       const solo = `solo:${u.name.toLowerCase()}`;
       return json(res, 200, {
         name: u.name, admin: u.admin, last: u.lastRealm === solo ? "solo" : u.lastRealm ? "main" : null,
+        look: u.look ?? null, suggest: cleanLook({}, u.admin),
         hasMain: !!(u.states?.main ?? u.state), hasSolo: !!u.states?.[solo],
       });
     }

@@ -13,6 +13,7 @@ import { WorldView, makeMaterials, brightness } from "./render/world.js";
 import { Sky, daylightAt } from "./render/sky.js";
 import { initModels, makeHumanoid, animateHumanoid, makeMob, animateMob, tint, makeItemMesh, makeArrow, disposeTree, Hand, Particles, nameSprite, setArmor } from "./render/models.js";
 import { InventoryUI, fillSlot } from "./ui/inventory.js";
+import { LookEditor } from "./ui/look.js";
 import { sfx, unlock, setVolume } from "./sound.js";
 
 THREE.ColorManagement.enabled = false;
@@ -100,7 +101,7 @@ function op(o, send = true) {
 const ui = new InventoryUI({
   get st() { return game.st; },
   get mode() { return game.mode; },
-  get hue() { return game.hue; },
+  get hue() { return game.look ?? game.hue; },
   op: (o) => op(o),
   cop: (o) => net({ t: "cop", op: o }),
   closeBox: () => { applyOp(game.st, { o: "close" }, game.mode); net({ t: "cclose" }); },
@@ -141,6 +142,16 @@ function onMessage(m) {
     case "move": { const o = others.get(m.id); if (o) { o.target.set(...m.p); o.rot = m.r; o.flags = m.f ?? 0; } return; }
     case "held": { const o = others.get(m.id); if (o) setOtherHeld(o, m.held); return; }
     case "swing": { const o = others.get(m.id); if (o) o.model.swing = 1; return; }
+    case "look": {
+      if (m.id === game.id) { game.look = m.look; hand.setLook(m.look); selfModel.hue = null; if (ui.pv) { ui.pv.renderer.dispose(); ui.pv = null; } return; }
+      const o = others.get(m.id);
+      if (o) {
+        const info = { id: o.id, name: o.name, color: o.color, look: m.look, p: [o.target.x, o.target.y, o.target.z], r: o.rot, f: o.flags, held: o.held, dead: o.dead };
+        removeOther(o.id);
+        addOther(info);
+      }
+      return;
+    }
     case "phurt": { const o = others.get(m.id); if (o) { o.flash = 0.4; if (o.model.root.position.distanceTo(player.pos) < 24) sfx.hurt(); } return; }
     case "pdead": { const o = others.get(m.id); if (o) { o.dead = true; o.model.root.visible = false; } return; }
     case "prespawn": { const o = others.get(m.id); if (o) { o.dead = false; o.model.root.visible = true; o.target.set(...m.p); o.model.root.position.set(...m.p); } return; }
@@ -175,7 +186,8 @@ function onWelcome(m) {
   game.connected = true;
   game.kickMsg = null;
   Object.assign(game, { id: m.id, name: m.name, admin: m.admin, hue: m.color, mode: m.mode, spawn: m.spawn, time: m.time, timeAt: performance.now(), weather: m.weather, rules: m.rules, dead: false, title: m.title });
-  hand.setLook(m.color);
+  game.look = m.look;
+  hand.setLook(m.look);
   game.st = newState();
   m.inv.forEach((s, i) => { game.st.inv[i] = s; });
   m.armor.forEach((s, i) => { game.st.armor[i] = s; });
@@ -261,13 +273,13 @@ function onRespawn(m) {
 const others = new Map();
 function addOther(p) {
   if (others.has(p.id)) return;
-  const model = makeHumanoid("player", p.color);
+  const model = makeHumanoid("player", p.look ?? p.color);
   const tag = nameSprite(p.name);
   tag.position.y = 2.25;
   model.root.add(tag);
   model.root.position.set(...p.p);
   scene.add(model.root);
-  const o = { id: p.id, name: p.name, color: p.color, model, target: new THREE.Vector3(...p.p), rot: p.r ?? [0, 0], flags: p.f ?? 0, held: 0, heldMesh: null, dead: !!p.dead, last: new THREE.Vector3(...p.p) };
+  const o = { id: p.id, name: p.name, color: p.color, look: p.look, model, target: new THREE.Vector3(...p.p), rot: p.r ?? [0, 0], flags: p.f ?? 0, held: 0, heldMesh: null, dead: !!p.dead, last: new THREE.Vector3(...p.p) };
   model.root.visible = !o.dead;
   setOtherHeld(o, p.held ?? 0);
   if (p.armor) setArmor(model, p.armor);
@@ -1032,8 +1044,24 @@ $("btnLogout").onclick = async () => {
 };
 $("btnPlay2").onclick = () => { $("loginModal").classList.add("hidden"); openPlay(); };
 
+const lookEditor = new LookEditor(async (look) => {
+  const r = await api("/api/look", { token: game.token, look });
+  if (game.me) game.me.look = r.look;
+  game.look = r.look;
+  if (!game.connected) setTimeout(openPlay, 0);
+});
+function openLook(first = false) {
+  if (!game.me) { openLogin("먼저 로그인하거나 가입하세요."); return; }
+  for (const id of ["loginModal", "playModal"]) $(id).classList.add("hidden");
+  lookEditor.open(game.me.look ?? game.look ?? game.me.suggest, game.me.admin, first);
+}
+$("btnLook").onclick = () => openLook();
+$("playLook").onclick = () => openLook();
+$("pauseLook").onclick = () => openLook();
+
 function openPlay() {
   if (!game.me) { openLogin("먼저 로그인하거나 가입하세요."); return; }
+  if (!game.me.look) { openLook(true); return; } // 처음 로그인 → 캐릭터 만들기부터
   const last = game.me.last;
   const cont = $("playContinue");
   cont.classList.toggle("hidden", !last);
@@ -1151,10 +1179,10 @@ function frame(dt, now, real = dt) {
     selfModel.root.position.copy(player.pos);
     selfModel.root.rotation.y = player.yaw;
     if (selfModel.hue !== game.hue) {
-      // 내 유니폼으로 다시 만든다
+      // 내 모습으로 다시 만든다
       scene.remove(selfModel.root);
       disposeTree(selfModel.root);
-      selfModel = makeHumanoid("player", game.hue);
+      selfModel = makeHumanoid("player", game.look ?? game.hue);
       selfModel.hue = game.hue;
       scene.add(selfModel.root);
     }

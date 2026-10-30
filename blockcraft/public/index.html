@@ -42,8 +42,24 @@
         <h3><span id="meName"></span> 님</h3>
         <p class="hintSmall" id="meRole"></p>
         <button id="btnPlay2" class="primaryBtn">게임 시작</button>
+        <button id="btnLook" class="ghostBtn">캐릭터 꾸미기</button>
         <button id="btnLogout" class="ghostBtn">로그아웃</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 캐릭터 꾸미기 -->
+  <div id="lookModal" class="modal hidden">
+    <div class="glass wide">
+      <button class="x" data-close>✕</button>
+      <h3 id="lookTitle">캐릭터 만들기</h3>
+      <p class="hintSmall" id="lookSub"></p>
+      <div class="lookBox">
+        <canvas id="lookCanvas"></canvas>
+        <div id="lookOptions"></div>
+      </div>
+      <div id="lookError" class="error"></div>
+      <button id="lookSave" class="primaryBtn">이 모습으로 하기</button>
     </div>
   </div>
 
@@ -56,6 +72,7 @@
       <button id="playMulti" class="ghostBtn big"><b>멀티플레이</b><small>회사 서버 월드 — 접속한 직원들과 같이</small></button>
       <button id="playSolo" class="ghostBtn big"><b>싱글플레이</b><small>나만의 월드 — 혼자 (치트 명령 가능)</small></button>
       <p class="hintSmall" id="playWho"></p>
+      <button id="playLook" class="ghostBtn">캐릭터 꾸미기</button>
     </div>
   </div>
 
@@ -113,6 +130,7 @@
       <h3>일시정지</h3>
       <button id="resumeBtn" class="primaryBtn">게임으로 돌아가기</button>
       <button id="pauseSettings" class="ghostBtn">설정</button>
+      <button id="pauseLook" class="ghostBtn">캐릭터 꾸미기</button>
       <button id="pauseTitle" class="ghostBtn">첫 화면으로</button>
       <div id="pausePlayers" class="players"></div>
     </div>

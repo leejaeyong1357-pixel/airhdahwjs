@@ -50,6 +50,25 @@ test("가입 · 로그인 · 잘못된 비밀번호", async () => {
   assert.equal(me.body.name, "직원1");
 });
 
+test("캐릭터 꾸미기 — 관리자 옷은 관리자만, 접속한 사람들에게 바로 보임", async () => {
+  const { body: a } = await post(srv.base, "/api/login", { name: "관리자", password: "1234" });
+  const { body: b } = await post(srv.base, "/api/login", { name: "직원1", password: "abcd" });
+  const me0 = await post(srv.base, "/api/me", { token: b.token });
+  assert.equal(me0.body.look, null, "처음엔 꾸민 적 없음 → 캐릭터 만들기 화면");
+  const r1 = await post(srv.base, "/api/look", { token: b.token, look: { gender: "f", outfit: "admin", sleeve: "short", hair: "pony", hairColor: "blond" } });
+  assert.deepEqual(r1.body.look, { gender: "f", outfit: "white", sleeve: "short", hair: "pony", hairColor: "blond" }, "일반 직원은 관리자 옷 불가");
+  const r2 = await post(srv.base, "/api/look", { token: a.token, look: { gender: "m", outfit: "admin", sleeve: "long", hair: "pony", hairColor: "black" } });
+  assert.equal(r2.body.look.outfit, "admin");
+  assert.equal(r2.body.look.hair, "short", "남자에게 없는 머리 모양은 기본값으로");
+  const A = await connect(srv.base, a.token);
+  const Bc = await connect(srv.base, b.token);
+  assert.equal(Bc.welcome.players.find((p) => p.name === "관리자").look.outfit, "admin", "다른 사람 모습이 보임");
+  const seen = A.wait((m) => m.t === "look" && m.look.outfit === "navy");
+  await post(srv.base, "/api/look", { token: b.token, look: { gender: "f", outfit: "navy", sleeve: "long", hair: "bob", hairColor: "brown" } });
+  await seen;
+  A.close(); Bc.close();
+});
+
 test("토큰 없이 접속 거부", async () => {
   const c = await connect(srv.base, "가짜토큰");
   assert.equal(c.welcome.t, "auth");

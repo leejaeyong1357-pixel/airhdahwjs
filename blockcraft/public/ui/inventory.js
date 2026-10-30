@@ -253,7 +253,7 @@ export class InventoryUI {
       const scene = new THREE.Scene();
       const cam = new THREE.PerspectiveCamera(30, 0.62, 0.1, 20);
       cam.position.set(0, 1.05, 4.6);
-      const model = makeHumanoid("player", this.g.hue);
+      const model = makeHumanoid("player", this.g.hue); // 꾸민 모습 (없으면 색 번호)
       model.shadow.visible = false;
       model.root.rotation.y = Math.PI;
       scene.add(model.root);

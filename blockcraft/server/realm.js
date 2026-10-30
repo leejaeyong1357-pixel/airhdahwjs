@@ -46,14 +46,14 @@ export class Realm {
   }
 
   publicInfo(pl) {
-    return { id: pl.id, name: pl.name, color: pl.color, p: pl.p, r: pl.r, held: pl.heldId, f: pl.flags, dead: pl.dead, armor: pl.st.armor.map((a) => a?.id ?? 0) };
+    return { id: pl.id, name: pl.name, color: pl.color, look: pl.look, p: pl.p, r: pl.r, held: pl.heldId, f: pl.flags, dead: pl.dead, armor: pl.st.armor.map((a) => a?.id ?? 0) };
   }
 
   join(pl) {
     this.players.set(pl.id, pl);
     const w = this.world;
     pl.send({
-      t: "welcome", id: pl.id, name: pl.name, admin: pl.admin, color: pl.color, realm: this.key, title: this.title,
+      t: "welcome", id: pl.id, name: pl.name, admin: pl.admin, color: pl.color, look: pl.look, realm: this.key, title: this.title,
       seed: w.seed, spawn: w.spawn, edits: w.edits, time: w.time, weather: w.weather, rules: w.rules,
       p: pl.p, r: pl.r, sel: pl.sel, mode: pl.mode,
       inv: pl.st.inv, armor: pl.st.armor,

@@ -166,3 +166,17 @@ label input:focus { outline: 2px solid #4a8cff; }
 #cursorItem { position: fixed; width: 40px; height: 40px; display: grid; place-items: center; pointer-events: none; z-index: 30; }
 #tooltip { position: fixed; z-index: 31; background: rgba(16,6,30,.95); border: 2px solid #3a1a6a; padding: 5px 9px; font-size: 14px; pointer-events: none; border-radius: 3px; }
 #tooltip .sub { color: #aab; font-size: 12px; }
+
+/* 캐릭터 꾸미기 */
+.glass.wide { width: min(720px, calc(100vw - 32px)); }
+.lookBox { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: start; }
+#lookCanvas { width: 220px; height: 300px; background: radial-gradient(ellipse at center, #26365a, #0a1222); border: 2px solid #2b3a5c; border-radius: 6px; }
+.lookRow { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.lookRow > span { font-size: 13px; color: #9fb3d6; font-weight: 700; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { padding: 8px 12px; border-radius: 6px; border: 1px solid #34466b; background: #0e1830; color: #c8d3e3; font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
+.chip i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid rgba(255,255,255,.4); }
+.chip.on { background: #1d4fb8; border-color: #7cc0ff; color: #fff; }
+.chip:hover { filter: brightness(1.2); }
+@media (max-width: 640px) { .lookBox { grid-template-columns: 1fr; } #lookCanvas { width: 100%; } }
+#lookModal { z-index: 35; }
