@@ -59,36 +59,56 @@ if exist "%APP%\bin\luanti.exe" (
 rem ── 2. 게임 (Mineclonia) ──────────────────────────────────
 if exist "%APP%\games\mineclonia\game.conf" (
   echo [2/3] 게임: Mineclonia 가 이미 설치되어 있습니다.
-) else (
-  echo [2/3] 게임 Mineclonia 내려받는 중...
-  curl -L --fail -o "%DL%\mineclonia.zip" "%GAME_URL%"
-  if errorlevel 1 (
-    del "%DL%\mineclonia.zip" >nul 2>&1
-    echo.
-    echo [안내] Mineclonia 를 자동으로 받지 못했습니다. 회사망에서 content.luanti.org 가 막혔을 수 있습니다.
-    echo   play.cmd 로 게임 화면을 연 뒤
-    echo     [Content/콘텐츠] - [Browse online content] - Mineclonia 검색 - [Install/설치]
-    echo   를 누르면 같은 곳에 설치됩니다. 그 다음 start-server.cmd 를 실행하세요.
-    echo.
-  ) else (
-    if exist "%TMPX%" rmdir /s /q "%TMPX%"
-    mkdir "%TMPX%"
-    tar -xf "%DL%\mineclonia.zip" -C "%TMPX%"
-    set "GAMEDIR="
-    if exist "%TMPX%\game.conf" set "GAMEDIR=%TMPX%"
-    for /d %%D in ("%TMPX%\*") do if exist "%%D\game.conf" set "GAMEDIR=%%D"
-    if not defined GAMEDIR (echo [오류] 받은 파일에서 게임을 찾지 못했습니다. & goto :fail)
-    if not exist "%APP%\games" mkdir "%APP%\games"
-    if "!GAMEDIR!"=="%TMPX%" (
-      move "%TMPX%" "%APP%\games\mineclonia" >nul
-    ) else (
-      move "!GAMEDIR!" "%APP%\games\mineclonia" >nul
-      rmdir /s /q "%TMPX%"
-    )
-    echo       완료: %APP%\games\mineclonia
-  )
+  goto :step3
 )
+rem 브라우저로 직접 받은 zip 을 downloads 폴더에 넣었으면 그것을 쓴다 (파일 이름에 mineclonia 만 들어 있으면 됨)
+set "GAMEZIP="
+for %%F in ("%DL%\*mineclonia*.zip") do set "GAMEZIP=%%~fF"
+if defined GAMEZIP (
+  echo [2/3] 게임: downloads 폴더의 파일을 사용합니다.
+  goto :unzipgame
+)
+echo [2/3] 게임 Mineclonia 내려받는 중...
+curl -L --fail -o "%DL%\mineclonia.zip" "%GAME_URL%"
+if errorlevel 1 goto :gamefail
+set "GAMEZIP=%DL%\mineclonia.zip"
 
+:unzipgame
+if exist "%TMPX%" rmdir /s /q "%TMPX%"
+mkdir "%TMPX%"
+tar -xf "%GAMEZIP%" -C "%TMPX%"
+if errorlevel 1 (echo [오류] 게임 압축을 풀지 못했습니다. downloads 폴더의 zip 이 깨졌을 수 있습니다. & goto :fail)
+set "GAMEDIR="
+if exist "%TMPX%\game.conf" set "GAMEDIR=%TMPX%"
+for /d %%D in ("%TMPX%\*") do if exist "%%D\game.conf" set "GAMEDIR=%%D"
+if not defined GAMEDIR (echo [오류] 받은 파일 안에서 게임^(game.conf^)을 찾지 못했습니다. Mineclonia zip 이 맞는지 확인하세요. & goto :fail)
+if not exist "%APP%\games" mkdir "%APP%\games"
+if "%GAMEDIR%"=="%TMPX%" (
+  move "%TMPX%" "%APP%\games\mineclonia" >nul
+) else (
+  move "%GAMEDIR%" "%APP%\games\mineclonia" >nul
+  rmdir /s /q "%TMPX%"
+)
+if not exist "%APP%\games\mineclonia\game.conf" (echo [오류] 게임을 옮기지 못했습니다. & goto :fail)
+echo       완료: %APP%\games\mineclonia
+goto :step3
+
+:gamefail
+del "%DL%\mineclonia.zip" >nul 2>&1
+echo.
+echo [안내] Mineclonia 를 자동으로 받지 못했습니다. 회사망에서 content.luanti.org 가 막혔을 수 있습니다.
+echo   아래 둘 중 하나로 설치한 뒤 start-server.cmd 를 실행하세요.
+echo.
+echo   방법 1^) 브라우저로 아래 주소에 들어가 [Download] 를 눌러 zip 을 받고,
+echo          https://content.luanti.org/packages/ryvnf/mineclonia/
+echo          받은 zip 을 이 폴더에 넣은 뒤 setup.cmd 를 다시 실행
+echo          %DL%
+echo.
+echo   방법 2^) play.cmd 로 게임 화면을 열고
+echo          [Content/콘텐츠] - [Browse online content] - Mineclonia 검색 - [Install/설치]
+echo.
+
+:step3
 rem ── 3. 서버 설정 ──────────────────────────────────────────
 rem   (닉네임을 다시 묻는 반복은 괄호 블록 밖에 둬야 cmd 가 제대로 처리한다)
 if exist "%HERE%server.conf" (

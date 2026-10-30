@@ -17,7 +17,10 @@ if not exist "%APP%\bin\luanti.exe" (
 )
 if not exist "%APP%\games\%GAME%\game.conf" (
   echo 게임^(%GAME%^)이 설치되어 있지 않습니다.
-  echo play.cmd 를 열고 [Content/콘텐츠] - [Browse online content] 에서 Mineclonia 를 설치한 뒤 다시 실행하세요.
+  echo.
+  echo   방법 1^) 브라우저로 https://content.luanti.org/packages/ryvnf/mineclonia/ 에서 [Download] 로 zip 을 받아
+  echo          %~dp0downloads 폴더에 넣고 setup.cmd 를 다시 실행
+  echo   방법 2^) play.cmd - [Content/콘텐츠] - [Browse online content] - Mineclonia - [Install/설치]
   pause & exit /b 1
 )
 if not exist "%~dp0server.conf" copy /y "%~dp0server.conf.template" "%~dp0server.conf" >nul
