@@ -48,6 +48,7 @@ if exist "%APP%\bin\luanti.exe" (
   )
   if exist "%TMPX%" rmdir /s /q "%TMPX%"
   mkdir "%TMPX%"
+  echo       압축 푸는 중... ^(1분 정도 걸릴 수 있습니다. 창을 닫지 마세요^)
   tar -xf "%DL%\%ZIPNAME%" -C "%TMPX%"
   if errorlevel 1 (echo [오류] 압축을 풀지 못했습니다. 파일이 깨졌을 수 있으니 downloads 폴더의 zip 을 지우고 다시 실행하세요. & goto :fail)
   move "%TMPX%\luanti-%VER%-win64" "%APP%" >nul
@@ -76,6 +77,8 @@ set "GAMEZIP=%DL%\mineclonia.zip"
 :unzipgame
 if exist "%TMPX%" rmdir /s /q "%TMPX%"
 mkdir "%TMPX%"
+echo       %GAMEZIP%
+echo       압축 푸는 중... 파일이 수천 개라 1~5분 걸릴 수 있습니다. 창을 닫지 마세요.
 tar -xf "%GAMEZIP%" -C "%TMPX%"
 if errorlevel 1 (echo [오류] 게임 압축을 풀지 못했습니다. downloads 폴더의 zip 이 깨졌을 수 있습니다. & goto :fail)
 set "GAMEDIR="
