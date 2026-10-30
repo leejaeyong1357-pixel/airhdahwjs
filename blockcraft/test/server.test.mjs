@@ -1,0 +1,286 @@
+// 서버 통합 테스트 — node --test test/
+import { test, after, before } from "node:test";
+import assert from "node:assert/strict";
+import { startServer, post, connect, sleep } from "./helpers.mjs";
+import { B } from "../shared/blocks.js";
+import { I } from "../shared/items.js";
+
+let srv;
+/** 아이템을 단축칸 8번으로 옮겨 손에 든다 (가방에 있으면 숫자키 바꾸기) */
+async function hold(c, id) {
+  const st = await c.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
+  let i = st.inv.findIndex((s) => s?.id === id);
+  if (i < 0) throw new Error(`아이템 ${id} 없음`);
+  if (i > 8) { c.send({ t: "op", op: { o: "key", a: "inv", i, n: 8 } }); i = 8; }
+  c.send({ t: "sel", i });
+  await sleep(50);
+}
+before(async () => { srv = await startServer(); });
+after(async () => { await srv.stop(); srv.cleanup(); });
+
+const findBlock = (c, wants) => {
+  if (!Array.isArray(wants)) wants = [wants];
+  // 스폰 근처 지형에서 원하는 블록 찾기 (서버와 같은 시드 생성기 사용)
+  return import("../shared/worldgen.js").then(({ generateChunk, index, CHUNK, HEIGHT }) => {
+    const [sx, , sz] = c.welcome.spawn;
+    const cx = Math.floor(sx / CHUNK), cz = Math.floor(sz / CHUNK);
+    for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
+      const d = generateChunk(cx + dx, cz + dz, c.welcome.seed);
+      for (let y = HEIGHT - 1; y > 0; y--) for (let z = 0; z < CHUNK; z++) for (let x = 0; x < CHUNK; x++) {
+        if (wants.includes(d[index(x, y, z)]) && d[index(x, y - 1, z)] !== d[index(x, y, z)]) return [(cx + dx) * CHUNK + x, y, (cz + dz) * CHUNK + z, d[index(x, y, z)]];
+      }
+    }
+    return null;
+  });
+};
+
+test("가입 · 로그인 · 잘못된 비밀번호", async () => {
+  const r1 = await post(srv.base, "/api/register", { name: "관리자", password: "1234" });
+  assert.equal(r1.status, 200);
+  assert.equal(r1.body.admin, true, "첫 가입자는 관리자");
+  const r2 = await post(srv.base, "/api/register", { name: "직원1", password: "abcd" });
+  assert.equal(r2.body.admin, false);
+  assert.equal((await post(srv.base, "/api/register", { name: "직원1", password: "abcd" })).status, 400, "중복 아이디");
+  assert.equal((await post(srv.base, "/api/register", { name: "a", password: "abcd" })).status, 400, "짧은 아이디");
+  assert.equal((await post(srv.base, "/api/login", { name: "직원1", password: "틀림" })).status, 400);
+  const ok = await post(srv.base, "/api/login", { name: "직원1", password: "abcd" });
+  assert.equal(ok.status, 200);
+  assert.ok(ok.body.token);
+  const me = await post(srv.base, "/api/me", { token: ok.body.token });
+  assert.equal(me.body.name, "직원1");
+});
+
+test("토큰 없이 접속 거부", async () => {
+  const c = await connect(srv.base, "가짜토큰");
+  assert.equal(c.welcome.t, "auth");
+  c.close();
+});
+
+test("빈손 시작 · 나무 캐기(시간 필요) · 줍기 · 조합 · 놓기 · 동기화", async () => {
+  const { body: a } = await post(srv.base, "/api/login", { name: "관리자", password: "1234" });
+  const { body: b } = await post(srv.base, "/api/login", { name: "직원1", password: "abcd" });
+  const A = await connect(srv.base, a.token);
+  const Bc = await connect(srv.base, b.token);
+  assert.equal(A.welcome.t, "welcome");
+  assert.ok(A.welcome.inv.every((s) => s === null), "처음엔 빈손");
+  assert.deepEqual(A.welcome.spawn, Bc.welcome.spawn, "모두 같은 스폰");
+  await A.wait((m) => m.t === "join" && m.name === "직원1");
+
+  const log = await findBlock(A, [B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG]);
+  assert.ok(log, "근처에 나무가 있어야 함");
+  const [x, y, z, LOG] = log;
+  const stand = [x + 0.5, y - 1, z + 2.5];
+  await A.ask({ t: "chat", msg: `/tp ${stand.join(" ")}` }, (m) => m.t === "tp");
+  A.send({ t: "move", p: stand, r: [0, 0] });
+  await sleep(100);
+
+  // 너무 빨리 캐면 거절
+  A.send({ t: "digstart", x, y, z });
+  A.send({ t: "dig", x, y, z });
+  const fix = await A.wait((m) => m.t === "sets");
+  assert.equal(fix.s[0][3], LOG, "즉시 캐기는 거절되고 원래 블록을 돌려받음");
+
+  // 맨손 나무 = 2 x 1.5 = 3초
+  A.send({ t: "digstart", x, y, z });
+  await sleep(2400);
+  A.send({ t: "dig", x, y, z });
+  const brk = await Bc.wait((m) => m.t === "sets" && m.s[0][0] === x && m.s[0][1] === y);
+  assert.equal(brk.s[0][3], B.AIR ?? 0, "다른 사람에게도 블록이 사라짐");
+
+  // 떨어진 아이템 줍기
+  const ents = await A.wait((m) => m.t === "ents" && m.i.some((it) => it[1] === LOG), 3000);
+  const item = ents.i.find((it) => it[1] === LOG);
+  await sleep(600);
+  A.send({ t: "pickup", id: item[0] });
+  Bc.send({ t: "pickup", id: item[0] }); // 동시에 주워도 한 명만
+  const give = await A.wait((m) => m.t === "give");
+  assert.equal(give.item.id, LOG);
+  await sleep(200);
+  assert.ok(!Bc.msgs.some((m) => m.t === "give"), "같은 아이템을 두 명이 받으면 안 됨");
+
+  // 인벤토리 조합: 나무 → 판자 4
+  const op = (o) => A.send({ t: "op", op: o });
+  op({ o: "open", screen: "inv" });
+  op({ o: "click", a: "inv", i: 0, b: 0 });           // 나무 집기
+  op({ o: "click", a: "craft", i: 0, b: 0 });         // 조합칸에 놓기
+  op({ o: "click", a: "result", b: 0 });              // 판자 4 집기
+  op({ o: "click", a: "inv", i: 1, b: 0 });           // 가방에 놓기
+  op({ o: "close" });
+  // 일부러 틀린 요약 → 서버가 정답을 보냄
+  const sync = await A.ask({ t: "op", op: { o: "close" }, d: "틀린요약" }, (m) => m.t === "sync");
+  assert.deepEqual(sync.inv[1], { id: B.PLANKS, n: 4 }, "판자 4개");
+  assert.equal(sync.inv[0], null, "나무는 써서 없어짐");
+
+  // 없는 아이템은 놓을 수 없음 (손에 든 칸 0 은 비어 있음)
+  A.send({ t: "sel", i: 0 });
+  const nofix = await A.ask({ t: "place", x, y, z }, (m) => m.t === "sets");
+  assert.equal(nofix.s[0][3], 0, "빈손으로는 못 놓음");
+
+  // 판자 놓기
+  A.send({ t: "sel", i: 1 });
+  A.send({ t: "place", x, y, z });
+  const placed = await Bc.wait((m) => m.t === "sets" && m.s[0][3] === B.PLANKS);
+  assert.deepEqual(placed.s[0].slice(0, 3), [x, y, z]);
+
+  // 채팅
+  Bc.send({ t: "chat", msg: "안녕하세요" });
+  const chat = await A.wait((m) => m.t === "chat" && m.name === "직원1");
+  assert.equal(chat.msg, "안녕하세요");
+
+  // 일반 사용자는 관리자 명령 불가, 관리자는 가능
+  const deny = await Bc.ask({ t: "chat", msg: "/give 다이아몬드 5" }, (m) => m.t === "chat" && m.msg.includes("관리자만"));
+  assert.ok(deny);
+  const g = await A.ask({ t: "chat", msg: "/give 다이아몬드 5" }, (m) => m.t === "give");
+  assert.deepEqual(g.item, { id: I.DIAMOND, n: 5 });
+  A.close(); Bc.close();
+});
+
+test("작업대 · 곡괭이 · 화로 굽기 · 상자", async () => {
+  const { body: a } = await post(srv.base, "/api/login", { name: "관리자", password: "1234" });
+  const A = await connect(srv.base, a.token);
+  const say = (msg) => A.ask({ t: "chat", msg }, (m) => m.t === "give");
+  await say("/give 참나무판자 64");
+  await say("/give 조약돌 64");
+  await say("/give 막대기 8");
+  await say("/give 철광석 3");
+  await say("/give 석탄 2");
+  await say("/give 다이아몬드 2");
+  const s0 = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
+  const slotOf = (st, id) => st.inv.findIndex((s) => s?.id === id);
+  const planks = slotOf(s0, B.PLANKS), cobble = slotOf(s0, B.COBBLE), stick = slotOf(s0, I.STICK);
+  assert.ok(planks >= 0 && cobble >= 0 && stick >= 0);
+
+  // 작업대 놓기
+  const [sx, sy, sz] = A.welcome.spawn;
+  const tx = Math.floor(sx) + 2, tz = Math.floor(sz);
+  let ty = Math.floor(sy) + 3;
+  await A.ask({ t: "chat", msg: `/give 작업대 1` }, (m) => m.t === "give");
+  const s1 = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
+  await A.ask({ t: "chat", msg: "/gamemode creative" }, (m) => m.t === "mode");
+  // 놓을 자리 위에 받침이 필요 없도록 공중이 아닌 땅 위를 찾는다
+  const { heightAt } = await import("../shared/worldgen.js");
+  ty = heightAt(tx, tz, A.welcome.seed) + 1;
+  await A.ask({ t: "chat", msg: `/tp ${sx} ${ty} ${sz}` }, (m) => m.t === "tp");
+  A.send({ t: "move", p: [sx, ty, sz], r: [0, 0] });
+  await sleep(100);
+  await hold(A, B.CRAFTING_TABLE);
+  A.send({ t: "place", x: tx, y: ty, z: tz });
+  await sleep(150);
+  // 작업대 열기 → 3x3 조합 (돌 곡괭이)
+  A.send({ t: "use", x: tx, y: ty, z: tz });
+  const op = (o) => A.send({ t: "op", op: o });
+  op({ o: "click", a: "inv", i: cobble, b: 0 });
+  for (const i of [0, 1, 2]) op({ o: "click", a: "craft", i, b: 2 }); // 오른쪽 클릭 1개씩
+  op({ o: "click", a: "inv", i: cobble, b: 0 });
+  op({ o: "click", a: "inv", i: stick, b: 0 });
+  for (const i of [4, 7]) op({ o: "click", a: "craft", i, b: 2 });
+  op({ o: "click", a: "inv", i: stick, b: 0 });
+  op({ o: "click", a: "result", b: 0, s: true });
+  const s2 = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
+  assert.ok(slotOf(s2, 274) >= 0, "돌 곡괭이가 만들어짐");
+
+  // 화로 놓고 철광석 굽기
+  await A.ask({ t: "chat", msg: "/give 화로 1" }, (m) => m.t === "give");
+  const s3 = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
+  await hold(A, B.FURNACE);
+  A.send({ t: "place", x: tx, y: ty + 1, z: tz });
+  await sleep(150);
+  A.send({ t: "use", x: tx, y: ty + 1, z: tz });
+  const box = await A.wait((m) => m.t === "box");
+  assert.equal(box.kind, "furnace");
+  A.send({ t: "cop", op: { a: "inv", i: slotOf(s3, B.IRON_ORE), s: true } });
+  A.send({ t: "cop", op: { a: "inv", i: slotOf(s3, I.COAL), s: true } });
+  const cooking = await A.wait((m) => m.t === "box" && m.in?.id === B.IRON_ORE && m.burn > 0, 3000);
+  assert.ok(cooking.fuel === null || cooking.fuel.n === 1, "석탄 1개 태움");
+  const done = await A.wait((m) => m.t === "box" && m.out?.id === I.IRON_INGOT, 12000);
+  assert.equal(done.out.n, 1, "10초 뒤 철괴 1개");
+  A.send({ t: "cclose" });
+
+  // 상자: 놓고 넣었다가 다시 열기
+  await A.ask({ t: "chat", msg: "/give 상자 1" }, (m) => m.t === "give");
+  const s4 = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
+  await hold(A, B.CHEST);
+  A.send({ t: "place", x: tx, y: ty + 2, z: tz });
+  await sleep(150);
+  A.send({ t: "use", x: tx, y: ty + 2, z: tz });
+  await A.wait((m) => m.t === "box" && m.kind === "chest");
+  A.send({ t: "cop", op: { a: "inv", i: slotOf(s4, I.DIAMOND), s: true } });
+  const chest = await A.wait((m) => m.t === "box" && m.slots?.some((s) => s?.id === I.DIAMOND));
+  assert.ok(chest);
+  A.send({ t: "cclose" });
+  A.close();
+});
+
+test("몹 · 전투 · 피해 · 죽음 · 부활", async () => {
+  const { body: b } = await post(srv.base, "/api/login", { name: "직원1", password: "abcd" });
+  const { body: a } = await post(srv.base, "/api/login", { name: "관리자", password: "1234" });
+  const A = await connect(srv.base, a.token);
+  const Bc = await connect(srv.base, b.token);
+  await A.ask({ t: "chat", msg: "/gamemode survival" }, (m) => m.t === "mode");
+  const [sx, , sz] = A.welcome.spawn;
+  const { heightAt } = await import("../shared/worldgen.js");
+  const gy = heightAt(Math.floor(sx), Math.floor(sz), A.welcome.seed) + 1;
+  await A.ask({ t: "chat", msg: "/time midnight" }, (m) => m.t === "time");
+  await A.ask({ t: "chat", msg: `/tp ${sx} ${gy} ${sz}` }, (m) => m.t === "tp");
+  A.send({ t: "move", p: [sx, gy, sz], r: [0, 0] });
+  Bc.send({ t: "move", p: [sx + 30, gy + 30, sz], r: [0, 0] });
+  await sleep(100);
+  const ent = await A.ask({ t: "chat", msg: "/summon 좀비 1" }, (m) => m.t === "ents" && m.m.some((e) => e[1] === 4));
+  const z = ent.m.find((e) => e[1] === 4);
+  // 좀비가 다가와 때린다
+  const hurt = await A.wait((m) => m.t === "hurt" && m.cause === "mob", 8000);
+  assert.ok(hurt.dmg > 0, "좀비에게 맞음");
+  const stats = await A.wait((m) => m.t === "stats" && m.hp < 20);
+  assert.ok(stats.hp < 20, "체력 감소");
+  // 플레이어가 좀비를 때려서 잡기
+  await A.ask({ t: "chat", msg: "/give 다이아몬드검 1" }, (m) => m.t === "give");
+  const s = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
+  await hold(A, 285);
+  let dead = null;
+  for (let i = 0; i < 10 && !dead; i++) {
+    const e = (await A.wait((m) => m.t === "ents")).m.find((q) => q[0] === z[0]);
+    if (e) A.send({ t: "move", p: [e[2], e[3], e[4] + 1.5], r: [0, 0] });
+    await sleep(650);
+    A.send({ t: "attack", mob: z[0] });
+    dead = A.msgs.find((m) => m.t === "mobdie" && m.id === z[0]);
+    await sleep(50);
+  }
+  dead ??= await A.wait((m) => m.t === "mobdie" && m.id === z[0], 2000);
+  assert.ok(dead, "좀비가 죽음");
+  // 낙하 피해로 죽기 → 부활
+  A.send({ t: "env", dmg: 100, why: "fall" });
+  const d = await A.wait((m) => m.t === "dead");
+  assert.match(d.why, /떨어/);
+  A.send({ t: "respawn" });
+  const rs = await A.wait((m) => m.t === "respawn");
+  assert.deepEqual(rs.p, A.welcome.spawn, "스폰에서 부활");
+  A.close(); Bc.close();
+});
+
+test("싱글플레이 월드는 따로", async () => {
+  const { body: b } = await post(srv.base, "/api/login", { name: "직원1", password: "abcd" });
+  const S = await connect(srv.base, b.token, "solo");
+  assert.equal(S.welcome.realm, "solo:직원1");
+  assert.equal(S.welcome.players.length, 0);
+  S.send({ t: "chat", msg: "/gamemode creative" });
+  const mode = await S.wait((m) => m.t === "mode");
+  assert.equal(mode.mode, "creative", "싱글플레이에선 치트 가능");
+  S.close();
+});
+
+test("서버를 껐다 켜도 월드 · 인벤토리 유지", async () => {
+  const { body: a } = await post(srv.base, "/api/login", { name: "관리자", password: "1234" });
+  let A = await connect(srv.base, a.token);
+  await A.ask({ t: "chat", msg: "/give 흑요석 7" }, (m) => m.t === "give");
+  const editsBefore = Object.keys(A.welcome.edits).length;
+  A.close();
+  await sleep(200);
+  const port = srv.port, dataDir = srv.dataDir;
+  await srv.stop();
+  srv = await startServer({ port, dataDir });
+  const r = await post(srv.base, "/api/login", { name: "관리자", password: "1234" });
+  A = await connect(srv.base, r.body.token);
+  assert.ok(A.welcome.inv.some((s) => s?.id === B.OBSIDIAN && s.n === 7), "인벤토리 유지");
+  assert.ok(Object.keys(A.welcome.edits).length >= editsBefore && editsBefore > 0, "바뀐 블록 유지");
+  A.close();
+});
