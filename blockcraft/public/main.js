@@ -141,6 +141,7 @@ function onMessage(m) {
     case "move": { const o = others.get(m.id); if (o) { o.target.set(...m.p); o.rot = m.r; o.flags = m.f ?? 0; } return; }
     case "held": { const o = others.get(m.id); if (o) setOtherHeld(o, m.held); return; }
     case "swing": { const o = others.get(m.id); if (o) o.model.swing = 1; return; }
+    case "phurt": { const o = others.get(m.id); if (o) { o.flash = 0.4; if (o.model.root.position.distanceTo(player.pos) < 24) sfx.hurt(); } return; }
     case "pdead": { const o = others.get(m.id); if (o) { o.dead = true; o.model.root.visible = false; } return; }
     case "prespawn": { const o = others.get(m.id); if (o) { o.dead = false; o.model.root.visible = true; o.target.set(...m.p); o.model.root.position.set(...m.p); } return; }
     case "sets": return onSets(m);
@@ -174,6 +175,7 @@ function onWelcome(m) {
   game.connected = true;
   game.kickMsg = null;
   Object.assign(game, { id: m.id, name: m.name, admin: m.admin, hue: m.color, mode: m.mode, spawn: m.spawn, time: m.time, timeAt: performance.now(), weather: m.weather, rules: m.rules, dead: false, title: m.title });
+  hand.setLook(m.color);
   game.st = newState();
   m.inv.forEach((s, i) => { game.st.inv[i] = s; });
   m.armor.forEach((s, i) => { game.st.armor[i] = s; });
@@ -1077,7 +1079,7 @@ function openSettings() {
 // ── 루프 ───────────────────────────────────────────────────
 let last = performance.now(), fps = 0, frames = 0, fpsAt = last, sendAt = 0, exAt = 0, ambientAt = 0;
 const camBob = { t: 0 };
-const selfModel = makeHumanoid("player", 200);
+let selfModel = makeHumanoid("player", 200);
 selfModel.root.visible = false;
 scene.add(selfModel.root);
 
@@ -1148,7 +1150,14 @@ function frame(dt, now, real = dt) {
     camera.position.copy(back);
     selfModel.root.position.copy(player.pos);
     selfModel.root.rotation.y = player.yaw;
-    if (selfModel.hue !== game.hue) { selfModel.hue = game.hue; selfModel.mats[1]?.userData.base?.setHSL(game.hue / 360, 0.65, 0.62); }
+    if (selfModel.hue !== game.hue) {
+      // 내 유니폼으로 다시 만든다
+      scene.remove(selfModel.root);
+      disposeTree(selfModel.root);
+      selfModel = makeHumanoid("player", game.hue);
+      selfModel.hue = game.hue;
+      scene.add(selfModel.root);
+    }
     animateHumanoid(selfModel, speed, dt, -player.pitch, player.sneak);
     tint(selfModel.mats, lightAt(player.pos.x, player.pos.y + 1, player.pos.z));
   }
@@ -1220,7 +1229,8 @@ function animateEntities(dt, now) {
     g.rotation.y += dy * Math.min(1, dt * 15);
     const moved = Math.hypot(g.position.x - o.last.x, g.position.z - o.last.z) / Math.max(dt, 0.001);
     animateHumanoid(o.model, moved, dt, -o.rot[1], !!(o.flags & 1));
-    tint(o.model.mats, lightAt(g.position.x, g.position.y + 1, g.position.z));
+    o.flash = Math.max(0, (o.flash ?? 0) - dt);
+    tint(o.model.mats, lightAt(g.position.x, g.position.y + 1, g.position.z), o.flash > 0);
   }
   for (const e of mobs.values()) {
     const g = e.model.root;

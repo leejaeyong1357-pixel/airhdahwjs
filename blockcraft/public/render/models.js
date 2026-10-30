@@ -3,7 +3,7 @@ import * as THREE from "../vendor/three.module.min.js";
 import { BLOCKS } from "/shared/blocks.js";
 import { ITEMS } from "/shared/items.js";
 import { MOB, SHEEP_WOOL } from "/shared/mobs.js";
-import { itemTile } from "../textures.js";
+import { itemTile, playerLook } from "../textures.js";
 
 let SK = null, SKIN_TEX = null, ATLAS = null, ATLAS_TEX = null;
 export function initModels(skins, skinTex, atlas, atlasTex) { SK = skins; SKIN_TEX = skinTex; ATLAS = atlas; ATLAS_TEX = atlasTex; }
@@ -49,19 +49,21 @@ export function makeShadow(size = 0.8) {
   return m;
 }
 
-/** kind: "player" | "zombie" | "archer". hue: 안전모 색 */
+/** kind: "player" | "zombie" | "archer". hue: 계정 색 번호 → 유니폼 · 머리 */
 export function makeHumanoid(kind = "player", hue = 200) {
   const s = 1.8 / 32;
   const mat = skinMat();
   const mats = [mat];
   const z = kind === "zombie", sk = kind === "archer";
   const root = new THREE.Group();
+  const L = playerLook(hue);
   const T = z
-    ? { face: "z_face", head: "z_head", top: "z_head", body: "z_body", arm: "z_arm", armEnd: "z_head", leg: "z_leg", foot: "z_leg", bodyB: "z_body", bodyS: "z_body", armTop: "z_body" }
-    : sk ? { face: "s_face", head: "s_head", top: "s_head", body: "s_body", arm: "s_arm", armEnd: "s_arm", leg: "s_leg", foot: "s_leg", bodyB: "s_body", bodyS: "s_head", armTop: "s_head" }
-    : { face: "p_face", head: "p_head", top: "p_hair", body: "p_body_f", arm: "p_arm", armEnd: "p_arm_end", leg: "p_leg", foot: "p_foot", bodyB: "p_body_b", bodyS: "p_body_s", armTop: "p_arm_top" };
+    ? { face: "z_face", head: "z_head", top: "z_head", back: "z_head", body: "z_body", arm: "z_arm", armEnd: "z_head", leg: "z_leg", foot: "z_leg", bodyB: "z_body", bodyS: "z_body", armTop: "z_body" }
+    : sk ? { face: "s_face", head: "s_head", top: "s_head", back: "s_head", body: "s_body", arm: "s_arm", armEnd: "s_arm", leg: "s_leg", foot: "s_leg", bodyB: "s_body", bodyS: "s_head", armTop: "s_head" }
+    : { face: `pf${L.hair}`, head: `ps${L.hair}`, top: `pt${L.hair}`, back: `pk${L.hair}`, body: `${L.jacket}_f`, arm: `${L.jacket}_arm`, armEnd: "p_arm_end",
+        leg: `lg${L.pants}`, foot: "p_foot", bodyB: `${L.jacket}_b`, bodyS: `${L.jacket}_s`, armTop: `${L.jacket}_top` };
   const limb = sk ? 2 : 4;
-  const head = part(mat, 8, 8, 8, { f: T.face, b: T.head, l: T.head, r: T.head, t: T.top, u: T.head }, s, [0, -4, 0]);
+  const head = part(mat, 8, 8, 8, { f: T.face, b: T.back, l: T.head, r: T.head, t: T.top, u: T.head }, s, [0, -4, 0]);
   head.position.y = 24 * s;
   const body = part(mat, 8, 12, 4, { f: T.body, b: T.bodyB, l: T.bodyS, r: T.bodyS, t: T.armTop, u: T.armTop }, s);
   body.position.y = 18 * s;
@@ -77,16 +79,12 @@ export function makeHumanoid(kind = "player", hue = 200) {
   };
   const armL = arm(-1), armR = arm(1), legL = leg(-1), legR = leg(1);
   root.add(head, body, armL, armR, legL, legR);
-  let hatMat = null;
-  if (kind === "player") {
-    hatMat = skinMat();
-    hatMat.userData.base = new THREE.Color().setHSL(hue / 360, 0.65, 0.62);
-    const hat = part(hatMat, 9, 3, 9, { f: "hat_front", b: "hat", l: "hat", r: "hat", t: "hat", u: "hat" }, s, [0, -1.5, 0]);
-    hat.position.y = 5.5 * s;
-    const brim = part(hatMat, 10, 1, 11, "hat", s, [0, -0.5, 1]);
-    brim.position.y = 5 * s;
-    head.add(hat, brim);
-    mats.push(hatMat);
+  if (kind === "player" && L.pony) {
+    // 묶은 머리
+    const tail = part(mat, 2, 4, 2, { all: `pt${L.hair}`, f: `pt${L.hair}` }, s, [0, 2, 0]);
+    tail.position.set(0, 4 * s, 4.5 * s);
+    tail.rotation.x = 0.35;
+    head.add(tail);
   }
   if (z) { armL.rotation.x = armR.rotation.x = -Math.PI / 2; }
   const hand = new THREE.Group();
@@ -347,7 +345,7 @@ export class Hand {
     this.scene.add(this.root);
     this.mat = skinMat();
     const s = 1 / 16;
-    this.arm = part(this.mat, 4, 12, 4, { f: "p_arm", b: "p_arm", l: "p_arm", r: "p_arm", t: "p_arm_top", u: "p_arm_end" }, s, [0, 6, 0]);
+    this.arm = part(this.mat, 4, 12, 4, { f: "jw_arm", b: "jw_arm", l: "jw_arm", r: "jw_arm", t: "jw_top", u: "p_arm_end" }, s, [0, 6, 0]);
     this.arm.rotation.order = "YXZ";
     this.root.add(this.arm);
     this.grip = new THREE.Group();          // 손 끝 — 든 아이템이 여기 붙는다
@@ -359,6 +357,15 @@ export class Hand {
     this.equip = 0;      // 바꿀 때 내려갔다 올라오기
     this.bob = 0;
     this.eat = 0;
+  }
+  /** 내 유니폼 소매로 */
+  setLook(hue) {
+    const j = playerLook(hue).jacket;
+    const g = new THREE.BoxGeometry(4 / 16, 12 / 16, 4 / 16);
+    setUV(g, { f: `${j}_arm`, b: `${j}_arm`, l: `${j}_arm`, r: `${j}_arm`, t: `${j}_top`, u: "p_arm_end" }, (n) => SK.uv(n));
+    g.translate(0, -6 / 16, 0);
+    this.arm.geometry.dispose();
+    this.arm.geometry = g;
   }
   setItem(id) {
     if (id === this.itemId) return;

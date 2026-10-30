@@ -77,7 +77,10 @@ export class Realm {
 
   /** 피해 → 죽었으면 처리 */
   damagePlayer(pl, dmg, cause, from = null, kb = 1, by = "") {
-    if (pl.damage(dmg, cause, from, kb, by)) this.kill(pl);
+    const before = pl.hp;
+    const died = pl.damage(dmg, cause, from, kb, by);
+    if (pl.hp < before) this.broadcast({ t: "phurt", id: pl.id }, pl); // 다른 사람 화면에서 빨갛게 번쩍
+    if (died) this.kill(pl);
   }
 
   kill(pl) {

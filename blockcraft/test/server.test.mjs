@@ -268,6 +268,37 @@ test("몹 · 전투 · 피해 · 죽음 · 부활", async () => {
   A.close(); Bc.close();
 });
 
+test("플레이어끼리 때리기 (PvP) · 다른 사람에게 맞는 모습 보임", async () => {
+  const { body: a } = await post(srv.base, "/api/login", { name: "관리자", password: "1234" });
+  const { body: b } = await post(srv.base, "/api/login", { name: "직원1", password: "abcd" });
+  const A = await connect(srv.base, a.token);
+  const Bc = await connect(srv.base, b.token);
+  await A.ask({ t: "chat", msg: "/gamemode survival" }, (m) => m.t === "mode");
+  await A.ask({ t: "chat", msg: "/gamemode survival 직원1" }, (m) => m.t === "chat");
+  const [sx, sy, sz] = A.welcome.spawn;
+  await A.ask({ t: "chat", msg: `/tp ${sx} ${sy} ${sz}` }, (m) => m.t === "tp");
+  A.send({ t: "move", p: [sx, sy, sz], r: [0, 0] });
+  Bc.send({ t: "move", p: [sx, sy, sz - 2], r: [0, 0] });
+  await sleep(700);
+  const hurt = Bc.ask({ t: "ping" }, (m) => m.t === "hurt" && m.cause === "player");
+  const seen = A.wait((m) => m.t === "phurt" && m.id === Bc.welcome.id);
+  A.send({ t: "attack", pid: Bc.welcome.id });
+  const h = await hurt;
+  assert.ok(h.dmg > 0, "맞은 사람 체력 감소");
+  await seen; // 때린 사람 화면에 상대가 빨갛게 번쩍
+  const st = await Bc.wait((m) => m.t === "stats" && m.hp < 20);
+  assert.ok(st.hp < 20);
+  // PvP 끄면 안 맞음
+  await A.ask({ t: "chat", msg: "/gamerule pvp false" }, (m) => m.t === "rules");
+  await sleep(700);
+  Bc.msgs.length = 0;
+  A.send({ t: "attack", pid: Bc.welcome.id });
+  await sleep(400);
+  assert.ok(!Bc.msgs.some((m) => m.t === "hurt"), "pvp 꺼지면 피해 없음");
+  await A.ask({ t: "chat", msg: "/gamerule pvp true" }, (m) => m.t === "rules");
+  A.close(); Bc.close();
+});
+
 test("싱글플레이 월드는 따로", async () => {
   const { body: b } = await post(srv.base, "/api/login", { name: "직원1", password: "abcd" });
   const S = await connect(srv.base, b.token, "solo");
