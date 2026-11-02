@@ -306,6 +306,7 @@ export class Realm {
       case "sel": {
         if (!Number.isInteger(m.i) || m.i < 0 || m.i > 8) return;
         pl.sel = m.i;
+        pl.pinAt = null; // 수류탄 당기다가 무기 바꾸면 초기화
         this.broadcast({ t: "held", id: pl.id, held: pl.heldId }, pl);
         return;
       }
@@ -423,6 +424,7 @@ export class Realm {
         return;
       }
       case "shoot": this.shoot(pl, m); return;
+      case "unpin": pl.pinAt = null; return; // 던지기 전에 무기를 바꿈 → 취소
       case "pin": {
         if (!ITEMS[pl.heldId]?.grenade || pl.dead) return;
         pl.pinAt = Date.now();
@@ -434,12 +436,14 @@ export class Realm {
         if (!gd || !pl.pinAt || pl.dead || !vec3(m.o) || !vec3(m.v)) return;
         const eye = [pl.p[0], pl.p[1] + 1.5, pl.p[2]];
         if (Math.hypot(m.o[0] - eye[0], m.o[1] - eye[1], m.o[2] - eye[2]) > 2) return;
+        // 힘은 쥐고 있던 시간만큼 (서버가 다시 계산해서 너무 세게 못 던지게)
+        const held = Math.min(1, (Date.now() - pl.pinAt) / 1000 / gd.charge + 0.15);
+        const maxSp = gd.minSpeed + (gd.speed - gd.minSpeed) * held;
         const sp = Math.hypot(...m.v);
-        const v = sp > gd.speed * 1.15 ? m.v.map((c) => (c / sp) * gd.speed) : m.v;
-        const fuse = Math.max(0.05, gd.fuse - (Date.now() - pl.pinAt) / 1000); // 오래 쥐고 있으면 빨리 터진다
+        const v = sp > maxSp * 1.05 ? m.v.map((c) => (c / sp) * maxSp) : m.v;
         pl.pinAt = null;
         useOne(pl.st.inv, pl.sel);
-        this.entities.throwGrenade(pl, m.o, v, fuse);
+        this.entities.throwGrenade(pl, m.o, v, gd.fuse, gd.maxAir);
         this.broadcast({ t: "throw", id: pl.id }, pl);
         check(m.d);
         return;

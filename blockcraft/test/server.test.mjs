@@ -413,10 +413,12 @@ test("수류탄 · 킬/데스/어시 점수판 · 닉네임 · 고기 먹으면 
   A.send({ t: "sel", i: st.inv.findIndex((it) => it?.id === 305) });
   await sleep(60);
   A.send({ t: "pin" });
-  await sleep(2000);                           // 2초 쥐고 있다가
+  await sleep(300);
+  // 바로 떨어뜨림 — 공중에서는 안 터지고, 땅에 닿은 뒤 2초 뒤에 터진다
   A.send({ t: "throw", o: [sx, y + 1.5, sz], v: [0, 0, -2] });
   // 직원1 을 수류탄이 떨어질 곳 바로 옆에 둔다
-  const boom = A.wait((m) => m.t === "boom", 3000);
+  const thrownAt = Date.now();
+  const boom = A.wait((m) => m.t === "boom", 9000);
   let boomed = false;
   boom.then(() => { boomed = true; }, () => {});
   // 떨어지는 수류탄을 직원1 이 계속 따라간다
@@ -426,7 +428,8 @@ test("수류탄 · 킬/데스/어시 점수판 · 닉네임 · 고기 먹으면 
     if (g) Bc.send({ t: "move", p: [g[1], g[2] - 0.9, g[3]], r: [0, 0] });
   }
   const b1 = await boom;
-  assert.ok(b1.grenade, "수류탄이 약 1초 뒤 폭발 (2초 쥐고 있었음)");
+  assert.ok(b1.grenade);
+  assert.ok(Date.now() - thrownAt > 2000, "던지자마자 터지지 않음 (땅에 닿고 2초 뒤)");
   const hurt = await Bc.wait((m) => m.t === "hurt" && m.cause === "grenade", 2000);
   assert.ok(hurt.dmg > 10, "가까이서 큰 피해");
   const s2 = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");

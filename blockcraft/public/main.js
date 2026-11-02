@@ -178,7 +178,7 @@ function onMessage(m) {
     case "sets": return onSets(m);
     case "ents": return onEnts(m);
     case "take": return onTake(m);
-    case "mobhurt": { const e = mobs.get(m.id); if (e) { e.flash = 0.4; sfx.mobHurt(); } return; }
+    case "mobhurt": { const e = mobs.get(m.id); if (e) { e.flash = 0.4; e.hitT = 0.35; e.hitSide = Math.random() < 0.5 ? -1 : 1; sfx.mobHurt(); } return; }
     case "mobdie": return onMobDie(m);
     case "hiss": sfx.hiss(); return;
     case "boom": return onBoom(m);
@@ -397,11 +397,13 @@ function onTake(m) {
   else removeDrop(m.id);
 }
 
+const DIE_T = 1.8; // 죽는 모션 길이 (초)
 function onMobDie(m) {
   const e = mobs.get(m.id);
   if (!e) return;
-  e.dying = 0.9;
-  e.flash = 1;
+  e.dying = DIE_T;
+  e.dieSide = Math.random() < 0.5 ? -1 : 1;
+  e.flash = 0.5;
   sfx.mobDie();
 }
 
@@ -630,9 +632,29 @@ let mouseL = false, mouseR = false, rightRepeat = 0, attackCool = 0;
 const held = () => game.st.inv[game.sel];
 const heldId = () => held()?.id ?? 0;
 
+// 칼 — 누르면 베기, 꾹 누르고 있으면 계속 찌르기 (서든어택처럼)
+const knife = { holdT: 0, cool: 0 };
+const heldKnife = () => ITEMS[heldId()]?.weapon === "knife";
+function knifeAttack(kind) {
+  knife.cool = kind === "stab" ? 0.3 : 0.26;
+  if (kind === "stab") hand.stab(); else hand.slash();
+  net({ t: "swing" });
+  sfx.slash();
+  const ent = raycastEntity();
+  const blk = raycastBlock();
+  if (ent && (!blk || ent.t < blk.t)) {
+    net(ent.kind === "mob" ? { t: "attack", mob: ent.id, d: digest(game.st) } : { t: "attack", pid: ent.id, d: digest(game.st) });
+    exAcc += 0.1;
+  } else if (blk && blk.t < 3) {
+    const p = eye.clone().addScaledVector(eyeDir, blk.t - 0.02);
+    particles.burst(p.x, p.y, p.z, BLOCKS[blk.b]?.tex[2] ?? "stone", 3, lightAtBlock(blk.x, blk.y, blk.z), 0.08, 1.5);
+  }
+}
+
 function leftPress() {
   if (heldGun()) { fire(); return true; }
   if (heldNade()) { pullPin(); return false; }
+  if (heldKnife()) { knife.holdT = 0; if (knife.cool <= 0.08) knifeAttack("slash"); return true; }
   if (attackCool > 0) return;
   const ent = raycastEntity();
   const blk = raycastBlock();
@@ -655,6 +677,14 @@ function updateDig(dt) {
   dig.cool = Math.max(0, dig.cool - dt);
   if (heldGun()) { stopDig(); if (mouseL && locked() && heldGun().auto) fire(); return; }
   if (heldNade()) { stopDig(); return; }
+  knife.cool = Math.max(0, knife.cool - dt);
+  if (heldKnife()) {
+    stopDig();
+    if (!mouseL || !locked() || game.dead) { knife.holdT = 0; return; }
+    knife.holdT += dt;
+    if (knife.holdT > 0.32 && knife.cool <= 0) knifeAttack("stab");
+    return;
+  }
   if (!mouseL || !locked() || game.dead) { stopDig(); return; }
   const hit = raycastBlock();
   if (!hit || BLOCKS[hit.b]?.unbreakable) { stopDig(); return; }
@@ -694,22 +724,44 @@ function finishDig() {
 const gun = { ammo: {}, reserve: {}, reloading: 0, last: 0, aim: false };
 const heldGun = () => ITEMS[heldId()]?.gun ?? null;
 const tracers = [];
+/** 가진 무기 전체 탄약 — "M16 90.30" 처럼 (남은 전체.탄창) */
+function ammoTotals() {
+  const out = [];
+  const inv = game.st?.inv ?? [];
+  for (const id of [303, 304]) {
+    if (!inv.some((s) => s?.id === id)) continue;
+    const n = gun.ammo[id] ?? 0, r = gun.reserve[id] ?? 0;
+    out.push(`<span class="${heldId() === id ? "on" : ""}">${id === 303 ? "M16" : "저격총"} <b>${n + r}.${n}</b></span>`);
+  }
+  const g = inv.reduce((a, s) => a + (s?.id === 305 ? s.n : 0), 0);
+  if (inv.some((s) => s?.id === 305) || g) out.push(`<span class="${heldId() === 305 ? "on" : ""}">💣 <b>${g}</b></span>`);
+  return out.join("");
+}
 function renderAmmo() {
   const g = heldGun();
   const el = $("ammo");
   const gr = ITEMS[heldId()]?.grenade;
-  el.classList.toggle("hidden", !g && !gr);
+  const totals = ammoTotals();
+  el.classList.toggle("hidden", !g && !gr && !totals);
+  el.classList.remove("low");
+  const tl = totals ? `<div class="totals">${totals}</div>` : "";
   if (gr) {
-    const left = nade.pinAt ? Math.max(0, gr.fuse - (performance.now() - nade.pinAt) / 1000) : null;
-    el.classList.toggle("low", left != null && left < 1.2);
-    el.innerHTML = `<b>💣 ${held()?.n ?? 0}</b>${left != null ? `<small>핀 뽑음 — ${left.toFixed(1)}초 뒤 폭발</small>` : "<small>꾹 눌러 핀 · 떼면 던지기</small>"}`;
+    el.innerHTML = `<b>💣 ${held()?.n ?? 0}</b><small>${nade.pinAt ? "핀 뽑음 — 떼면 던지기" : "꾹 눌러 핀 · 오래 당길수록 멀리"}</small>${tl}`;
     return;
   }
-  if (!g) return;
+  if (!g) { el.innerHTML = tl; return; }
   const id = heldId();
   const n = gun.ammo[id] ?? 0, r = gun.reserve[id] ?? 0;
   el.classList.toggle("low", n <= Math.ceil(g.mag * 0.2));
-  el.innerHTML = `<b>${n}</b> / ${r}${gun.reloading > performance.now() ? "<small>장전 중...</small>" : n === 0 ? (r > 0 ? "<small>R 재장전</small>" : "<small>총알 없음</small>") : ""}`;
+  el.innerHTML = `<b>${n}</b> / ${r}${gun.reloading > performance.now() ? "<small>장전 중...</small>" : n === 0 ? (r > 0 ? "<small>R 재장전</small>" : "<small>총알 없음</small>") : ""}${tl}`;
+}
+/** 탄피 — 총 오른쪽으로 튕겨 나가 땅에 떨어진다 */
+const _sR = new THREE.Vector3(), _sV = new THREE.Vector3();
+function ejectShell(o, yaw, d, big) {
+  _sR.set(Math.cos(yaw), 0, -Math.sin(yaw));
+  const pos = o.clone().addScaledVector(d, 0.85).addScaledVector(_sR, 0.3).add(new THREE.Vector3(0, -0.2, 0));
+  _sV.copy(_sR).multiplyScalar(2.2 + Math.random() * 1.2).add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 2.4 + Math.random() * 1.2, (Math.random() - 0.5) * 0.6)).addScaledVector(d, -0.4);
+  particles.shell(pos, _sV.clone(), big);
 }
 function fire() {
   const g = heldGun();
@@ -731,6 +783,8 @@ function fire() {
   net({ t: "shoot", o: [o.x, o.y, o.z].map((v) => Math.round(v * 1000) / 1000), d: [d.x, d.y, d.z].map((v) => Math.round(v * 10000) / 10000) });
   hand.fire();
   (g.scope ? sfx.sniper : sfx.gun)();
+  if (g.scope) setTimeout(() => ejectShell(eye, player.yaw, eyeDir, true), 450); // 저격총은 노리쇠 당길 때
+  else ejectShell(eye, player.yaw, eyeDir, false);
   player.pitch = Math.min(Math.PI / 2 - 0.01, player.pitch + g.kick * (gun.aim ? 0.6 : 1)); // 반동
   player.yaw += (Math.random() - 0.5) * g.kick * 0.4;
   // 총알 자국 (블록까지)
@@ -776,21 +830,24 @@ function onShot(m) {
   addTracer(from.clone().add(new THREE.Vector3(0, -0.15, 0)), to);
   const far = Math.min(0.85, from.distanceTo(player.pos) / 80);
   (ITEMS[m.gun]?.gun?.scope ? sfx.sniper : sfx.gun)(far);
-  if (o) o.model.swing = 0.15;
+  if (o) {
+    o.model.swing = 0.15;
+    if (from.distanceTo(player.pos) < 40) ejectShell(from, o.rot[0], to.clone().sub(from).normalize(), !!ITEMS[m.gun]?.gun?.scope);
+  }
   if (m.wall) particles.burst(to.x, to.y, to.z, "stone", 4, 0.8, 0.1, 2);
 }
 
 // ── 수류탄 ─────────────────────────────────────────────────
-const NADE_G = 20; // 서버와 같은 중력
-const nade = { pinAt: 0, arc: null };
+// 꾹 누르면 핀을 뽑고, 오래 당길수록 세게(멀리) 던진다. 궤적은 안 보여 주고 힘 게이지만.
+const nade = { pinAt: 0 };
 const heldNade = () => ITEMS[heldId()]?.grenade ?? null;
-function nadeLaunch() {
-  const d = new THREE.Vector3();
-  d.copy(eyeDir);
-  // 오른손에서 던진다 (궤적이 화면에 곡선으로 보이게)
+const nadePower = () => (nade.pinAt ? Math.min(1, (performance.now() - nade.pinAt) / 1000 / heldNade().charge + 0.15) : 0);
+function nadeLaunch(power) {
+  const gr = heldNade();
+  const d = eyeDir.clone().add(new THREE.Vector3(0, 0.12, 0)).normalize(); // 살짝 위로
   const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
-  const o = eye.clone().addScaledVector(d, 0.5).addScaledVector(right, 0.35).add(new THREE.Vector3(0, -0.25, 0));
-  const v = d.clone().multiplyScalar(heldNade().speed - 1.5).add(new THREE.Vector3(0, 2.5, 0));
+  const o = eye.clone().addScaledVector(eyeDir, 0.4).addScaledVector(right, 0.2).add(new THREE.Vector3(0, -0.15, 0));
+  const v = d.multiplyScalar(gr.minSpeed + (gr.speed - gr.minSpeed) * power);
   return { o, v };
 }
 function pullPin() {
@@ -798,51 +855,36 @@ function pullPin() {
   nade.pinAt = performance.now();
   net({ t: "pin" });
   sfx.pin();
+  renderAmmo();
+}
+function cancelNade() {
+  if (!nade.pinAt) return;
+  nade.pinAt = 0;
+  net({ t: "unpin" });
+  $("nadeGauge").classList.add("hidden");
 }
 function throwNade() {
-  if (!nade.pinAt) return;
-  const { o, v } = nadeLaunch();
+  if (!nade.pinAt || !heldNade()) return;
+  const { o, v } = nadeLaunch(nadePower());
   nade.pinAt = 0;
   if (game.mode === "survival") useOne(game.st.inv, game.sel);
   net({ t: "throw", o: [o.x, o.y, o.z].map((x) => Math.round(x * 1000) / 1000), v: [v.x, v.y, v.z].map((x) => Math.round(x * 1000) / 1000), d: digest(game.st) });
   hand.doSwing();
   sfx.throwG();
   changed();
+  renderAmmo();
 }
-/** 던질 곳 미리보기 — 서버와 같은 식으로 포물선을 그리고, 떨어질 곳에 표시 */
-const arcLine = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: 0xffffff, size: 7, sizeAttenuation: false, transparent: true, opacity: 0.95, fog: false, depthTest: false }));
-arcLine.renderOrder = 998;
-arcLine.visible = false;
-scene.add(arcLine);
-const arcEnd = new THREE.Mesh(new THREE.RingGeometry(0.35, 0.5, 20), new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthTest: false, fog: false }));
-arcEnd.rotation.x = -Math.PI / 2;
-arcEnd.renderOrder = 999;
-arcEnd.visible = false;
-scene.add(arcEnd);
 function updateNade() {
   const gr = heldNade();
-  if (!gr || game.dead) { nade.pinAt = 0; arcLine.visible = arcEnd.visible = false; return; }
+  const gauge = $("nadeGauge");
+  if (!gr || game.dead) { if (nade.pinAt) cancelNade(); gauge.classList.add("hidden"); return; }
   if (nade.pinAt && !mouseL) throwNade();
-  if (nade.pinAt && (performance.now() - nade.pinAt) / 1000 >= gr.fuse - 0.05) throwNade(); // 너무 오래 쥐면 손에서 터짐
-  const show = !!nade.pinAt;
-  arcLine.visible = arcEnd.visible = show;
-  if (show) {
-    const { o, v } = nadeLaunch();
-    const pts = [];
-    const p = o.clone();
-    for (let i = 0; i < 90; i++) {
-      pts.push(p.clone());
-      const dt = 0.03;
-      v.y -= NADE_G * dt;
-      const n = p.clone().addScaledVector(v, dt);
-      if (world.solidAt(n.x, n.y, n.z)) { arcEnd.position.set(n.x, Math.floor(n.y) + (v.y < 0 ? 1.02 : 0), n.z); break; }
-      p.copy(n);
-      arcEnd.position.copy(p);
-    }
-    arcLine.geometry.dispose();
-    arcLine.geometry = new THREE.BufferGeometry().setFromPoints(pts); // 점으로 그린 궤적
+  gauge.classList.toggle("hidden", !nade.pinAt);
+  if (nade.pinAt) {
+    const p = nadePower();
+    gauge.firstElementChild.style.width = `${Math.round(p * 100)}%`;
+    gauge.classList.toggle("full", p >= 1);
   }
-  renderAmmo();
 }
 const grenadeMeshes = new Map();
 function onGrenades(list) {
@@ -851,7 +893,9 @@ function onGrenades(list) {
     seen.add(id);
     let g = grenadeMeshes.get(id);
     if (!g) { g = makeItemMesh(305, 0.22); scene.add(g); grenadeMeshes.set(id, g); g.position.set(x, y, z); }
-    g.userData.to = new THREE.Vector3(x, y, z);
+    const to = new THREE.Vector3(x, y, z);
+    g.userData.still = g.userData.to ? g.userData.to.distanceTo(to) < 0.02 : false; // 땅에 멈춤 → 그만 굴림
+    g.userData.to = to;
   }
   for (const [id, g] of grenadeMeshes) if (!seen.has(id)) { scene.remove(g); disposeTree(g); grenadeMeshes.delete(id); }
 }
@@ -1047,6 +1091,8 @@ function selectSlot(i) {
   nameTimer = setTimeout(() => (el.style.opacity = 0), 1500);
   eating.on = false;
   gun.aim = false;
+  cancelNade(); // 당기다가 무기 바꾸면 처음부터
+  knife.holdT = 0;
   changed();
   renderAmmo();
 }
@@ -1164,7 +1210,7 @@ document.addEventListener("mousemove", (e) => {
 });
 document.addEventListener("mousedown", (e) => {
   if (!locked() || game.dead) return;
-  if (e.button === 0) { mouseL = true; if (game.dancing) toggleDance(false); if (leftPress() && !heldGun()?.auto) mouseL = false; }
+  if (e.button === 0) { mouseL = true; if (game.dancing) toggleDance(false); if (leftPress() && !heldGun()?.auto && !heldKnife()) mouseL = false; }
   else if (e.button === 2) { mouseR = true; if (heldGun()) gun.aim = true; else { rightPress(); rightRepeat = 0.3; } }
   else if (e.button === 1) {
     e.preventDefault();
@@ -1583,11 +1629,27 @@ function animateEntities(dt, now) {
     const fuse = e.type === MOB.BOMBER && e.extra > 0 && Math.sin(now / 50) > 0;
     tint(e.model.mats, burning ? Math.max(l, 0.9) : l, e.flash > 0 || !!(e.flags & 1), fuse ? new THREE.Color(1, 1, 1) : burning ? new THREE.Color(1, 0.5, 0.1) : null);
     if (burning && Math.random() < dt * 8) particles.puff(g.position.x, g.position.y + MOBS[e.type].h * Math.random(), g.position.z, 1, 0.15, 0xff8822, 1);
+    // 맞으면 움찔 (뒤로 젖혀지고 옆으로 흔들림)
+    if (g.rotation.order !== "YXZ") g.rotation.order = "YXZ";
+    if (e.hitT > 0 && !e.dying) {
+      e.hitT = Math.max(0, e.hitT - dt);
+      const k = Math.sin((e.hitT / 0.35) * Math.PI);
+      g.rotation.x = -k * 0.35;
+      g.rotation.z = k * 0.18 * e.hitSide;
+      g.scale.set(1 + k * 0.08, 1 - k * 0.12, 1 + k * 0.08);
+    } else if (!e.dying && e.hitT === 0) { g.rotation.x = 0; g.rotation.z = 0; g.scale.set(1, 1, 1); e.hitT = -1; }
     if (e.dying) {
-      // 쓰러지며 사라짐
+      // 죽는 모션 — 비틀대다 옆으로 털썩 쓰러지고, 피 흘리다 땅으로 꺼진다
       e.dying -= dt;
-      g.rotation.z = Math.min(Math.PI / 2, g.rotation.z + dt * 5);
-      if (e.dying <= 0) { particles.puff(g.position.x, g.position.y + 0.5, g.position.z, 10, 0.25, 0xffffff, 2); removeMob(e.id); }
+      const t = DIE_T - e.dying; // 지난 시간
+      g.scale.set(1, 1, 1);
+      g.rotation.x = 0;
+      if (t < 0.25) g.rotation.z = Math.sin(t * 40) * 0.12 * e.dieSide;          // 부르르
+      else { const f = Math.min(1, (t - 0.25) / 0.35); g.rotation.z = e.dieSide * (Math.PI / 2) * (f * f * (3 - 2 * f)) * (1 + Math.sin(Math.min(1, f) * Math.PI) * 0.08); }
+      if (t > 0.6 && !e.thud) { e.thud = true; particles.blood(g.position.x, g.position.y + 0.3, g.position.z, 8, null, false); sfx.squish(); }
+      if (t > 1.2) g.position.y -= dt * 0.5;                                       // 꺼짐
+      tint(e.model.mats, l * 0.75, true);
+      if (e.dying <= 0) { particles.puff(g.position.x, g.position.y + 0.4, g.position.z, 10, 0.25, 0xffffff, 2); removeMob(e.id); }
     }
     // 가까운 좀비 소리
     if (e.type === MOB.ZOMBIE && Math.random() < dt / 8 && g.position.distanceTo(player.pos) < 16) sfx.groan();
@@ -1607,7 +1669,7 @@ function animateEntities(dt, now) {
     const l = lightAt(g.position.x, g.position.y + 0.3, g.position.z);
     g.children.forEach((c) => c.userData.mat?.color.setScalar(l));
   }
-  for (const g of grenadeMeshes.values()) { if (g.userData.to) g.position.lerp(g.userData.to, Math.min(1, dt * 15)); g.rotation.x += dt * 8; g.rotation.z += dt * 5; }
+  for (const g of grenadeMeshes.values()) { if (g.userData.to) g.position.lerp(g.userData.to, Math.min(1, dt * 15)); if (!g.userData.still) { g.rotation.x += dt * 8; g.rotation.z += dt * 5; } }
   for (const a of arrows.values()) { a.g.position.lerp(a.target, Math.min(1, dt * 15)); tint(a.g.userData.mats ?? [], lightAt(a.g.position.x, a.g.position.y, a.g.position.z)); }
   void dl;
 }

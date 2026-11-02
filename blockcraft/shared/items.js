@@ -80,7 +80,7 @@ ARMOR_TIERS.forEach((t) => {
 
 // 무기 — 리스폰하면 받는다. 몸에 맞으면 칼 1(20대) · 총 2(10발), 머리에 맞은 총알은 한 방
 // 총알: M16 90발(탄창 30 + 예비 60) · 저격총 30발(탄창 10 + 예비 20), R 재장전 — 리스폰하면 다시 가득
-// 수류탄 3개 — 꾹 누르면 핀을 뽑고(3초 뒤 폭발) 떼면 던진다
+// 수류탄 3개
 ITEMS[I.KNIFE] = { id: I.KNIFE, name: "칼", icon: "knife", stack: 1, damage: 1, weapon: "knife", kit: true };
 ITEMS[I.M16] = {
   id: I.M16, name: "M16", icon: "m16", stack: 1, kit: true,
@@ -90,7 +90,8 @@ ITEMS[I.SNIPER] = {
   id: I.SNIPER, name: "저격총", icon: "sniper", stack: 1, kit: true,
   gun: { auto: false, rate: 1.2, mag: 10, total: 30, reload: 3, body: 2, range: 160, spread: 0.0, kick: 0.06, zoom: 0.16, scope: true },
 };
-ITEMS[I.GRENADE] = { id: I.GRENADE, name: "수류탄", icon: "grenade", stack: 3, kit: true, grenade: { fuse: 3, radius: 5, damage: 30, speed: 17 } };
+ITEMS[I.GRENADE] = { id: I.GRENADE, name: "수류탄", icon: "grenade", stack: 3, kit: true, grenade: { fuse: 2, maxAir: 6, radius: 5, damage: 30, minSpeed: 5, speed: 30, charge: 1.1 } };
+// 수류탄: 꾹 누르면 힘을 모으고(최대 1.1초) 떼면 던진다 — 짧게는 눈앞, 길게는 멀리. 땅에 떨어지고 2초 뒤 폭발
 // 늑대 가죽 옷 — 늑대 가죽 2장으로 만든다 (방어구 몸 칸, 방어력 · 내구도 높음)
 ITEMS[I.WOLF_COAT] = { id: I.WOLF_COAT, name: "늑대 가죽 옷", icon: "wolf_coat", stack: 1, armor: 1, points: 7, uses: 400, tierKey: "wolf" };
 export const KIT = [I.KNIFE, I.M16, I.SNIPER, I.GRENADE];

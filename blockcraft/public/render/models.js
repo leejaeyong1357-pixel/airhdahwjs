@@ -368,8 +368,26 @@ function extrudedGeometry(tile) {
 }
 
 /** 아이템 메시 — 블록은 작은 정육면체, 나머지는 입체 픽셀 모양 */
+/** 칼 — 상자 여러 개로 만든 입체 칼 (날이 +x 쪽) */
+function makeKnife(size) {
+  const mat = skinMat();
+  const s = (size * 1.6) / 34; // 전체 길이 34px
+  const g = new THREE.Group();
+  const blade = part(mat, 18, 4, 1, { f: "kn_blade", b: "kn_blade", t: "kn_flat", u: "kn_flat", l: "kn_flat", r: "kn_flat" }, s); blade.position.x = 6 * s;
+  const tip = part(mat, 4, 3, 1, { f: "kn_blade", b: "kn_blade", all: "kn_flat" }, s); tip.position.set(17 * s, -0.5 * s, 0);
+  const tip2 = part(mat, 2, 1.5, 1, "kn_flat", s); tip2.position.set(20 * s, -1.25 * s, 0);
+  const guard = part(mat, 1.5, 7, 3, "kn_guard", s); guard.position.x = -3.5 * s;
+  const grip = part(mat, 9, 3.5, 2.5, { all: "kn_grip", f: "kn_grip" }, s); grip.position.x = -9 * s;
+  const pommel = part(mat, 1.5, 4, 3, "kn_guard", s); pommel.position.x = -14 * s;
+  g.add(blade, tip, tip2, guard, grip, pommel);
+  g.userData.mat = mat;
+  g.userData.knife = true;
+  return g;
+}
+
 export function makeItemMesh(id, size = 0.25) {
   const it = ITEMS[id];
+  if (it?.weapon === "knife") return makeKnife(size);
   const b = it?.block ? BLOCKS[it.block] : null;
   const mat = new THREE.MeshBasicMaterial({ map: ATLAS_TEX, alphaTest: 0.5, side: THREE.DoubleSide });
   let mesh;
@@ -436,7 +454,11 @@ export class Hand {
     this.itemId = id;
     if (this.item) { this.item.parent?.remove(this.item); disposeTree(this.item); this.item = null; }
     this.gun = ITEMS[id]?.gun ?? null;
-    if (id && this.gun) {
+    this.knife = ITEMS[id]?.weapon === "knife";
+    if (id && this.knife) {
+      this.item = makeItemMesh(id, 0.3);
+      this.root.add(this.item);
+    } else if (id && this.gun) {
       // 총은 팔이 아니라 화면에 붙여 앞을 겨누게 (총구가 앞)
       this.item = makeItemMesh(id, 0.34);
       this.item.rotation.set(0, Math.PI / 2, 0);
@@ -458,6 +480,9 @@ export class Hand {
     this.equip = 1;
   }
   doSwing() { if (this.swing <= 0.2) this.swing = 1; }
+  /** 칼 — 베기(옆으로 휘두름) · 찌르기(앞으로 쭉) */
+  slash() { this.slashT = 1; this.slashDir = this.slashDir === 1 ? -1 : 1; }
+  stab() { this.stabT = 1; }
   /** 총 반동 · 총구 불꽃 */
   fire() { this.kick = 1; if (this.flash) { this.flash.visible = true; this.flash.rotation.z = Math.random() * 3; } }
   update(dt, walkSpeed, light, aspect, o = {}) {
@@ -479,6 +504,24 @@ export class Hand {
     this.root.rotation.set(o.sprint ? -0.08 : 0, 0, o.sprint ? Math.sin(this.bob) * 0.04 : 0);
     const it = this.item;
     this.root.visible = !o.scoped; // 스코프로 볼 때는 손 · 총을 숨긴다
+    if (this.knife && it) {
+      this.slashT = Math.max(0, (this.slashT ?? 0) - dt * 4.2);
+      this.stabT = Math.max(0, (this.stabT ?? 0) - dt * 5.5);
+      const sl = this.slashT > 0 ? Math.sin((1 - this.slashT) * Math.PI) : 0;  // 0→1→0
+      const sp = this.slashT > 0 ? 1 - this.slashT : 0;                       // 0→1
+      const st = this.stabT > 0 ? Math.sin((1 - this.stabT) * Math.PI) : 0;
+      const dir = this.slashDir ?? 1;
+      // 기본: 오른손에 쥐고 날은 앞 · 살짝 위
+      const x = 0.28 - (dir > 0 ? sp : 1 - sp) * 0.5 * (this.slashT > 0 ? 1 : 0) - st * 0.12;
+      const y = -0.23 + sl * 0.12 - (this.slashT > 0 ? sp * 0.12 : 0) + st * 0.08;
+      const z = -0.5 - st * 0.45 - sl * 0.1;
+      it.position.set(x, y, z);
+      it.rotation.set(-0.25 + sl * 0.4 * dir, Math.PI / 2 + 0.25 + sl * 0.9 * dir - st * 0.25, 0.35 - sl * 0.5 + st * 0.1);
+      this.arm.position.set(x + 0.16, y - 0.55, z + 0.2);
+      this.arm.rotation.set(1.6 - st * 0.2, 0.35 + sl * 0.5 * dir, -0.1);
+      tint([this.mat, it.userData.mat], light);
+      return;
+    }
     if (this.gun && it) {
       // 총 — 허리 높이 ↔ 조준(가운데) · 반동 · 장전 때 내리기
       this.kick = Math.max(0, (this.kick ?? 0) - dt * 9);
@@ -535,6 +578,16 @@ export class Particles {
       this.list.push({ m, v, life: 1.2 + Math.random() * 0.8, g: 18, blood: true, shared: true, keep: true });
     }
   }
+  /** 탄피 — 총 오른쪽으로 튀어나가 바닥에 떨어진다 */
+  shell(pos, vel, big = false) {
+    this.shellMat ??= new THREE.MeshBasicMaterial({ color: 0xd8a640 });
+    this.shellGeo ??= new THREE.BoxGeometry(0.016, 0.016, 0.045);
+    const m = new THREE.Mesh(this.shellGeo, this.shellMat);
+    m.position.copy(pos);
+    if (big) m.scale.set(1.3, 1.3, 1.6);
+    this.scene.add(m);
+    this.list.push({ m, v: vel.clone(), life: 3 + Math.random(), g: 14, blood: true, shell: true, spin: new THREE.Vector3(Math.random() * 20, Math.random() * 20, Math.random() * 20) });
+  }
   /** 바닥 핏자국 (오래되면 사라짐) */
   splat(x, y, z, size) {
     this.decals ??= [];
@@ -579,9 +632,14 @@ export class Particles {
       p.v.y -= p.g * dt;
       const n = p.m.position.clone().addScaledVector(p.v, dt);
       if (p.g > 0 && this.world.solidAt(n.x, n.y, n.z)) {
-        if (p.blood && !p.landed) { p.landed = true; if (Math.random() < 0.5) this.splat(p.m.position.x, n.y + 1, p.m.position.z, 0.15 + Math.random() * 0.35); }
+        if (p.shell && !p.bounced && p.v.y < -1.5) { p.bounced = true; p.v.set(p.v.x * 0.35, -p.v.y * 0.3, p.v.z * 0.35); continue; } // 땅에 한 번 튕김
+        if (p.shell && !p.landed) { p.landed = true; p.spin.set(0, 0, 0); p.m.rotation.set(0, Math.random() * 3, Math.PI / 2); }
+        else if (p.blood && !p.landed) { p.landed = true; if (Math.random() < 0.5) this.splat(p.m.position.x, n.y + 1, p.m.position.z, 0.15 + Math.random() * 0.35); }
         p.v.set(0, 0, 0);
-      } else p.m.position.copy(n);
+      } else {
+        p.m.position.copy(n);
+        if (p.spin) { p.m.rotation.x += p.spin.x * dt; p.m.rotation.y += p.spin.y * dt; p.m.rotation.z += p.spin.z * dt; }
+      }
       if (!p.blood) p.m.quaternion.copy(cam.quaternion);
       if (p.fade) { p.m.material.opacity = Math.min(0.9, p.life); p.m.scale.multiplyScalar(1 + p.grow * dt); }
     }

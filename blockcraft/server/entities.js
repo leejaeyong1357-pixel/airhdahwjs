@@ -199,15 +199,16 @@ export class Entities {
   }
 
   // ── 수류탄 ───────────────────────────────────────────────
-  throwGrenade(owner, o, v, fuse) {
+  /** 던진 수류탄 — 땅에 닿은 뒤 fuse 초 뒤에 터진다 (공중에 maxAir 초 넘게 있으면 그냥 터짐) */
+  throwGrenade(owner, o, v, fuse, maxAir = 6) {
     const id = this.nextId++;
-    this.grenades.set(id, { id, owner, x: o[0], y: o[1], z: o[2], vx: v[0], vy: v[1], vz: v[2], fuse });
+    this.grenades.set(id, { id, owner, x: o[0], y: o[1], z: o[2], vx: v[0], vy: v[1], vz: v[2], fuse, air: 0, maxAir, landed: false });
     return id;
   }
 
   tickGrenade(g, dt) {
-    g.fuse -= dt;
-    if (g.fuse <= 0) { this.grenades.delete(g.id); this.hooks.grenadeBoom(g); return; }
+    if (g.landed) g.fuse -= dt; else g.air += dt;
+    if (g.fuse <= 0 || g.air > g.maxAir) { this.grenades.delete(g.id); this.hooks.grenadeBoom(g); return; }
     g.vy -= GRENADE_G * dt;
     const steps = 3;
     for (let i = 0; i < steps; i++) {
@@ -218,7 +219,7 @@ export class Entities {
         n[ax] += v * sdt;
         if (blocksBody(this.world.get(Math.floor(n.x), Math.floor(n.y), Math.floor(n.z)))) {
           g["v" + ax] = -v * 0.35;                                 // 튕기기
-          if (ax === "y") { g.vx *= 0.7; g.vz *= 0.7; }
+          if (ax === "y") { g.vx *= 0.7; g.vz *= 0.7; if (v < 0) g.landed = true; } // 땅에 닿음 → 2초 세기 시작
         } else g[ax] = n[ax];
       }
     }
