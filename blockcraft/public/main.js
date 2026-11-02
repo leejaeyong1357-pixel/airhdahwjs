@@ -14,6 +14,7 @@ import { Sky, daylightAt } from "./render/sky.js";
 import { initModels, makeHumanoid, animateHumanoid, makeMob, animateMob, tint, makeItemMesh, makeArrow, disposeTree, Hand, Particles, nameSprite, setArmor, speechSprite } from "./render/models.js";
 import { InventoryUI, fillSlot } from "./ui/inventory.js";
 import { LookEditor } from "./ui/look.js";
+import { WorldMap } from "./ui/map.js";
 import { sfx, unlock, setVolume } from "./sound.js";
 
 THREE.ColorManagement.enabled = false;
@@ -107,6 +108,34 @@ const ui = new InventoryUI({
   closeBox: () => { applyOp(game.st, { o: "close" }, game.mode); net({ t: "cclose" }); },
   sfx, changed: () => changed(),
 });
+
+// 지도 (M) — 리스폰 지점 · 내 위치 · 다른 사람
+const worldMap = new WorldMap(world, atlas, () => ({
+  me: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
+  spawn: game.spawn ?? [0.5, 60, 0.5],
+  dead: game.dead,
+  others: [...others.values()].map((o) => ({ name: o.name, color: o.color, x: o.model.root.position.x, z: o.model.root.position.z, dead: o.dead })),
+}));
+function openMap(focusSpawn = false) {
+  if (uiMode === "map") return;
+  toggleDance(false);
+  cancelNade();
+  uiMode = "map";
+  keys.clear(); mouseL = mouseR = false;
+  document.exitPointerLock?.();
+  $("pause").classList.add("hidden");
+  worldMap.show(focusSpawn);
+}
+function closeMap() {
+  if (uiMode !== "map") return;
+  worldMap.hide();
+  if (game.dead) { uiMode = "dead"; return; }
+  uiMode = "pause";
+  lockPointer();
+}
+$("mapClose").onclick = () => closeMap();
+$("deathMap").onclick = () => openMap(true);
+$("pauseMap").onclick = () => openMap();
 
 function connect(realm) {
   disconnect();
@@ -295,6 +324,8 @@ function onRespawn(m) {
   player.vel.set(0, 0, 0);
   player.fallTop = null;
   $("death").classList.add("hidden");
+  if (uiMode === "map") worldMap.hide();
+  uiMode = "pause";
   lockPointer();
 }
 
@@ -1150,7 +1181,7 @@ function lockPointer() {
   unlock();
   try { const r = canvas.requestPointerLock?.(); r?.catch?.(() => {}); } catch { /* 클릭하면 다시 시도 */ }
 }
-let uiMode = "title"; // title · play · pause · chat · inv · dead
+let uiMode = "title"; // title · play · pause · chat · inv · dead · score · map
 function showPause(first = false) {
   uiMode = "pause";
   $("resumeBtn").textContent = first ? "클릭해서 시작하기" : "게임으로 돌아가기";
@@ -1233,6 +1264,8 @@ document.addEventListener("keydown", (e) => {
     } else if (e.code === "Escape") closeChat();
     return;
   }
+  if (uiMode === "map") { if (e.code === "KeyM" || e.code === "Escape") { e.preventDefault(); closeMap(); } return; }
+  if (e.code === "KeyM" && !e.repeat && ["play", "pause", "dead"].includes(uiMode)) { e.preventDefault(); openMap(game.dead); return; }
   if (game.dead) return;
   if (["Tab", "F3", "F5", "F1", "Slash"].includes(e.code) || (e.ctrlKey && ["KeyS", "KeyD", "KeyW"].includes(e.code))) e.preventDefault();
   if (uiMode === "score") { if (e.code === "Tab" || e.code === "Escape") { e.preventDefault(); closeScores(); } return; }
@@ -1586,6 +1619,7 @@ function frame(dt, now, real = dt) {
   if (ui.isOpen) ui.renderPreview(dt, heldId());
   renderHud();
   renderTopRight();
+  if (worldMap.open) worldMap.draw();
 
   frames++;
   if (now - fpsAt > 500) { fps = Math.round((frames * 1000) / (now - fpsAt)); frames = 0; fpsAt = now; }

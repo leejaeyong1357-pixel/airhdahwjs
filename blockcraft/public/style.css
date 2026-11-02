@@ -223,3 +223,14 @@ label input:focus { outline: 2px solid #4a8cff; }
 #feed { position: absolute; right: 12px; top: 64px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .feedLine { background: rgba(0,0,0,.55); padding: 4px 10px; border-radius: 4px; font-size: 14px; font-weight: 700; transition: opacity 1s; }
 .feedLine .k { color: #8fd0ff; } .feedLine .v { color: #ff9a9a; } .feedLine .h { color: #ff4040; }
+
+/* 지도 (M) */
+#mapScreen { z-index: 34; }
+.glass.mapBox { width: min(1000px, calc(100vw - 32px)); padding: 16px 18px 14px; gap: 8px; }
+.mapBox h3 small { font-size: 13px; font-weight: 400; color: #9fb3d6; margin-left: 8px; }
+#mapCanvas { display: block; width: 100%; height: min(68vh, 640px); border-radius: 6px; border: 1px solid #2c3e64; cursor: grab; image-rendering: pixelated; background: #0d1626; }
+#mapCanvas:active { cursor: grabbing; }
+.mapBar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; color: #c9d6ea; }
+.mapBar .ghostBtn { padding: 7px 12px; }
+.mapBar b { color: #ffd060; }
+.mapBar small { color: #9fb3d6; }
