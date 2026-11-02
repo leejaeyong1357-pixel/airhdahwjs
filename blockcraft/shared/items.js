@@ -9,7 +9,7 @@ export const I = {
   LEATHER: 286, BONE: 287, ARROW: 288, BREAD: 289,
   // 290~301 방어구
   KNIFE: 302, M16: 303, SNIPER: 304, GRENADE: 305, WOLF_PELT: 306, WOLF_COAT: 307,
-  AK47: 308, MP5: 309, LMG: 310, PISTOL: 311,
+  AK47: 308, M4: 309, PISTOL: 311,
 };
 
 const TIERS = [
@@ -84,29 +84,25 @@ ARMOR_TIERS.forEach((t) => {
 // kind: 주무기(primary) · 보조무기(secondary)
 // 수류탄 3개
 ITEMS[I.KNIFE] = { id: I.KNIFE, name: "칼", icon: "knife", stack: 1, damage: 1, weapon: "knife", kit: true };
+ITEMS[I.M4] = {
+  id: I.M4, name: "M4A1", icon: "m4", stack: 1, kit: true, model: "m4",
+  gun: { kind: "primary", desc: "돌격소총 · 빠른 연사 · 도트사이트 · 정확함", auto: true, rate: 0.085, mag: 30, total: 90, reload: 2.1, body: 2, range: 90, spread: 0.009, kick: 0.013, zoom: 0.62 },
+};
 ITEMS[I.M16] = {
-  id: I.M16, name: "M16", icon: "m16", stack: 1, kit: true,
-  gun: { kind: "primary", desc: "돌격소총 · 연사 · 반동 적음", auto: true, rate: 0.11, mag: 30, total: 90, reload: 2, body: 2, range: 90, spread: 0.01, kick: 0.015, zoom: 0.72 },
+  id: I.M16, name: "M16A2", icon: "m16", stack: 1, kit: true, model: "m16",
+  gun: { kind: "primary", desc: "돌격소총 · 3점사 · 가장 정확함", auto: false, burst: 3, burstDelay: 0.3, rate: 0.075, mag: 30, total: 90, reload: 2.2, body: 2, range: 110, spread: 0.006, kick: 0.012, zoom: 0.68 },
 };
 ITEMS[I.AK47] = {
-  id: I.AK47, name: "AK-47", icon: "ak47", stack: 1, kit: true,
+  id: I.AK47, name: "AK-47", icon: "ak47", stack: 1, kit: true, model: "ak47",
   gun: { kind: "primary", desc: "돌격소총 · 빠름 · 반동 큼", auto: true, rate: 0.1, mag: 30, total: 90, reload: 2.3, body: 2, range: 90, spread: 0.014, kick: 0.022, zoom: 0.72 },
-};
-ITEMS[I.MP5] = {
-  id: I.MP5, name: "MP5", icon: "mp5", stack: 1, kit: true,
-  gun: { kind: "primary", desc: "기관단총 · 아주 빠른 연사 · 짧은 사거리", auto: true, rate: 0.075, mag: 30, total: 90, reload: 1.7, body: 2, range: 55, spread: 0.02, kick: 0.01, zoom: 0.78 },
-};
-ITEMS[I.LMG] = {
-  id: I.LMG, name: "경기관총", icon: "lmg", stack: 1, kit: true,
-  gun: { kind: "primary", desc: "탄창 90발 · 재장전이 김", auto: true, rate: 0.095, mag: 90, total: 90, reload: 4, body: 2, range: 90, spread: 0.022, kick: 0.016, zoom: 0.75, slow: 0.85 },
 };
 ITEMS[I.PISTOL] = {
   id: I.PISTOL, name: "권총", icon: "pistol", stack: 1, kit: true,
   gun: { kind: "secondary", desc: "보조무기 · 단발", auto: false, rate: 0.16, mag: 15, total: 90, reload: 1.4, body: 2, range: 60, spread: 0.01, kick: 0.03, zoom: 0.8 },
 };
 ITEMS[I.SNIPER] = {
-  id: I.SNIPER, name: "저격총", icon: "sniper", stack: 1, kit: true,
-  gun: { kind: "primary", desc: "저격총 · 스코프(오른쪽) · 한 발씩", auto: false, rate: 1.2, mag: 10, total: 90, reload: 3, body: 2, range: 160, spread: 0.0, kick: 0.06, zoom: 0.16, scope: true },
+  id: I.SNIPER, name: "TRG-21", icon: "sniper", stack: 1, kit: true, model: "trg",
+  gun: { kind: "primary", desc: "볼트액션 저격총 · 스코프(오른쪽)", auto: false, rate: 1.2, mag: 10, total: 90, reload: 3, body: 2, range: 160, spread: 0.0, kick: 0.06, zoom: 0.16, scope: true },
 };
 ITEMS[I.GRENADE] = { id: I.GRENADE, name: "수류탄", icon: "grenade", stack: 3, kit: true, grenade: { fuse: 2, maxAir: 6, radius: 5, damage: 30, minSpeed: 5, speed: 30, charge: 1.1 } };
 // 수류탄: 꾹 누르면 힘을 모으고(최대 1.1초) 떼면 던진다 — 짧게는 눈앞, 길게는 멀리. 땅에 떨어지고 2초 뒤 폭발
@@ -114,8 +110,8 @@ ITEMS[I.GRENADE] = { id: I.GRENADE, name: "수류탄", icon: "grenade", stack: 3
 ITEMS[I.WOLF_COAT] = { id: I.WOLF_COAT, name: "늑대 가죽 옷", icon: "wolf_coat", stack: 1, armor: 1, points: 7, uses: 400, tierKey: "wolf" };
 export const KIT = [I.KNIFE, I.M16, I.SNIPER, I.GRENADE];       // 멀티 · 싱글 월드
 export const KIT_COUNT = { [I.GRENADE]: 3 };
-/** 에보 무기 선택 — 주무기 하나 + 권총 · 칼 · 수류탄 */
-export const PRIMARIES = [I.M16, I.AK47, I.MP5, I.LMG, I.SNIPER];
+/** 에보 무기 선택 — 주무기 하나(M4A1 · M16A2 · AK-47 · TRG-21) + 권총 · 칼 · 수류탄 */
+export const PRIMARIES = [I.M4, I.M16, I.AK47, I.SNIPER];
 export const isPrimary = (id) => PRIMARIES.includes(id);
 export const loadoutKit = (lo) => [isPrimary(lo?.primary) ? lo.primary : I.M16, I.PISTOL, I.KNIFE, I.GRENADE];
 export const GUNS = Object.values(ITEMS).filter((it) => it.gun).map((it) => it.id);

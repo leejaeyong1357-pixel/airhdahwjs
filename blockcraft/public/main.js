@@ -858,7 +858,14 @@ function knifeAttack(kind) {
 }
 
 function leftPress() {
-  if (heldGun()) { fire(); return true; }
+  const hg = heldGun();
+  if (hg?.burst) { // M16A2 3점사 — 한 번 누르면 3발
+    if (gun.burstLeft > 0 || performance.now() - (gun.burstEnd ?? 0) < hg.burstDelay * 1000) return true;
+    gun.burstLeft = hg.burst;
+    fire();
+    return true;
+  }
+  if (hg) { fire(); return true; }
   if (heldNade()) { pullPin(); return false; }
   if (heldKnife()) { knife.holdT = 0; if (knife.cool <= 0.08) knifeAttack("slash"); return true; }
   if (attackCool > 0) return;
@@ -881,7 +888,7 @@ function leftPress() {
 
 function updateDig(dt) {
   dig.cool = Math.max(0, dig.cool - dt);
-  if (heldGun()) { stopDig(); if (mouseL && locked() && heldGun().auto) fire(); return; }
+  if (heldGun()) { stopDig(); if (gun.burstLeft > 0) fire(); else if (mouseL && locked() && heldGun().auto) fire(); return; }
   if (heldNade()) { stopDig(); return; }
   knife.cool = Math.max(0, knife.cool - dt);
   if (heldKnife()) {
@@ -928,7 +935,7 @@ function finishDig() {
 }
 
 // ── 총 ─────────────────────────────────────────────────────
-const gun = { ammo: {}, reserve: {}, reloading: 0, last: 0, aim: false };
+const gun = { ammo: {}, reserve: {}, reloading: 0, last: 0, aim: false, burstLeft: 0, burstEnd: 0 };
 const heldGun = () => ITEMS[heldId()]?.gun ?? null;
 const tracers = [];
 /** 가진 무기 전체 탄약 — "M16 90.30" 처럼 (남은 전체.탄창) */
@@ -976,8 +983,9 @@ function fire() {
   const now = performance.now();
   if (now - gun.last < g.rate * 1000 || gun.reloading > now) return;
   const id = heldId();
-  if (!(gun.ammo[id] > 0)) { sfx.dry(); reload(); gun.last = now; return; }
+  if (!(gun.ammo[id] > 0)) { sfx.dry(); reload(); gun.last = now; gun.burstLeft = 0; return; }
   gun.last = now;
+  if (g.burst && gun.burstLeft > 0 && --gun.burstLeft === 0) gun.burstEnd = now;
   gun.ammo[id] -= 1;
   game.protectUntil = 0;
   // 퍼짐 — 조준하면 줄고 움직이면 늘어난다
@@ -1312,6 +1320,7 @@ function selectSlot(i) {
   eating.on = false;
   gun.aim = false;
   cancelNade(); // 당기다가 무기 바꾸면 처음부터
+  gun.burstLeft = 0;
   knife.holdT = 0;
   changed();
   renderAmmo();

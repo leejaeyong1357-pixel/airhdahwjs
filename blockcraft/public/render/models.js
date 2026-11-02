@@ -403,9 +403,71 @@ function makeKnife(size) {
   return g;
 }
 
+/** 총 — 실제 총 모양을 상자로 (px 단위, x 0 = 개머리판 끝 → 총구, y 위). 같은 px 크기라 총마다 길이가 다르다 */
+const GUN_MODELS = {
+  // M4A1 — 접이식 개머리, 위 레일 + 도트사이트, 레일 총열덮개, 짧은 총열
+  m4: [
+    [0, 3, 7, 9, 2.6, "g_black"], [0, 2.5, 1, 9.5, 2.8, "g_dark"], [7, 7, 11, 9, 1.6, "g_metal"],
+    [11, 6, 22, 11, 3, "g_black"], [11, 11, 32, 12, 2, "g_rail"],
+    [14, 12, 19, 16, 2.4, "g_black"], [18.6, 12.6, 19.1, 15.4, 1.6, "g_lens"],
+    [13, 0, 16, 6, 2.4, "g_black"], [16, 4, 18, 6, 0.6, "g_dark"],
+    [19, 1, 22, 6, 2.2, "g_dark"], [19.5, -3, 22.5, 1, 2.2, "g_dark"],
+    [22, 6, 32, 10.5, 3.2, "g_rail"], [30, 11, 32, 14, 0.8, "g_black"],
+    [32, 7.5, 40, 8.6, 1.1, "g_metal"], [38, 7.2, 40.5, 8.9, 1.5, "g_black"],
+  ],
+  // M16A2 — 고정 개머리, 운반 손잡이, 둥근 총열덮개, 삼각 가늠쇠, 긴 총열
+  m16: [
+    [0, 2, 1, 9.5, 3, "g_dark"], [1, 3, 11, 9.5, 2.8, "g_black"],
+    [11, 6, 23, 11, 3, "g_black"], [12, 11, 13.5, 14, 1.6, "g_black"], [19, 11, 20.5, 14, 1.6, "g_black"], [12, 13, 20.5, 14.5, 2, "g_black"], [12.3, 14.5, 13.3, 15.5, 1, "g_dark"],
+    [13, 0, 16, 6, 2.4, "g_black"], [16, 4, 18, 6, 0.6, "g_dark"],
+    [19.5, 0, 22.5, 6, 2.2, "g_dark"], [20, -3.5, 23, 0, 2.2, "g_dark"],
+    [23, 6, 37, 10.5, 3.6, "g_dark"], [24, 6.5, 36, 10, 3.8, "g_black"],
+    [36, 7.5, 38, 13.5, 1, "g_black"], [36, 7, 38, 8.5, 2, "g_black"],
+    [37, 7.6, 46, 8.6, 1.1, "g_metal"], [44, 7.3, 46.5, 8.9, 1.6, "g_black"],
+  ],
+  // AK-47 — 나무 개머리 · 손잡이 · 총열덮개, 휜 탄창, 가스관, 가늠쇠
+  ak47: [
+    [0, 1, 4, 8, 2.8, "g_wood"], [4, 3.5, 12, 8, 2.6, "g_wood"],
+    [12, 5, 25, 10, 3, "g_black"], [12, 10, 24, 11, 2.4, "g_metal"],
+    [13, -1, 16, 5, 2.4, "g_wood"], [16, 3.5, 18, 5, 0.6, "g_dark"],
+    [19, 0, 23, 5, 2.4, "g_dark"], [20, -4, 24, 0.5, 2.4, "g_dark"], [21.5, -8, 25.5, -3.5, 2.4, "g_dark"],
+    [25, 5, 33, 9, 3.2, "g_wood"], [25, 9, 31, 11, 2.6, "g_wood"], [31, 9.4, 37, 10.6, 1.2, "g_metal"],
+    [33, 6.5, 44, 7.6, 1.1, "g_metal"], [37, 7, 39, 12, 1.4, "g_black"], [42, 6.2, 44.5, 7.9, 1.6, "g_black"],
+  ],
+  // TRG-21 — 올리브 개머리(엄지구멍), 큰 스코프, 볼트 손잡이, 굵은 총열 + 소염기, 접힌 양각대
+  trg: [
+    [0, 1, 3, 10, 3, "g_olive"], [3, 7.5, 15, 10, 2.6, "g_olive"], [3, 1, 12, 3, 2.6, "g_olive"], [12, 1, 15, 7.5, 2.6, "g_olive"],
+    [15, 0, 18, 6, 2.6, "g_olive"],
+    [15, 5, 27, 9, 3, "g_black"], [21, 7, 23, 8, 6, "g_metal"], [21, 6.6, 23, 8.4, 1, "g_metal"],
+    [19, 1.5, 23, 5, 2.2, "g_black"],
+    [27, 4, 37, 8, 3, "g_olive"],
+    [15, 10, 33, 12.6, 2.6, "g_black"], [29, 9.4, 35, 13.4, 3.4, "g_black"], [12.5, 9.8, 16.5, 12.8, 3, "g_black"],
+    [18, 9, 19.2, 10, 1.6, "g_dark"], [27, 9, 28.2, 10, 1.6, "g_dark"], [35, 10, 35.3, 12.8, 2.8, "g_lens"],
+    [37, 6, 50, 7.4, 1.4, "g_metal"], [49, 5.7, 53, 7.7, 1.9, "g_black"],
+    [30, 3.2, 39, 3.9, 0.6, "g_dark"],
+  ],
+};
+function makeGun(model, size) {
+  const parts = GUN_MODELS[model];
+  const mat = skinMat();
+  const s = (size * 1.6) / 44;      // 1px 크기 (M16 이 아이콘 총과 비슷한 길이)
+  const cx = 22, cy = 8;           // 이 점을 가운데로
+  const g = new THREE.Group();
+  for (const [x0, y0, x1, y1, t, tile] of parts) {
+    const m = part(mat, x1 - x0, y1 - y0, t, tile, s);
+    m.position.set(((x0 + x1) / 2 - cx) * s, ((y0 + y1) / 2 - cy) * s, 0);
+    g.add(m);
+  }
+  const front = Math.max(...parts.map((q) => q[2]));
+  g.userData.mat = mat;
+  g.userData.muzzle = [(front - cx + 0.6) * s, (7.6 - cy) * s];
+  return g;
+}
+
 export function makeItemMesh(id, size = 0.25) {
   const it = ITEMS[id];
   if (it?.weapon === "knife") return makeKnife(size);
+  if (it?.model && GUN_MODELS[it.model]) return makeGun(it.model, size);
   const b = it?.block ? BLOCKS[it.block] : null;
   const mat = new THREE.MeshBasicMaterial({ map: ATLAS_TEX, alphaTest: 0.5, side: THREE.DoubleSide });
   let mesh;
@@ -478,13 +540,14 @@ export class Hand {
       this.root.add(this.item);
     } else if (id && this.gun) {
       // 총은 팔이 아니라 화면에 붙여 앞을 겨누게 (총구가 앞)
-      this.item = makeItemMesh(id, 0.34);
+      this.item = makeItemMesh(id, ITEMS[id].model ? 0.42 : 0.34);
       this.item.rotation.set(0, Math.PI / 2, 0);
       this.root.add(this.item);
       this.flash = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.16), new THREE.MeshBasicMaterial({ color: 0xffd060, transparent: true, opacity: 0.95, depthTest: false }));
       this.flash.visible = false;
       this.item.add(this.flash);
-      this.flash.position.set(0.5, 0.05, 0);
+      const mz = this.item.userData.muzzle;
+      this.flash.position.set(mz ? mz[0] : 0.5, mz ? mz[1] : 0.05, 0);
       this.flash.rotation.y = -Math.PI / 2;
     } else if (id) {
       const tool = !(ITEMS[id]?.block && ["solid", "cutout"].includes(BLOCKS[ITEMS[id].block].kind));
