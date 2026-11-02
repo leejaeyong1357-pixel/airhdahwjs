@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>테크젠 크래프트</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 fill=%22%23183878%22/%3E%3Cpath d=%22M3 3h10v3H9.5v7h-3V6H3z%22 fill=%22%23fff%22/%3E%3C/svg%3E" />
+  <link rel="preload" as="image" href="img/title.jpg" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- 첫 화면 -->
+  <div id="title">
+    <div id="titleStage">
+      <button id="btnStart" class="tbtn primary"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg><span>게임 시작</span></button>
+      <button id="btnLogin" class="tbtn" style="top:50.4%"><svg viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="4.5"/><path d="M3 22c0-5 4-8 9-8s9 3 9 8z"/></svg><span id="btnLoginText">로그인</span></button>
+      <button id="btnSettings" class="tbtn" style="top:59.5%"><svg viewBox="0 0 24 24"><path d="M10 2h4l.6 3 2.2 1 2.6-1.7 2.8 2.8L20.5 9.7l1 2.3 2.5.5v4l-3 .6-1 2.2 1.7 2.6-2.8 2.8-2.6-1.7-2.2 1-.6 3h-4l-.6-3-2.2-1-2.6 1.7-2.8-2.8L4.3 19.3l-1-2.3-3-.5v-4l3-.6 1-2.2L2.6 7.1l2.8-2.8L8 6l2.2-1zM12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5z" transform="scale(.92) translate(1 0)"/></svg><span>설정</span></button>
+      <button id="btnQuit" class="tbtn" style="top:68.5%"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.3 6.6a8 8 0 1 0 11.4 0"/></svg><span>종료</span></button>
+      <div id="titleStatus"></div>
+      <div id="titleVersion"></div>
+    </div>
+  </div>
+
+  <!-- 로그인 · 가입 -->
+  <div id="loginModal" class="modal hidden">
+    <div class="glass">
+      <button class="x" data-close>✕</button>
+      <div id="loginForms">
+        <div class="tabs"><button id="tabLogin" class="on">로그인</button><button id="tabJoin">가입하기</button></div>
+        <form id="authForm" autocomplete="on">
+          <label>아이디<input id="authName" maxlength="12" placeholder="한글 · 영문 · 숫자 2~12자" autocomplete="username" /></label>
+          <label>비밀번호<input id="authPw" type="password" maxlength="64" placeholder="4자 이상" autocomplete="current-password" /></label>
+          <label id="pw2Row" class="hidden">비밀번호 확인<input id="authPw2" type="password" maxlength="64" placeholder="한 번 더" autocomplete="new-password" /></label>
+          <div id="authError" class="error"></div>
+          <button id="authSubmit" class="primaryBtn" type="submit">로그인</button>
+          <p class="hintSmall">한 번 로그인하면 이 PC 에서는 자동으로 로그인됩니다. 다른 PC 에서 로그인해도 진행 상황이 그대로 이어집니다.</p>
+        </form>
+      </div>
+      <div id="loggedIn" class="hidden">
+        <h3><span id="meName"></span> 님</h3>
+        <p class="hintSmall" id="meRole"></p>
+        <button id="btnPlay2" class="primaryBtn">게임 시작</button>
+        <button id="btnLook" class="ghostBtn">캐릭터 꾸미기</button>
+        <button id="btnLogout" class="ghostBtn">로그아웃</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 캐릭터 꾸미기 -->
+  <div id="lookModal" class="modal hidden">
+    <div class="glass wide">
+      <button class="x" data-close>✕</button>
+      <h3 id="lookTitle">캐릭터 만들기</h3>
+      <p class="hintSmall" id="lookSub"></p>
+      <div class="lookBox">
+        <canvas id="lookCanvas"></canvas>
+        <div id="lookOptions"></div>
+      </div>
+      <div id="lookError" class="error"></div>
+      <button id="lookSave" class="primaryBtn">이 모습으로 하기</button>
+    </div>
+  </div>
+
+  <!-- 게임 시작 → 월드 고르기 -->
+  <div id="playModal" class="modal hidden">
+    <div class="glass">
+      <button class="x" data-close>✕</button>
+      <h3>어디서 할까요?</h3>
+      <button id="playContinue" class="primaryBtn hidden">이어하기</button>
+      <button id="playMulti" class="ghostBtn big"><b>멀티플레이</b><small>회사 서버 월드 — 접속한 직원들과 같이</small></button>
+      <button id="playSolo" class="ghostBtn big"><b>싱글플레이</b><small>나만의 월드 — 혼자 (치트 명령 가능)</small></button>
+      <p class="hintSmall" id="playWho"></p>
+      <button id="playLook" class="ghostBtn">캐릭터 꾸미기</button>
+    </div>
+  </div>
+
+  <!-- 설정 -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="glass">
+      <button class="x" data-close>✕</button>
+      <h3>설정</h3>
+      <label class="range">마우스 감도 <b id="vSens"></b><input id="sSens" type="range" min="20" max="300" step="5" /></label>
+      <label class="range">시야 거리 <b id="vDist"></b><input id="sDist" type="range" min="3" max="12" step="1" /></label>
+      <label class="range">시야각 <b id="vFov"></b><input id="sFov" type="range" min="55" max="110" step="1" /></label>
+      <label class="range">밝기 <b id="vBright"></b><input id="sBright" type="range" min="0" max="100" step="5" /></label>
+      <label class="range">소리 크기 <b id="vVol"></b><input id="sVol" type="range" min="0" max="100" step="5" /></label>
+      <label class="range">그래픽 <select id="sGfx"><option value="high">고급</option><option value="mid">보통</option><option value="low">저사양 (느린 PC)</option></select></label>
+      <div class="keysHelp">
+        <div><b>WASD</b> 이동</div><div><b>Space</b> 점프</div>
+        <div><b>Ctrl · W 두 번</b> 달리기</div><div><b>Shift</b> 웅크리기</div>
+        <div><b>왼쪽 (꾹)</b> 캐기 · 공격 · 칼 연속 찌르기</div><div><b>F5</b> 3인칭</div>
+        <div><b>오른쪽</b> 놓기 · 열기 · 먹기</div><div><b>E · Tab</b> 인벤토리 · 조합</div>
+        <div><b>1~9 · 휠</b> 단축칸</div><div><b>Q</b> 버리기</div>
+        <div><b>/</b> 명령어</div><div><b>F3</b> 좌표</div>
+        <div><b>M</b> 지도 (리스폰 위치)</div><div><b>Tab</b> 점수판</div>
+        <div><b>수류탄</b> 꾹 당길수록 멀리 · 떼면 던지기</div><div><b>R</b> 재장전</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 종료 -->
+  <div id="quitScreen" class="hidden"><div>게임을 종료했습니다.<br /><small>이 탭을 닫으세요. 다시 하려면 새로고침(F5).</small></div></div>
+
+  <!-- 게임 화면 -->
+  <div id="hud" class="hidden">
+    <div id="crosshair"></div>
+    <div id="hitmarker"></div>
+    <div id="ammo" class="hidden"></div>
+    <div id="nadeGauge" class="hidden"><i></i></div>
+    <div id="debug" class="hidden"></div>
+    <div id="mode"></div>
+    <div id="feed"></div>
+    <div id="topRight"></div>
+    <div id="chatLog"></div>
+    <input id="chatInput" class="hidden" maxlength="200" placeholder="메시지 입력 후 Enter  (/help 명령어 목록)" autocomplete="off" />
+    <div id="itemName"></div>
+    <div id="bars">
+      <div id="armorBar" class="bar top"></div>
+      <div id="hearts" class="bar"></div>
+      <div id="food" class="bar right"></div>
+      <div id="air" class="bar right top"></div>
+      <div id="xp"><i id="xpFill"></i><b id="xpLvl"></b></div>
+    </div>
+    <div id="hotbar"></div>
+  </div>
+  <div id="hurtFx"></div>
+  <div id="bloodFx"></div>
+  <div id="scope" class="hidden"><div class="lens"></div></div>
+  <div id="water" class="hidden"></div>
+  <div id="fireFx" class="hidden"></div>
+  <div id="flash"></div>
+
+  <!-- 일시정지 -->
+  <div id="pause" class="overlay hidden">
+    <div class="glass">
+      <h3>일시정지</h3>
+      <button id="resumeBtn" class="primaryBtn">게임으로 돌아가기</button>
+      <button id="pauseMap" class="ghostBtn">지도 (M)</button>
+      <button id="pauseSettings" class="ghostBtn">설정</button>
+      <button id="pauseLook" class="ghostBtn">캐릭터 꾸미기</button>
+      <button id="pauseTitle" class="ghostBtn">첫 화면으로</button>
+      <div id="pausePlayers" class="players"></div>
+    </div>
+  </div>
+
+  <!-- 죽음 -->
+  <div id="death" class="overlay hidden">
+    <div class="deathBox">
+      <h1>죽었습니다!</h1>
+      <p id="deathWhy"></p>
+      <button id="respawnBtn" class="primaryBtn">부활</button>
+      <button id="deathMap" class="ghostBtn">지도 — 리스폰 위치 보기 (M)</button>
+      <button id="deathTitle" class="ghostBtn">첫 화면으로</button>
+    </div>
+  </div>
+
+  <!-- 점수판 (Tab) -->
+  <div id="scoreboard" class="overlay hidden">
+    <div class="glass wide">
+      <h3>점수판 <small id="scoreTitle"></small></h3>
+      <table id="scoreTable"><thead><tr><th>이름</th><th>킬</th><th>데스</th><th>어시</th></tr></thead><tbody></tbody></table>
+      <div class="nickRow"><input id="nickInput" maxlength="12" placeholder="새 닉네임 (한글 · 영문 · 숫자 2~12자)" autocomplete="off" /><button id="nickBtn" class="primaryBtn">닉네임 변경</button></div>
+      <p class="hintSmall">Tab 또는 Esc 로 닫기</p>
+    </div>
+  </div>
+
+  <!-- 지도 (M) -->
+  <div id="mapScreen" class="overlay hidden">
+    <div class="glass mapBox">
+      <button id="mapClose" class="x">✕</button>
+      <h3>지도 <small>M · Esc 닫기 · 휠 확대/축소 · 끌어서 이동</small></h3>
+      <canvas id="mapCanvas"></canvas>
+      <div class="mapBar"><button id="mapMe" class="ghostBtn">내 위치로</button><button id="mapSpawn" class="ghostBtn">리스폰 위치로</button><span id="mapInfo"></span></div>
+    </div>
+  </div>
+
+  <!-- 인벤토리 (ui/inventory.js 가 채움) -->
+  <div id="invScreen" class="hidden"></div>
+
+  <div id="loading" class="hidden">월드 불러오는 중...</div>
+  <div id="toast" class="hidden"></div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
