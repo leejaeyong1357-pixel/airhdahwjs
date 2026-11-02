@@ -555,9 +555,10 @@ function placeAboveGround() {
 
 // ── 바라보는 블록 · 몹 ─────────────────────────────────────
 const tmpDir = new THREE.Vector3();
+// 내 눈 위치 · 보는 방향 — 3인칭이어도 조준 · 캐기 · 던지기는 눈 기준
+const eye = new THREE.Vector3(), eyeDir = new THREE.Vector3(0, 0, -1);
 function raycastBlock(reach = REACH) {
-  const o = camera.position, d = tmpDir;
-  camera.getWorldDirection(d);
+  const o = eye, d = tmpDir.copy(eyeDir);
   let x = Math.floor(o.x), y = Math.floor(o.y), z = Math.floor(o.z);
   const sx = Math.sign(d.x), sy = Math.sign(d.y), sz = Math.sign(d.z);
   const tdx = Math.abs(1 / d.x), tdy = Math.abs(1 / d.y), tdz = Math.abs(1 / d.z);
@@ -586,8 +587,7 @@ function rayBox(o, d, min, max) {
   return t0;
 }
 function raycastEntity() {
-  const o = camera.position, d = new THREE.Vector3();
-  camera.getWorldDirection(d);
+  const o = eye, d = eyeDir.clone();
   let best = null;
   const test = (kind, id, p, w, h) => {
     const t = rayBox(o, d, { x: p.x - w, y: p.y, z: p.z - w }, { x: p.x + w, y: p.y + h, z: p.z + w });
@@ -724,10 +724,10 @@ function fire() {
   const moving = Math.hypot(player.vel.x, player.vel.z) > 1 || !player.onGround;
   const spread = g.spread * (gun.aim ? 0.3 : 1) * (moving ? 2.5 : 1) + (gun.aim || g.scope ? 0 : 0.004);
   const d = new THREE.Vector3();
-  camera.getWorldDirection(d);
+  d.copy(eyeDir);
   d.x += (Math.random() - 0.5) * spread * 2; d.y += (Math.random() - 0.5) * spread * 2; d.z += (Math.random() - 0.5) * spread * 2;
   d.normalize();
-  const o = camera.position;
+  const o = eye;
   net({ t: "shoot", o: [o.x, o.y, o.z].map((v) => Math.round(v * 1000) / 1000), d: [d.x, d.y, d.z].map((v) => Math.round(v * 10000) / 10000) });
   hand.fire();
   (g.scope ? sfx.sniper : sfx.gun)();
@@ -786,10 +786,10 @@ const nade = { pinAt: 0, arc: null };
 const heldNade = () => ITEMS[heldId()]?.grenade ?? null;
 function nadeLaunch() {
   const d = new THREE.Vector3();
-  camera.getWorldDirection(d);
+  d.copy(eyeDir);
   // 오른손에서 던진다 (궤적이 화면에 곡선으로 보이게)
   const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
-  const o = camera.position.clone().addScaledVector(d, 0.5).addScaledVector(right, 0.35).add(new THREE.Vector3(0, -0.25, 0));
+  const o = eye.clone().addScaledVector(d, 0.5).addScaledVector(right, 0.35).add(new THREE.Vector3(0, -0.25, 0));
   const v = d.clone().multiplyScalar(heldNade().speed - 1.5).add(new THREE.Vector3(0, 2.5, 0));
   return { o, v };
 }
@@ -1203,7 +1203,7 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "Slash") { openChat("/"); return; }
   if (e.code === "F3") { debugOn = !debugOn; $("debug").classList.toggle("hidden", !debugOn); return; }
   if (e.code === "F1") { hudOff = !hudOff; $("hud").style.visibility = hudOff ? "hidden" : ""; return; }
-  if (e.code === "F5") { game.view = (game.view + 1) % 2; return; }
+  if (e.code === "F5") { game.view = (game.view + 1) % 3; toast(["1인칭", "3인칭 (뒤에서)", "3인칭 (앞에서)"][game.view]); return; } // 1인칭 → 뒤 → 앞
   if (!locked()) return;
   if (e.code.startsWith("Digit") && e.code !== "Digit0") selectSlot(Number(e.code.slice(5)) - 1);
   if (e.code === "KeyQ") dropHeld(e.ctrlKey);
@@ -1424,6 +1424,8 @@ function frame(dt, now, real = dt) {
   const sh = game.shake * 0.25;
   camera.position.set(player.pos.x + (Math.random() - 0.5) * sh, player.pos.y + eyeH() + Math.abs(bob) + (Math.random() - 0.5) * sh, player.pos.z);
   camera.rotation.set(player.pitch, player.yaw, Math.sin(camBob.t * 0.5) * 0.004 * Math.min(1, speed / 4) + game.hurtTilt * 0.12);
+  eye.copy(camera.position);
+  camera.getWorldDirection(eyeDir);
   const g = heldGun();
   const aiming = !!g && gun.aim && locked() && !game.dead && !(gun.reloading > performance.now());
   const scoped = aiming && g.scope;
@@ -1435,12 +1437,12 @@ function frame(dt, now, real = dt) {
 
   // 3인칭 (F5)
   const dancing = !!game.dancing && !game.dead;
-  const third = (game.view === 1 || dancing) && !game.dead;
+  const third = (game.view > 0 || dancing) && !game.dead;
   selfModel.root.visible = third;
   if (third) {
-    if (dancing) {
-      // 춤출 때는 앞에서 내 모습을 비춘다
-      const f = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+    if (dancing || game.view === 2) {
+      // 앞에서 내 모습을 비춘다 (F5 두 번 · 춤출 때)
+      const f = new THREE.Vector3(-Math.sin(player.yaw), dancing ? 0 : Math.sin(player.pitch) * 0.6, -Math.cos(player.yaw)).normalize();
       const head = new THREE.Vector3(player.pos.x, player.pos.y + 1.3, player.pos.z);
       let dist = 3.4;
       for (let d = 0.5; d < 3.4; d += 0.1) { const q = head.clone().addScaledVector(f, d); if (isOpaque(world.get(Math.floor(q.x), Math.floor(q.y), Math.floor(q.z)))) { dist = d - 0.2; break; } }
@@ -1455,6 +1457,8 @@ function frame(dt, now, real = dt) {
         back.copy(q);
       }
       camera.position.copy(back);
+      // 뒤가 막혀 카메라가 머리에 붙으면 내 몸이 화면을 가리지 않게 숨긴다
+      if (back.distanceTo(eye) < 1.1) selfModel.root.visible = false;
     }
     selfModel.root.position.copy(player.pos);
     selfModel.root.rotation.y = player.yaw;
@@ -1464,10 +1468,23 @@ function frame(dt, now, real = dt) {
       disposeTree(selfModel.root);
       selfModel = makeHumanoid("player", game.look ?? game.hue);
       selfModel.hue = game.hue;
+      selfModel.heldId = -1;
       scene.add(selfModel.root);
     }
     selfModel.dance = dancing;
     selfModel.gun = !!heldGun();
+    // 3인칭에서도 손에 든 것이 보이게
+    if (selfModel.heldId !== heldId()) {
+      if (selfModel.heldMesh) { selfModel.hand.remove(selfModel.heldMesh); disposeTree(selfModel.heldMesh); selfModel.heldMesh = null; }
+      selfModel.heldId = heldId();
+      if (selfModel.heldId) {
+        const gunHeld = !!heldGun();
+        selfModel.heldMesh = makeItemMesh(selfModel.heldId, gunHeld ? 0.55 : 0.3);
+        if (gunHeld) { selfModel.heldMesh.rotation.set(-Math.PI / 2, 0, -Math.PI / 2); selfModel.heldMesh.position.set(0, -0.1, -0.15); }
+        else { selfModel.heldMesh.rotation.set(0, Math.PI / 2, 0); selfModel.heldMesh.position.z = -0.1; }
+        selfModel.hand.add(selfModel.heldMesh);
+      }
+    }
     if (dancing && !selfModel.bubble) { selfModel.bubble = speechSprite(DANCE_LINE); selfModel.bubble.position.y = 2.75; selfModel.root.add(selfModel.bubble); }
     if (!dancing && selfModel.bubble) { selfModel.root.remove(selfModel.bubble); selfModel.bubble = null; }
     animateHumanoid(selfModel, speed, dt, -player.pitch, player.sneak);
