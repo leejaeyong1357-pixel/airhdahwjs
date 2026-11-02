@@ -1,7 +1,7 @@
 // 월드 하나(= 멀티플레이 서버 월드, 또는 한 사람의 싱글플레이 월드)
 // 블록 · 몹 · 아이템 · 상자 · 화로 · 시간 · 날씨와 그 안의 플레이어를 맡는다.
 import { AIR, B, BLOCKS, isBlockId, needsSupport, isOpaque } from "../shared/blocks.js";
-import { ITEMS, blockDrops, blockXp, digSeconds } from "../shared/items.js";
+import { ITEMS, KIT, blockDrops, blockXp, digSeconds } from "../shared/items.js";
 import { applyOp, digest, wear, useOne } from "../shared/invops.js";
 import { addItem, roomFor } from "../shared/inventory.js";
 import { HEIGHT } from "../shared/worldgen.js";
@@ -60,6 +60,7 @@ export class Realm {
       players: [...this.players.values()].filter((p) => p !== pl).map((p) => this.publicInfo(p)),
     });
     pl.send(pl.stats());
+    this.giveKit(pl);
     this.broadcast({ t: "join", ...this.publicInfo(pl) }, pl);
     if (this.players.size > 1 || !this.owner) this.sys(`${pl.name} 님이 들어왔습니다. (접속 ${this.players.size}명)`);
   }
@@ -79,8 +80,18 @@ export class Realm {
   damagePlayer(pl, dmg, cause, from = null, kb = 1, by = "") {
     const before = pl.hp;
     const died = pl.damage(dmg, cause, from, kb, by);
-    if (pl.hp < before) this.broadcast({ t: "phurt", id: pl.id }, pl); // 다른 사람 화면에서 빨갛게 번쩍
-    if (died) this.kill(pl);
+    if (pl.hp < before) {
+      this.broadcast({ t: "phurt", id: pl.id }, pl); // 다른 사람 화면에서 빨갛게 번쩍
+      // 피 — 세게 맞을수록 많이, 헤드샷은 머리에서 크게
+      if (!["starve", "drown"].includes(cause)) {
+        const head = cause === "headshot";
+        this.broadcast({ t: "blood", p: [pl.p[0], pl.p[1] + (head ? 1.6 : 1.1), pl.p[2]], n: head ? 60 : Math.min(40, 8 + (before - pl.hp) * 6), from });
+      }
+    }
+    if (died) {
+      this.kill(pl);
+      this.broadcast({ t: "blood", p: [pl.p[0], pl.p[1] + 0.9, pl.p[2]], n: 70, gore: true });
+    }
   }
 
   kill(pl) {
@@ -90,7 +101,7 @@ export class Realm {
     this.boxes.close(pl);
     const st = pl.st;
     if (!this.world.rules.keepInventory) {
-      const all = [...st.inv, ...st.armor, st.cursor, ...st.grid].filter(Boolean);
+      const all = [...st.inv, ...st.armor, st.cursor, ...st.grid].filter((it) => it && !ITEMS[it.id]?.kit); // 칼 · 총은 부활하면 다시 받음
       for (const it of all) this.entities.spawnItem(it, pl.p[0], pl.p[1] + 1, pl.p[2], null, 1);
       st.inv.fill(null); st.armor.fill(null);
       pl.xp = Math.floor(pl.xp * 0.3);
@@ -112,7 +123,79 @@ export class Realm {
     pl.statsDirty = true;
     pl.send({ t: "respawn", p: pl.p });
     pl.send(pl.stats());
+    this.giveKit(pl);
     this.broadcast({ t: "prespawn", id: pl.id, p: pl.p }, pl);
+  }
+
+  /** 칼 · M16 · 저격총 — 없으면 단축칸에 넣어 주고 탄창을 채운다 */
+  giveKit(pl) {
+    const st = pl.st;
+    // 죽어서 남아 있던 칼 · 총은 없애고 다시 준다 (여러 개 생기지 않게)
+    for (const id of KIT) {
+      const has = [...st.inv, st.cursor, ...st.grid].some((it) => it?.id === id);
+      if (has) continue;
+      const free = st.inv.findIndex((it, i) => i < 9 && !it);
+      if (free >= 0) st.inv[free] = { id, n: 1 };
+      else addItem(st.inv, { id, n: 1 });
+    }
+    pl.ammo = {};
+    pl.reload = null;
+    for (const id of KIT) if (ITEMS[id].gun) pl.ammo[id] = ITEMS[id].gun.mag;
+    pl.send({ t: "ammo", ammo: pl.ammo });
+    pl.sync();
+  }
+
+  /** 총 쏘기 — 서버가 탄 · 연사 속도 · 벽을 확인하고 맞은 곳(머리 · 몸)을 정한다 */
+  shoot(pl, m) {
+    const g = ITEMS[pl.heldId]?.gun;
+    if (!g || pl.dead || pl.reload) return;
+    const now = Date.now();
+    if (now - (pl.lastShot ?? 0) < g.rate * 1000 * 0.8) return;
+    if (!(pl.ammo?.[pl.heldId] > 0)) { pl.send({ t: "ammo", ammo: pl.ammo, empty: true }); return; }
+    if (!vec3(m.o) || !vec3(m.d)) return;
+    const eye = [pl.p[0], pl.p[1] + 1.5, pl.p[2]];
+    if (Math.hypot(m.o[0] - eye[0], m.o[1] - eye[1], m.o[2] - eye[2]) > 2) return;
+    const dl = Math.hypot(...m.d);
+    if (!(dl > 0.5)) return;
+    const d = m.d.map((v) => v / dl);
+    pl.lastShot = now;
+    pl.ammo[pl.heldId] -= 1;
+    const o = m.o;
+    // 벽(불투명 블록)까지 거리
+    let wall = g.range;
+    for (let t = 0; t < g.range; t += 0.1) {
+      const b = this.world.get(Math.floor(o[0] + d[0] * t), Math.floor(o[1] + d[1] * t), Math.floor(o[2] + d[2] * t));
+      if (b !== AIR && BLOCKS[b] && (BLOCKS[b].kind === "solid" || BLOCKS[b].kind === "cutout")) { wall = t; break; }
+    }
+    // 가장 가까운 사람 · 몹
+    let best = null;
+    const test = (kind, target, x, y, z, w, h) => {
+      const t = rayBox(o, d, [x - w, y, z - w], [x + w, y + h, z + w]);
+      if (t != null && t < wall && (!best || t < best.t)) best = { kind, target, t, y, h };
+    };
+    for (const p2 of this.players.values()) if (p2 !== pl && !p2.dead) test("player", p2, p2.p[0], p2.p[1], p2.p[2], 0.3, p2.flags & 1 ? 1.5 : 1.8);
+    for (const e of this.entities.mobs.values()) test("mob", e, e.x, e.y, e.z, e.def.w, e.def.h);
+    const end = best ? best.t : wall;
+    const hitP = [o[0] + d[0] * end, o[1] + d[1] * end, o[2] + d[2] * end].map(r2);
+    this.broadcast({ t: "shot", id: pl.id, gun: pl.heldId, o: o.map(r2), e: hitP, wall: !best && wall < g.range }, pl);
+    let head = false, kill = false;
+    if (best) {
+      head = hitP[1] > best.y + best.h * 0.78; // 몸 위쪽 22% = 머리
+      if (best.kind === "player") {
+        const t2 = best.target;
+        if (this.world.rules.pvp && t2.mode === "survival") {
+          this.damagePlayer(t2, head ? 1000 : g.body, head ? "headshot" : "gun", pl.p, head ? 1.2 : 0.35, pl.name);
+          kill = t2.dead;
+        }
+      } else {
+        const e = best.target;
+        e.inv = 0;
+        this.entities.damageMob(e, head ? 1000 : g.body * 2, pl.p, pl);
+        kill = !this.entities.mobs.has(e.id);
+      }
+      this.broadcast({ t: "blood", p: hitP, n: head ? 45 : 14, dir: d.map(r2), head });
+    }
+    pl.send({ t: "hit", hit: !!best, head, kill, e: hitP, ammo: pl.ammo });
   }
 
   // ── 블록 ─────────────────────────────────────────────────
@@ -257,16 +340,18 @@ export class Realm {
         if (pl.dead) return;
         const now = Date.now();
         const held = ITEMS[pl.heldId];
-        const charge = Math.min(1, (now - (pl.lastAttack ?? 0)) / 600); // 연타하면 약해진다
+        const knife = held?.weapon === "knife";
+        if (knife && now - (pl.lastAttack ?? 0) < 220) return;           // 칼: 1초에 4번까지, 한 번에 반 칸 (20번 맞으면 죽음)
+        const charge = Math.min(1, (now - (pl.lastAttack ?? 0)) / 600); // 맨손 · 검은 연타하면 약해진다
         pl.lastAttack = now;
-        const dmg = (held?.damage ?? 1) * (0.2 + charge * 0.8);
+        const dmg = knife ? 1 : (held?.damage ?? 1) * (0.2 + charge * 0.8);
         let hit = false;
         if (Number.isInteger(m.mob)) hit = this.entities.attack(m.mob, pl, dmg);
         else if (Number.isInteger(m.pid)) {
           const o = this.players.get(m.pid);
-          if (o && !o.dead && o !== pl && this.world.rules.pvp && pl.mode === "survival" &&
+          if (o && !o.dead && o !== pl && this.world.rules.pvp &&
               Math.hypot(o.p[0] - pl.p[0], o.p[1] - pl.p[1], o.p[2] - pl.p[2]) < 5) {
-            this.damagePlayer(o, dmg, "player", pl.p, 1, pl.name);
+            this.damagePlayer(o, dmg, knife ? "knife" : "player", pl.p, knife ? 0.5 : 1, pl.name);
             hit = true;
           }
         }
@@ -275,6 +360,15 @@ export class Realm {
           if (held?.tool && pl.mode === "survival") { if (wear(pl.st.inv, pl.sel, held.tool === "sword" ? 1 : 2)) pl.send({ t: "toolbreak" }); }
           check(m.d);
         }
+        return;
+      }
+      case "shoot": this.shoot(pl, m); return;
+      case "reload": {
+        const g = ITEMS[pl.heldId]?.gun;
+        if (!g || pl.reload || pl.dead || (pl.ammo?.[pl.heldId] ?? 0) >= g.mag) return;
+        pl.reload = { gun: pl.heldId, at: Date.now() + g.reload * 1000 };
+        pl.send({ t: "ammo", ammo: pl.ammo, reloading: g.reload });
+        this.broadcast({ t: "reload", id: pl.id }, pl);
         return;
       }
       case "eatstart": pl.eatAt = Date.now(); return;
@@ -328,6 +422,11 @@ export class Realm {
     this.entities.tick(dt);
     this.boxes.tick(dt);
     for (const pl of this.players.values()) {
+      if (pl.reload && Date.now() >= pl.reload.at) {
+        pl.ammo[pl.reload.gun] = ITEMS[pl.reload.gun].gun.mag;
+        pl.reload = null;
+        pl.send({ t: "ammo", ammo: pl.ammo });
+      }
       if (pl.statsDirty) { pl.statsDirty = false; pl.send(pl.stats()); }
       if (pl.needSync) { pl.needSync = false; pl.sync(); }
     }
@@ -352,6 +451,19 @@ export class Realm {
     this.world.save();
     for (const pl of this.players.values()) this.onSave?.(pl);
   }
+}
+
+/** 광선이 상자에 처음 닿는 거리 (안 닿으면 null) */
+function rayBox(o, d, min, max) {
+  let t0 = 0, t1 = Infinity;
+  for (let i = 0; i < 3; i++) {
+    const inv = 1 / d[i];
+    let a = (min[i] - o[i]) * inv, b = (max[i] - o[i]) * inv;
+    if (a > b) [a, b] = [b, a];
+    t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+    if (t1 < t0) return null;
+  }
+  return t0;
 }
 
 /** 블록 칸 (x,y,z) 와 몸(가운데 px,pz, 발 py, 반폭 w, 키 h)이 겹치나 */

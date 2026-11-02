@@ -37,7 +37,7 @@ const findBlock = (c, wants) => {
 test("가입 · 로그인 · 잘못된 비밀번호", async () => {
   const r1 = await post(srv.base, "/api/register", { name: "관리자", password: "1234" });
   assert.equal(r1.status, 200);
-  assert.equal(r1.body.admin, true, "첫 가입자는 관리자");
+  assert.equal(r1.body.admin, true, "지정한 아이디(ADMINS)만 관리자");
   const r2 = await post(srv.base, "/api/register", { name: "직원1", password: "abcd" });
   assert.equal(r2.body.admin, false);
   assert.equal((await post(srv.base, "/api/register", { name: "직원1", password: "abcd" })).status, 400, "중복 아이디");
@@ -81,7 +81,8 @@ test("빈손 시작 · 나무 캐기(시간 필요) · 줍기 · 조합 · 놓�
   const A = await connect(srv.base, a.token);
   const Bc = await connect(srv.base, b.token);
   assert.equal(A.welcome.t, "welcome");
-  assert.ok(A.welcome.inv.every((s) => s === null), "처음엔 빈손");
+  const kit = await A.wait((m) => m.t === "sync");
+  assert.deepEqual(kit.inv.filter(Boolean).map((s) => s.id).sort(), [302, 303, 304], "처음엔 칼 · M16 · 저격총만");
   assert.deepEqual(A.welcome.spawn, Bc.welcome.spawn, "모두 같은 스폰");
   await A.wait((m) => m.t === "join" && m.name === "직원1");
 
@@ -119,24 +120,27 @@ test("빈손 시작 · 나무 캐기(시간 필요) · 줍기 · 조합 · 놓�
 
   // 인벤토리 조합: 나무 → 판자 4
   const op = (o) => A.send({ t: "op", op: o });
+  const s0 = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
+  const li = s0.inv.findIndex((it) => it?.id === LOG);
+  const free = s0.inv.findIndex((it, i) => !it && i !== li);
   op({ o: "open", screen: "inv" });
-  op({ o: "click", a: "inv", i: 0, b: 0 });           // 나무 집기
+  op({ o: "click", a: "inv", i: li, b: 0 });          // 나무 집기
   op({ o: "click", a: "craft", i: 0, b: 0 });         // 조합칸에 놓기
   op({ o: "click", a: "result", b: 0 });              // 판자 4 집기
-  op({ o: "click", a: "inv", i: 1, b: 0 });           // 가방에 놓기
+  op({ o: "click", a: "inv", i: free, b: 0 });        // 빈 칸에 놓기
   op({ o: "close" });
   // 일부러 틀린 요약 → 서버가 정답을 보냄
   const sync = await A.ask({ t: "op", op: { o: "close" }, d: "틀린요약" }, (m) => m.t === "sync");
-  assert.deepEqual(sync.inv[1], { id: B.PLANKS, n: 4 }, "판자 4개");
-  assert.equal(sync.inv[0], null, "나무는 써서 없어짐");
+  assert.deepEqual(sync.inv[free], { id: B.PLANKS, n: 4 }, "판자 4개");
+  assert.equal(sync.inv[li], null, "나무는 써서 없어짐");
 
-  // 없는 아이템은 놓을 수 없음 (손에 든 칸 0 은 비어 있음)
-  A.send({ t: "sel", i: 0 });
+  // 블록이 아닌 것(칼)으로는 놓을 수 없음
+  A.send({ t: "sel", i: sync.inv.findIndex((it) => it?.id === 302) });
   const nofix = await A.ask({ t: "place", x, y, z }, (m) => m.t === "sets");
-  assert.equal(nofix.s[0][3], 0, "빈손으로는 못 놓음");
+  assert.equal(nofix.s[0][3], 0, "블록이 아니면 못 놓음");
 
   // 판자 놓기
-  A.send({ t: "sel", i: 1 });
+  A.send({ t: "sel", i: free });
   A.send({ t: "place", x, y, z });
   const placed = await Bc.wait((m) => m.t === "sets" && m.s[0][3] === B.PLANKS);
   assert.deepEqual(placed.s[0].slice(0, 3), [x, y, z]);
@@ -318,14 +322,96 @@ test("플레이어끼리 때리기 (PvP) · 다른 사람에게 맞는 모습 �
   A.close(); Bc.close();
 });
 
+test("총 · 칼 — 헤드샷 한 방, 몸 10발, 칼 20번, 탄창 30/10, 장전", async () => {
+  const { body: a } = await post(srv.base, "/api/login", { name: "관리자", password: "1234" });
+  const { body: b } = await post(srv.base, "/api/login", { name: "직원1", password: "abcd" });
+  const A = await connect(srv.base, a.token);
+  const Bc = await connect(srv.base, b.token);
+  await A.ask({ t: "chat", msg: "/gamerule pvp true" }, (m) => m.t === "rules" || m.t === "chat");
+  await A.ask({ t: "chat", msg: "/gamemode survival 직원1" }, (m) => m.t === "chat");
+  // 탁 트인 하늘 위에 나란히 (공중이라 블록에 안 막힘)
+  const [sx, , sz] = A.welcome.spawn;
+  const y = 90;
+  await A.ask({ t: "chat", msg: `/tp ${sx} ${y} ${sz}` }, (m) => m.t === "tp");
+  await A.ask({ t: "chat", msg: `/tp 직원1 ${sx} ${y} ${sz}` }, (m) => m.t === "tp" || m.t === "chat");
+  const hold = async (c, id) => {
+    const st = await c.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
+    c.send({ t: "sel", i: st.inv.findIndex((it) => it?.id === id) });
+    await sleep(60);
+  };
+  const place = (c, p) => c.send({ t: "move", p, r: [0, 0] });
+  place(A, [sx, y, sz]); place(Bc, [sx, y, sz - 6]);
+  await sleep(200);
+  const ammo = await A.ask({ t: "chat", msg: "/time noon" }, (m) => m.t === "time");
+  void ammo;
+  // 저격총 헤드샷 → 한 방에 죽음
+  await hold(A, 304);
+  const eye = [sx, y + 1.5, sz];
+  const shootAt = (tx, ty, tz) => { const d = [tx - eye[0], ty - eye[1], tz - eye[2]]; A.send({ t: "shoot", o: eye, d }); };
+  const dead = Bc.wait((m) => m.t === "dead", 3000);
+  const hit = A.wait((m) => m.t === "hit");
+  shootAt(sx, y + 1.7, sz - 6);
+  const h = await hit;
+  assert.equal(h.head, true, "머리 맞음");
+  assert.equal(h.ammo[304], 9, "저격총 10발 중 1발 씀");
+  assert.match((await dead).why, /헤드샷/);
+  Bc.send({ t: "respawn" });
+  await Bc.wait((m) => m.t === "respawn");
+  const kit = await Bc.wait((m) => m.t === "ammo");
+  assert.equal(kit.ammo[303], 30, "부활하면 M16 30발");
+  assert.equal(kit.ammo[304], 10, "저격총 10발");
+  // 몸에 10발 → 죽음 (M16)
+  await A.ask({ t: "chat", msg: `/tp 직원1 ${sx} ${y} ${sz}` }, (m) => m.t === "chat");
+  place(Bc, [sx, y, sz - 6]);
+  await sleep(200);
+  await hold(A, 303);
+  let shots = 0;
+  const died = Bc.wait((m) => m.t === "dead", 8000);
+  let done = false;
+  died.then(() => { done = true; }, () => {});
+  while (!done && shots < 14) { shootAt(sx, y + 1.0, sz - 6); shots++; await sleep(130); }
+  await died;
+  assert.equal(shots, 10, "몸통 10발에 죽음");
+  // 장전
+  const r = A.ask({ t: "reload" }, (m) => m.t === "ammo" && m.reloading);
+  await r;
+  const full = await A.wait((m) => m.t === "ammo" && !m.reloading && m.ammo[303] === 30, 4000);
+  assert.equal(full.ammo[303], 30, "장전하면 30발");
+  // 칼 20번
+  Bc.send({ t: "respawn" });
+  await Bc.wait((m) => m.t === "respawn");
+  await A.ask({ t: "chat", msg: `/tp 직원1 ${sx} ${y} ${sz}` }, (m) => m.t === "chat" || m.t === "tp");
+  place(Bc, [sx, y, sz - 1.5]);
+  await sleep(200);
+  await hold(A, 302);
+  let stabs = 0;
+  const died2 = Bc.wait((m) => m.t === "dead", 15000);
+  let done2 = false;
+  died2.then(() => { done2 = true; }, () => {});
+  while (!done2 && stabs < 30) { A.send({ t: "attack", pid: Bc.welcome.id }); stabs++; await sleep(260); }
+  await died2;
+  assert.equal(stabs, 20, "칼 20번에 죽음");
+  Bc.send({ t: "respawn" });
+  A.close(); Bc.close();
+});
+
+test("새로 가입한 직원은 관리자가 아님", async () => {
+  const r = await post(srv.base, "/api/register", { name: "신입", password: "1234" });
+  assert.equal(r.body.admin, false);
+  const c = await connect(srv.base, r.body.token);
+  const res = await c.ask({ t: "chat", msg: "/give 다이아몬드 1" }, (m) => m.t === "chat" && m.msg.includes("관리자"));
+  assert.match(res.msg, /관리자만/);
+  c.close();
+});
+
 test("싱글플레이 월드는 따로", async () => {
   const { body: b } = await post(srv.base, "/api/login", { name: "직원1", password: "abcd" });
   const S = await connect(srv.base, b.token, "solo");
   assert.equal(S.welcome.realm, "solo:직원1");
   assert.equal(S.welcome.players.length, 0);
   S.send({ t: "chat", msg: "/gamemode creative" });
-  const mode = await S.wait((m) => m.t === "mode");
-  assert.equal(mode.mode, "creative", "싱글플레이에선 치트 가능");
+  const mode = await S.wait((m) => m.t === "mode" || (m.t === "chat" && m.msg.includes("관리자만")));
+  assert.equal(mode.t, "chat", "관리자가 아니면 싱글플레이에서도 명령 불가");
   S.close();
 });
 

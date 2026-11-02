@@ -74,4 +74,12 @@ export const sfx = {
   cricket: () => { for (let i = 0; i < 3; i++) setTimeout(() => tone(4200, 4100, 0.04, 0.03, "square"), i * 70); },
   cave: () => noise(1.6, 220, 0.4, 0.08, "lowpass", 1.6),
   mobDie: () => tone(300, 80, 0.3, 0.2, "triangle"),
+  gun: (far = 0) => { noise(0.18, 900, 0.5, 0.9 * (1 - far), "lowpass", 0.16); noise(0.05, 3500, 0.7, 0.6 * (1 - far)); tone(140, 50, 0.12, 0.4 * (1 - far), "square"); },
+  sniper: (far = 0) => { noise(0.6, 600, 0.4, 1.3 * (1 - far), "lowpass", 0.55); noise(0.08, 4000, 0.8, 0.8 * (1 - far)); tone(90, 30, 0.4, 0.6 * (1 - far), "sine"); },
+  dry: () => tone(2400, 2200, 0.03, 0.15, "square"),
+  reload: () => { tone(900, 700, 0.05, 0.15, "square"); setTimeout(() => noise(0.08, 2500, 2, 0.25), 400); setTimeout(() => tone(1300, 1100, 0.05, 0.18, "square"), 900); },
+  hitmark: () => tone(1900, 1700, 0.05, 0.18, "square"),
+  headshot: () => { tone(2600, 2600, 0.12, 0.25, "triangle"); noise(0.15, 500, 1, 0.5, "bandpass", 0.14); },
+  squish: () => { noise(0.14, 380, 1.4, 0.55, "bandpass", 0.13); tone(160, 70, 0.12, 0.2, "sine"); },
+  slash: () => noise(0.09, 5200, 1.2, 0.35, "bandpass", 0.08),
 };

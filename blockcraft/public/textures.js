@@ -384,6 +384,29 @@ for (const [tier, [c, d]] of Object.entries(TIER_COLOR)) {
   }
 }
 
+// 무기 — 칼 · M16 · 저격총 (오른쪽이 앞)
+ITEM_DRAW.knife = (px) => {
+  clear(px);
+  pattern(px, [
+    "............ww", "...........wlw", "..........wlw.", ".........wlw..", "........wlw...", ".......wlw....",
+    "......wlw.....", ".....gww......", "....gg........", "...hh.........", "..hh..........", ".hh...........",
+  ], { w: [210, 214, 222], l: [245, 248, 252], g: [120, 120, 126], h: [34, 30, 28] }, 1, 2);
+};
+ITEM_DRAW.m16 = (px) => {
+  clear(px);
+  pattern(px, [
+    ".....kkkk.......", "....k....k......", "kkk.kkkkkkkkkkkk", "kgkkgggggggkkkkk", "kkkkkkkkkkkkk...",
+    "kk...kkkgk......", "k.....kk.kk.....", "......kk..kk....", ".......k...kk...", "............k...",
+  ], { k: [38, 38, 42], g: [78, 78, 86] }, 0, 3);
+};
+ITEM_DRAW.sniper = (px) => {
+  clear(px);
+  pattern(px, [
+    "....ssssssss....", "...sbbsssssbs....", ".....s....s.....", "oooookkkkkkkkkkkk", "ooooookkkkkkkk...",
+    "oo...okk........", "o.....kk........", "......k.........",
+  ], { s: [30, 30, 34], b: [90, 160, 220], k: [44, 46, 40], o: [86, 96, 58] }, 0, 4);
+};
+
 // 방어구 — 0 투구 1 갑옷 2 바지 3 신발
 const ARMOR_COLOR = { leather: [[160, 100, 55], [110, 66, 34]], iron: [[225, 225, 228], [150, 150, 156]], diamond: [[95, 230, 220], [35, 150, 150]] };
 const ARMOR_PATTERN = [

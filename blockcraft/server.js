@@ -10,7 +10,7 @@
 //   4) 멀티플레이 월드(data/world.json) + 사람마다 싱글플레이 월드(data/solo/*.json), 계정(data/accounts.json)
 //      10분마다 data/backups/ 에 백업
 import { createServer } from "node:http";
-import { existsSync, statSync, createReadStream } from "node:fs";
+import { existsSync, statSync, createReadStream, readFileSync } from "node:fs";
 import { join, dirname, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { networkInterfaces } from "node:os";
@@ -35,7 +35,11 @@ const BACKUP_DIR = join(DATA_DIR, "backups");
 const TICK = 0.05; // 1초에 20번
 const started = Date.now();
 
-const accounts = new Accounts(join(DATA_DIR, "accounts.json"));
+// 관리자 아이디 — config.json 의 admins (또는 ADMINS="아이디1,아이디2" 환경변수). 처음 가입자가 관리자가 되지 않는다.
+let CONFIG = { admins: [] };
+try { CONFIG = JSON.parse(readFileSync(join(ROOT, "config.json"), "utf8")); } catch { /* 기본값 */ }
+const ADMINS = [...(CONFIG.admins ?? []), ...String(process.env.ADMINS ?? "").split(",")].filter((s) => s.trim());
+const accounts = new Accounts(join(DATA_DIR, "accounts.json"), ADMINS);
 
 // ── 월드들 ─────────────────────────────────────────────────
 const realms = new Map();
@@ -204,8 +208,8 @@ server.on("upgrade", (req, socket) => {
 // ── 명령어 ─────────────────────────────────────────────────
 const HELP = [
   "/spawn 스폰으로 · /kill 다시 시작 · /who 접속자 · /time 지금 시간",
-  "관리자(싱글플레이에서는 누구나): /gamemode survival|creative [이름] · /time day|night|noon|midnight|set 숫자",
-  "  /weather clear|rain|thunder · /give 아이템 [개수] [이름] · /tp 이름 | x y z · /summon 몹 [마리] · /setspawn",
+  "관리자: /gamemode survival|creative [이름] · /time day|night|noon|midnight|set 숫자",
+  "  /weather clear|rain|thunder · /give 아이템 [개수] [이름] · /tp 이름 | x y z | 이름 x y z · /summon 몹 [마리] · /setspawn",
   "  /gamerule keepInventory|mobGriefing|pvp true|false",
   "서버 관리자: /say 공지 · /kick 이름 · /op 이름 · /deop 이름 · /status · /save · /backup",
 ];
@@ -214,8 +218,7 @@ const MOB_NAMES = Object.fromEntries(MOBS.flatMap((m, i) => [[m.key, i], [m.name
 function command(me, line) {
   const realm = me.realm;
   const [cmd, ...args] = line.slice(1).split(/\s+/);
-  const solo = realm.owner === me.key;
-  const cheats = me.admin || solo;              // 월드 안 명령
+  const cheats = me.admin;                      // 관리자만 (싱글플레이도 마찬가지)
   const sys = (msg) => realm.sys(msg, me);
   const deny = () => sys("관리자만 쓸 수 있는 명령어입니다.");
   console.log(`[명령 ${realm.title}] ${me.name}: ${line}`);
@@ -281,6 +284,14 @@ function command(me, line) {
     case "tp": {
       if (!cheats) return deny();
       let p = null;
+      // /tp 이름 x y z — 다른 사람을 옮기기
+      if (args.length >= 4 && args.slice(1, 4).every((v) => Number.isFinite(Number(v)))) {
+        const t = findPlayer(args[0], realm);
+        if (!t) return sys(`'${args[0]}' 님은 이 월드에 없습니다.`);
+        t.p = args.slice(1, 4).map(Number); t.tpGrace = true;
+        t.send({ t: "tp", p: t.p });
+        return sys(`${t.name} 님을 옮겼습니다.`);
+      }
       if (args.length >= 3 && args.slice(0, 3).every((v) => Number.isFinite(Number(v)))) p = args.slice(0, 3).map(Number);
       else { const t = findPlayer(args[0] ?? "", realm); if (t) p = t.p; }
       if (!p) return sys("/tp 이름  또는  /tp x y z");
@@ -339,7 +350,8 @@ function command(me, line) {
       if (!me.admin) return deny();
       const u = accounts.get(args[0] ?? "");
       if (!u) return sys(`'${args[0] ?? ""}' 계정이 없습니다.`);
-      u.admin = cmd === "op";
+      u.op = cmd === "op";
+      u.admin = u.op || accounts.admins.has(u.name.toLowerCase());
       accounts.dirty = true;
       const online = findPlayer(u.name);
       if (online) { online.admin = u.admin; online.send({ t: "admin", admin: u.admin }); }
@@ -402,7 +414,7 @@ rl?.on("line", async (line) => {
       console.log(`${a[0]} 의 비밀번호를 바꿨습니다.`);
     } else if (cmd === "/op") {
       const u = accounts.get(a[0]); if (!u) throw new Error("없는 아이디");
-      u.admin = true; accounts.dirty = true; accounts.save(); console.log(`${u.name} 을(를) 관리자로 만들었습니다.`);
+      u.op = true; u.admin = true; accounts.dirty = true; accounts.save(); console.log(`${u.name} 을(를) 관리자로 만들었습니다.`);
     } else if (cmd === "/list" || cmd === "목록") {
       console.log(`접속자 ${allPlayers().length}명: ${allPlayers().map((p) => `${p.name}(${p.realm.title})`).join(", ")}`);
       console.log(`가입 ${accounts.count}명: ${Object.values(accounts.data.users).map((u) => u.name + (u.admin ? "(관리자)" : "")).join(", ")}`);
@@ -432,7 +444,7 @@ server.listen(PORT, "0.0.0.0", () => {
   for (const ip of ips) console.log(`  직원 접속 주소: http://${ip}:${PORT}`);
   console.log("");
   console.log(`  월드 시드 ${main.world.seed} · 바뀐 블록 ${Object.keys(main.world.edits).length}개 · 가입 ${accounts.count}명`);
-  if (accounts.count === 0) console.log("  ★ 처음 가입하는 계정이 관리자가 됩니다.");
+  console.log(`  관리자 아이디: ${ADMINS.join(", ") || "(없음 — config.json 의 admins 에 적으세요)"}`);
   console.log("  서버 명령: /list · /say 공지 · /op 아이디 · /passwd 아이디 새비밀번호 · /save · /backup");
   console.log("  끄기: Ctrl+C (30초마다 · 끌 때 자동 저장, 10분마다 백업)");
   console.log("----------------------------------------------------------");

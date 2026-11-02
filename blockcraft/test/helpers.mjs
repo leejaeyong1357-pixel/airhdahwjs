@@ -10,7 +10,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export async function startServer({ dataDir, port } = {}) {
   dataDir ??= mkdtempSync(join(tmpdir(), "tzw-"));
   port ??= 30000 + Math.floor(Math.random() * 20000);
-  const proc = spawn(process.execPath, [join(ROOT, "server.js")], { env: { WORLD_SEED: "12345", ...process.env, PORT: String(port), DATA_DIR: dataDir }, stdio: ["ignore", "pipe", "pipe"] });
+  const proc = spawn(process.execPath, [join(ROOT, "server.js")], { env: { WORLD_SEED: "12345", ADMINS: "관리자", ...process.env, PORT: String(port), DATA_DIR: dataDir }, stdio: ["ignore", "pipe", "pipe"] });
   let log = "";
   proc.stdout.on("data", (d) => { log += d; });
   proc.stderr.on("data", (d) => { log += d; });

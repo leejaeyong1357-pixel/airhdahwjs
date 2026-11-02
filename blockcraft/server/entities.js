@@ -84,6 +84,7 @@ export class Entities {
   damageMob(m, dmg, from, by = null) {
     if (m.inv > 0 || !this.mobs.has(m.id)) return;
     m.hp -= dmg;
+    this.hooks.broadcast({ t: "blood", p: [r2(m.x), r2(m.y + m.def.h * 0.6), r2(m.z)], n: Math.min(30, 6 + dmg * 3), mob: m.type });
     m.hurt = 0.4;
     m.inv = 0.5;
     if (from) {

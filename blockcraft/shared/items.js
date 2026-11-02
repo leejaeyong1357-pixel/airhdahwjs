@@ -8,6 +8,7 @@ export const I = {
   // 270~285 도구
   LEATHER: 286, BONE: 287, ARROW: 288, BREAD: 289,
   // 290~301 방어구
+  KNIFE: 302, M16: 303, SNIPER: 304,
 };
 
 const TIERS = [
@@ -76,6 +77,19 @@ ARMOR_TIERS.forEach((t) => {
     };
   });
 });
+
+// 무기 — 리스폰하면 받는다. 몸에 맞으면 칼 1(20대) · 총 2(10발), 머리에 맞은 총알은 한 방
+// 탄창: M16 30발 · 저격총 10발 (R 재장전)
+ITEMS[I.KNIFE] = { id: I.KNIFE, name: "칼", icon: "knife", stack: 1, damage: 1, weapon: "knife", kit: true };
+ITEMS[I.M16] = {
+  id: I.M16, name: "M16", icon: "m16", stack: 1, kit: true,
+  gun: { auto: true, rate: 0.11, mag: 30, reload: 2, body: 2, range: 90, spread: 0.01, kick: 0.015, zoom: 0.72 },
+};
+ITEMS[I.SNIPER] = {
+  id: I.SNIPER, name: "저격총", icon: "sniper", stack: 1, kit: true,
+  gun: { auto: false, rate: 1.2, mag: 10, reload: 3, body: 2, range: 160, spread: 0.0, kick: 0.06, zoom: 0.16, scope: true },
+};
+export const KIT = [I.KNIFE, I.M16, I.SNIPER];
 
 export const TOOL_TIERS = TIERS;
 export const TOOL_KIND_LIST = TOOL_KINDS;

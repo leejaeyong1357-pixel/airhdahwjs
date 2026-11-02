@@ -78,17 +78,20 @@ export class Player {
   damage(amount, cause, from = null, kb = 1, by = "") {
     if (this.dead || amount <= 0) return false;
     if (this.mode === "creative" && cause !== "void" && cause !== "kill") return false;
-    const armored = ["mob", "player", "explosion", "arrow"].includes(cause);
-    if (armored && this.invuln > 0) return false;
+    const armored = ["mob", "player", "explosion", "arrow", "gun", "knife"].includes(cause);
+    const instant = cause === "headshot";
+    // 총 · 칼은 맞을 때마다 들어간다 (무적 시간 없음)
+    if (armored && cause !== "gun" && cause !== "knife" && this.invuln > 0) return false;
     let dmg = amount;
-    if (armored) {
-      dmg *= 1 - Math.min(20, this.armor) / 25;
+    if (armored && !instant) {
+      if (cause !== "gun" && cause !== "knife") dmg *= 1 - Math.min(20, this.armor) / 25;
       for (let i = 0; i < 4; i++) if (this.st.armor[i]) wear(this.st.armor, i, 1);
       this.invuln = 0.5;
       this.needSync = true;
     }
-    dmg = Math.round(dmg * 2) / 2;
+    dmg = Math.max(0.5, Math.round(dmg * 2) / 2); // 아무리 약해도 반 칸은 깎인다
     this.hp = Math.max(0, this.hp - dmg);
+    this.hurtAt = Date.now();
     this.addEx(0.1);
     this.statsDirty = true;
     this.send({ t: "hurt", dmg, from: from?.map((v) => Math.round(v * 100) / 100) ?? null, kb: from ? kb : 0, cause });
@@ -111,9 +114,10 @@ export class Player {
   tick(dt) {
     this.invuln = Math.max(0, this.invuln - dt);
     if (this.dead || this.mode !== "survival") return false;
-    if (this.food >= 18 && this.hp < 20) {
+    // 배부르면 천천히 회복 — 맞은 뒤 5초 동안은 회복하지 않는다
+    if (this.food >= 18 && this.hp < 20 && Date.now() - (this.hurtAt ?? 0) > 5000) {
       this.regenT += dt;
-      if (this.regenT >= (this.food >= 20 && this.sat > 0 ? 0.5 : 4)) { this.regenT = 0; this.heal(1); this.addEx(this.food >= 20 && this.sat > 0 ? 1.5 : 3); }
+      if (this.regenT >= 3) { this.regenT = 0; this.heal(1); this.addEx(3); }
     } else this.regenT = 0;
     if (this.food <= 0) {
       this.starveT += dt;
@@ -127,6 +131,7 @@ function deathText(cause, by) {
   return {
     mob: by ? `${by}에게 당했습니다` : "몹에게 당했습니다", player: `${by} 님에게 당했습니다`, explosion: "폭발에 휘말렸습니다",
     arrow: by ? `${by}의 화살에 맞았습니다` : "화살에 맞았습니다", fall: "높은 곳에서 떨어졌습니다", drown: "물에 빠졌습니다",
+    gun: `${by} 님의 총에 맞았습니다`, headshot: `${by} 님에게 헤드샷을 맞았습니다`, knife: `${by} 님의 칼에 찔렸습니다`,
     lava: "용암에 빠졌습니다", starve: "굶어 죽었습니다", cactus: "선인장에 찔렸습니다", void: "세상 밖으로 떨어졌습니다", kill: "목숨을 끊었습니다",
   }[cause] ?? "죽었습니다";
 }

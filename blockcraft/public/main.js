@@ -152,6 +152,15 @@ function onMessage(m) {
       }
       return;
     }
+    case "ammo": gun.ammo = m.ammo; gun.reloading = m.reloading ? performance.now() + m.reloading * 1000 : 0; if (m.reloading) sfx.reload(); if (m.empty) sfx.dry(); renderAmmo(); return;
+    case "hit": onHit(m); return;
+    case "shot": onShot(m); return;
+    case "reload": { const o = others.get(m.id); if (o && o.model.root.position.distanceTo(player.pos) < 20) sfx.reload(); return; }
+    case "blood": {
+      particles.blood(m.p[0], m.p[1], m.p[2], m.n, m.dir, m.head || m.gore);
+      if (Math.hypot(m.p[0] - player.pos.x, m.p[2] - player.pos.z) < 24) sfx.squish();
+      return;
+    }
     case "phurt": { const o = others.get(m.id); if (o) { o.flash = 0.4; if (o.model.root.position.distanceTo(player.pos) < 24) sfx.hurt(); } return; }
     case "pdead": { const o = others.get(m.id); if (o) { o.dead = true; o.model.root.visible = false; } return; }
     case "prespawn": { const o = others.get(m.id); if (o) { o.dead = false; o.model.root.visible = true; o.target.set(...m.p); o.model.root.position.set(...m.p); } return; }
@@ -241,6 +250,13 @@ function onHurt(m) {
   const fx = $("hurtFx");
   fx.style.opacity = 1;
   setTimeout(() => { fx.style.opacity = 0; }, 250);
+  // 화면에 피가 튄다
+  if (m.dmg >= 1 && !["starve", "drown"].includes(m.cause)) {
+    const b = $("bloodFx");
+    b.style.backgroundPosition = `${Math.random() * 20 - 10}% ${Math.random() * 20 - 10}%`;
+    b.classList.add("on");
+    setTimeout(() => b.classList.remove("on"), 60);
+  }
   game.hurtTilt = 1;
   if (m.from && m.kb) {
     const dx = player.pos.x - m.from[0], dz = player.pos.z - m.from[2], l = Math.hypot(dx, dz) || 1;
@@ -290,7 +306,13 @@ function setOtherHeld(o, id) {
   if (o.held === id) return;
   o.held = id;
   if (o.heldMesh) { o.model.hand.remove(o.heldMesh); disposeTree(o.heldMesh); o.heldMesh = null; }
-  if (id) { o.heldMesh = makeItemMesh(id, 0.3); o.heldMesh.rotation.set(0, Math.PI / 2, 0); o.heldMesh.position.z = -0.1; o.model.hand.add(o.heldMesh); }
+  o.model.gun = !!ITEMS[id]?.gun;
+  if (id) {
+    o.heldMesh = makeItemMesh(id, o.model.gun ? 0.55 : 0.3);
+    if (o.model.gun) { o.heldMesh.rotation.set(-Math.PI / 2, 0, -Math.PI / 2); o.heldMesh.position.set(0, -0.1, -0.15); }
+    else { o.heldMesh.rotation.set(0, Math.PI / 2, 0); o.heldMesh.position.z = -0.1; }
+    o.model.hand.add(o.heldMesh);
+  }
 }
 function removeOther(id) {
   const o = others.get(id);
@@ -595,6 +617,7 @@ const held = () => game.st.inv[game.sel];
 const heldId = () => held()?.id ?? 0;
 
 function leftPress() {
+  if (heldGun()) { fire(); return true; }
   if (attackCool > 0) return;
   const ent = raycastEntity();
   const blk = raycastBlock();
@@ -602,7 +625,7 @@ function leftPress() {
     attackCool = 0.25;
     hand.doSwing();
     net({ t: "swing" });
-    sfx.attack();
+    if (ITEMS[heldId()]?.weapon === "knife") sfx.slash(); else sfx.attack();
     // 도구 닳기도 서버와 똑같이 미리 해 둔다
     const it = ITEMS[heldId()];
     if (it?.tool && game.mode === "survival") { if (wear(game.st.inv, game.sel, it.tool === "sword" ? 1 : 2)) sfx.toolBreak(); changed(); }
@@ -615,6 +638,7 @@ function leftPress() {
 
 function updateDig(dt) {
   dig.cool = Math.max(0, dig.cool - dt);
+  if (heldGun()) { stopDig(); if (mouseL && locked() && heldGun().auto) fire(); return; }
   if (!mouseL || !locked() || game.dead) { stopDig(); return; }
   const hit = raycastBlock();
   if (!hit || BLOCKS[hit.b]?.unbreakable) { stopDig(); return; }
@@ -648,6 +672,87 @@ function finishDig() {
   if (game.mode === "survival" && it?.uses && BLOCKS[b].hard > 0) { if (wear(game.st.inv, game.sel, it.tool === "sword" ? 2 : 1)) sfx.toolBreak(); changed(); }
   exAcc += 0.005;
   net({ t: "dig", x, y, z, d: digest(game.st) });
+}
+
+// ── 총 ─────────────────────────────────────────────────────
+const gun = { ammo: {}, reloading: 0, last: 0, aim: false };
+const heldGun = () => ITEMS[heldId()]?.gun ?? null;
+const tracers = [];
+function renderAmmo() {
+  const g = heldGun();
+  const el = $("ammo");
+  el.classList.toggle("hidden", !g);
+  if (!g) return;
+  const n = gun.ammo[heldId()] ?? 0;
+  el.classList.toggle("low", n <= Math.ceil(g.mag * 0.2));
+  el.innerHTML = `<b>${n}</b> / ${g.mag}${gun.reloading > performance.now() ? "<small>장전 중...</small>" : n === 0 ? "<small>R 재장전</small>" : ""}`;
+}
+function fire() {
+  const g = heldGun();
+  if (!g || game.dead) return;
+  const now = performance.now();
+  if (now - gun.last < g.rate * 1000 || gun.reloading > now) return;
+  const id = heldId();
+  if (!(gun.ammo[id] > 0)) { sfx.dry(); reload(); gun.last = now; return; }
+  gun.last = now;
+  gun.ammo[id] -= 1;
+  // 퍼짐 — 조준하면 줄고 움직이면 늘어난다
+  const moving = Math.hypot(player.vel.x, player.vel.z) > 1 || !player.onGround;
+  const spread = g.spread * (gun.aim ? 0.3 : 1) * (moving ? 2.5 : 1) + (gun.aim || g.scope ? 0 : 0.004);
+  const d = new THREE.Vector3();
+  camera.getWorldDirection(d);
+  d.x += (Math.random() - 0.5) * spread * 2; d.y += (Math.random() - 0.5) * spread * 2; d.z += (Math.random() - 0.5) * spread * 2;
+  d.normalize();
+  const o = camera.position;
+  net({ t: "shoot", o: [o.x, o.y, o.z].map((v) => Math.round(v * 1000) / 1000), d: [d.x, d.y, d.z].map((v) => Math.round(v * 10000) / 10000) });
+  hand.fire();
+  (g.scope ? sfx.sniper : sfx.gun)();
+  player.pitch = Math.min(Math.PI / 2 - 0.01, player.pitch + g.kick * (gun.aim ? 0.6 : 1)); // 반동
+  player.yaw += (Math.random() - 0.5) * g.kick * 0.4;
+  // 총알 자국 (블록까지)
+  const hit = raycastBlock(g.range);
+  const end = hit ? new THREE.Vector3(o.x + d.x * hit.t, o.y + d.y * hit.t, o.z + d.z * hit.t) : o.clone().addScaledVector(d, 60);
+  addTracer(o.clone().addScaledVector(d, 0.8).add(new THREE.Vector3(0, -0.12, 0)), end);
+  if (hit) particles.burst(end.x, end.y, end.z, BLOCKS[hit.b]?.tex[2] ?? "stone", 5, lightAtBlock(hit.x, hit.y, hit.z), 0.1, 2);
+  renderAmmo();
+}
+function reload() {
+  const g = heldGun();
+  if (!g || gun.reloading > performance.now() || (gun.ammo[heldId()] ?? 0) >= g.mag) return;
+  net({ t: "reload" });
+}
+function addTracer(a, b) {
+  const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.8, fog: false }));
+  scene.add(line);
+  tracers.push({ line, t: 0.07 });
+}
+function updateTracers(dt) {
+  for (let i = tracers.length - 1; i >= 0; i--) {
+    const tr = tracers[i];
+    tr.t -= dt;
+    tr.line.material.opacity = Math.max(0, tr.t / 0.07) * 0.8;
+    if (tr.t <= 0) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); tracers.splice(i, 1); }
+  }
+}
+function onHit(m) {
+  gun.ammo = m.ammo ?? gun.ammo;
+  renderAmmo();
+  if (!m.hit) return;
+  const hm = $("hitmarker");
+  hm.classList.toggle("head", !!m.head);
+  hm.classList.add("on");
+  setTimeout(() => hm.classList.remove("on"), m.kill ? 250 : 90);
+  if (m.head) { sfx.headshot(); toast(m.kill ? "헤드샷!" : "헤드샷"); } else sfx.hitmark();
+}
+function onShot(m) {
+  const o = others.get(m.id);
+  const from = new THREE.Vector3(...m.o), to = new THREE.Vector3(...m.e);
+  addTracer(from.clone().add(new THREE.Vector3(0, -0.15, 0)), to);
+  const far = Math.min(0.85, from.distanceTo(player.pos) / 80);
+  (ITEMS[m.gun]?.gun?.scope ? sfx.sniper : sfx.gun)(far);
+  if (o) o.model.swing = 0.15;
+  if (m.wall) particles.burst(to.x, to.y, to.z, "stone", 4, 0.8, 0.1, 2);
 }
 
 const eating = { on: false, t: 0 };
@@ -740,6 +845,7 @@ function tryPickup() {
 // ── HUD ────────────────────────────────────────────────────
 function changed() {
   renderHud();
+  renderAmmo();
   if (ui.isOpen) ui.render();
   hand.setItem(heldId());
 }
@@ -789,7 +895,9 @@ function selectSlot(i) {
   clearTimeout(nameTimer);
   nameTimer = setTimeout(() => (el.style.opacity = 0), 1500);
   eating.on = false;
+  gun.aim = false;
   changed();
+  renderAmmo();
 }
 
 function clockText() {
@@ -897,22 +1005,22 @@ function closeChat() {
 // ── 입력 ───────────────────────────────────────────────────
 document.addEventListener("mousemove", (e) => {
   if (!locked()) return;
-  const k = 0.0022 * (settings.sens / 100);
+  const k = 0.0022 * (settings.sens / 100) * (camera.fov / settings.fov);
   player.yaw -= e.movementX * k;
   player.pitch -= e.movementY * k;
   player.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, player.pitch));
 });
 document.addEventListener("mousedown", (e) => {
   if (!locked() || game.dead) return;
-  if (e.button === 0) { mouseL = true; if (leftPress()) mouseL = false; }
-  else if (e.button === 2) { mouseR = true; rightPress(); rightRepeat = 0.3; }
+  if (e.button === 0) { mouseL = true; if (leftPress() && !heldGun()?.auto) mouseL = false; }
+  else if (e.button === 2) { mouseR = true; if (heldGun()) gun.aim = true; else { rightPress(); rightRepeat = 0.3; } }
   else if (e.button === 1) {
     e.preventDefault();
     const hit = raycastBlock();
     if (hit) { const at = game.st.inv.slice(0, 9).findIndex((s) => s?.id === hit.b); if (at >= 0) selectSlot(at); }
   }
 });
-document.addEventListener("mouseup", (e) => { if (e.button === 0) mouseL = false; if (e.button === 2) { mouseR = false; eating.on = false; } });
+document.addEventListener("mouseup", (e) => { if (e.button === 0) mouseL = false; if (e.button === 2) { mouseR = false; eating.on = false; gun.aim = false; } });
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 document.addEventListener("wheel", (e) => { if (locked()) selectSlot(game.sel + Math.sign(e.deltaY)); }, { passive: true });
 
@@ -944,6 +1052,7 @@ document.addEventListener("keydown", (e) => {
   if (!locked()) return;
   if (e.code.startsWith("Digit") && e.code !== "Digit0") selectSlot(Number(e.code.slice(5)) - 1);
   if (e.code === "KeyQ") dropHeld(e.ctrlKey);
+  if (e.code === "KeyR") reload();
   if (e.code === "KeyW" && !e.repeat) {
     const now = performance.now();
     if (now - lastW < 280) player.sprint = true;
@@ -1143,7 +1252,7 @@ function frame(dt, now, real = dt) {
     attackCool = Math.max(0, attackCool - dt);
     updateDig(real);
     updateEating(real);
-    if (mouseR && !eating.on && locked()) { rightRepeat -= dt; if (rightRepeat <= 0) { rightRepeat = 0.25; rightPress(); } }
+    if (mouseR && !eating.on && locked() && !heldGun()) { rightRepeat -= dt; if (rightRepeat <= 0) { rightRepeat = 0.25; rightPress(); } }
     tryPickup();
     if (now - sendAt > 100) {
       sendAt = now;
@@ -1162,7 +1271,13 @@ function frame(dt, now, real = dt) {
   const sh = game.shake * 0.25;
   camera.position.set(player.pos.x + (Math.random() - 0.5) * sh, player.pos.y + eyeH() + Math.abs(bob) + (Math.random() - 0.5) * sh, player.pos.z);
   camera.rotation.set(player.pitch, player.yaw, Math.sin(camBob.t * 0.5) * 0.004 * Math.min(1, speed / 4) + game.hurtTilt * 0.12);
-  const wantFov = settings.fov * (player.sprint && speed > 4 ? 1.12 : 1) * (player.flying && player.sprint ? 1.1 : 1);
+  const g = heldGun();
+  const aiming = !!g && gun.aim && locked() && !game.dead && !(gun.reloading > performance.now());
+  const scoped = aiming && g.scope;
+  $("scope").classList.toggle("hidden", !scoped);
+  $("crosshair").style.display = scoped ? "none" : "";
+  const wantFov = aiming ? settings.fov * g.zoom : settings.fov * (player.sprint && speed > 4 ? 1.12 : 1) * (player.flying && player.sprint ? 1.1 : 1);
+  if (aiming && Math.abs(camera.fov - wantFov) > 0.1) { camera.fov += (wantFov - camera.fov) * Math.min(1, dt * (scoped ? 25 : 14)); camera.updateProjectionMatrix(); }
   if (Math.abs(camera.fov - wantFov) > 0.1) { camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 10); camera.updateProjectionMatrix(); }
 
   // 3인칭 (F5)
@@ -1225,7 +1340,12 @@ function frame(dt, now, real = dt) {
 
   // 손
   const light = lightAt(player.pos.x, player.pos.y + eyeH(), player.pos.z);
-  hand.update(dt, player.onGround ? speed : 0, light, window.innerWidth / window.innerHeight, { sprint: player.sprint && speed > 4, air: !player.onGround && !player.inWater, mining: dig.active && dig.total > 0, vy: player.vel.y });
+  hand.update(dt, player.onGround ? speed : 0, light, window.innerWidth / window.innerHeight, {
+    sprint: player.sprint && speed > 4, air: !player.onGround && !player.inWater, mining: dig.active && dig.total > 0, vy: player.vel.y,
+    aim: aiming, scoped, reloading: gun.reloading > performance.now(),
+  });
+  updateTracers(dt);
+  if (gun.reloading && gun.reloading < performance.now()) { gun.reloading = 0; renderAmmo(); }
 
   animateEntities(dt, now);
   particles.update(dt, camera);

@@ -10,12 +10,16 @@ const NAME_RE = /^[\p{L}\p{N}_]{2,12}$/u;
 const TOKEN_DAYS = 180;
 
 export class Accounts {
-  constructor(file) {
+  /** admins: 관리자 아이디 목록 (config.json · ADMINS 환경변수). /op 로 지정한 사람(op)도 관리자 */
+  constructor(file, admins = []) {
+    this.admins = new Set(admins.map((n) => String(n).trim().toLowerCase()).filter(Boolean));
     this.file = file;
     // 망가졌으면 가장 최근 백업에서 되살린다
     this.data = readJsonWithBackup(file, join(dirname(file), "backups")) ?? { users: {}, tokens: {} };
     this.data.users ??= {};
     this.data.tokens ??= {};
+    // 예전 규칙(처음 가입자 = 관리자)은 없앤다 — 목록에 있거나 /op 받은 사람만
+    for (const [k, u] of Object.entries(this.data.users)) u.admin = this.admins.has(k) || u.op === true;
     this.dirty = false;
     this.fails = new Map(); // ip → [시각...]
   }
@@ -47,7 +51,7 @@ export class Accounts {
     const salt = randomBytes(16).toString("hex");
     const hash = (await scryptAsync(password, salt, 64)).toString("hex");
     if (this.get(name)) throw new Error("이미 있는 아이디입니다. 다른 아이디를 써 주세요.");
-    const admin = this.count === 0; // 처음 가입한 사람이 관리자
+    const admin = this.admins.has(name.toLowerCase()); // 관리자는 config.json 에 적은 아이디만
     this.data.users[name.toLowerCase()] = {
       name, salt, hash, admin, color: randomInt(0, 360), created: new Date().toISOString(), state: null,
     };
