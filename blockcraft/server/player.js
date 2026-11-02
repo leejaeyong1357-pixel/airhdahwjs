@@ -64,7 +64,7 @@ export class Player {
   addXp(n) { if (n > 0) { this.xp += n; this.statsDirty = true; } }
 
   addEx(e) {
-    if (this.mode !== "survival") return;
+    if (this.mode !== "survival" || this.arena) return; // 에보: 배고픔 없음
     this.ex += e;
     while (this.ex >= 4) {
       this.ex -= 4;
@@ -114,7 +114,7 @@ export class Player {
   /** 1초에 20번 — 자연 회복 · 굶주림. 굶어 죽으면 true */
   tick(dt) {
     this.invuln = Math.max(0, this.invuln - dt);
-    if (this.dead || this.mode !== "survival") return false;
+    if (this.dead || this.mode !== "survival" || this.arena) return false; // 에보: 자연 회복 · 굶주림 없음
     // 배부르면 천천히 회복 — 맞은 뒤 5초 동안은 회복하지 않는다
     if (this.food >= 18 && this.hp < 20 && Date.now() - (this.hurtAt ?? 0) > 5000) {
       this.regenT += dt;

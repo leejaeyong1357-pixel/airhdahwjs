@@ -35,6 +35,7 @@
           <label id="pw2Row" class="hidden">비밀번호 확인<input id="authPw2" type="password" maxlength="64" placeholder="한 번 더" autocomplete="new-password" /></label>
           <div id="authError" class="error"></div>
           <button id="authSubmit" class="primaryBtn" type="submit">로그인</button>
+          <button id="authEvo" class="evoBtn" type="button"><b>에보</b><small id="authEvoSub">로그인하고 블루 vs 레드 팀전으로</small></button>
           <p class="hintSmall">한 번 로그인하면 이 PC 에서는 자동으로 로그인됩니다. 다른 PC 에서 로그인해도 진행 상황이 그대로 이어집니다.</p>
         </form>
       </div>
@@ -42,6 +43,7 @@
         <h3><span id="meName"></span> 님</h3>
         <p class="hintSmall" id="meRole"></p>
         <button id="btnPlay2" class="primaryBtn">게임 시작</button>
+        <button id="btnEvo" class="evoBtn"><b>에보</b><small>블루 vs 레드 팀전 바로 입장</small></button>
         <button id="btnLook" class="ghostBtn">캐릭터 꾸미기</button>
         <button id="btnLogout" class="ghostBtn">로그아웃</button>
       </div>
@@ -69,6 +71,7 @@
       <button class="x" data-close>✕</button>
       <h3>어디서 할까요?</h3>
       <button id="playContinue" class="primaryBtn hidden">이어하기</button>
+      <button id="playEvo" class="evoBtn"><b>에보</b><small>블루 vs 레드 팀전 — 먼저 50킬 · 10분</small></button>
       <button id="playMulti" class="ghostBtn big"><b>멀티플레이</b><small>회사 서버 월드 — 접속한 직원들과 같이</small></button>
       <button id="playSolo" class="ghostBtn big"><b>싱글플레이</b><small>나만의 월드 — 혼자 (치트 명령 가능)</small></button>
       <p class="hintSmall" id="playWho"></p>
@@ -138,6 +141,7 @@
       <h3>일시정지</h3>
       <button id="resumeBtn" class="primaryBtn">게임으로 돌아가기</button>
       <button id="pauseMap" class="ghostBtn">지도 (M)</button>
+      <button id="pauseEvo" class="ghostBtn hidden">팀 · 무기 바꾸기</button>
       <button id="pauseSettings" class="ghostBtn">설정</button>
       <button id="pauseLook" class="ghostBtn">캐릭터 꾸미기</button>
       <button id="pauseTitle" class="ghostBtn">첫 화면으로</button>
@@ -150,8 +154,10 @@
     <div class="deathBox">
       <h1>죽었습니다!</h1>
       <p id="deathWhy"></p>
+      <p id="deathAuto" class="hintSmall"></p>
       <button id="respawnBtn" class="primaryBtn">부활</button>
       <button id="deathMap" class="ghostBtn">지도 — 리스폰 위치 보기 (M)</button>
+      <button id="deathGuns" class="ghostBtn hidden">무기 바꾸기 (다음 부활)</button>
       <button id="deathTitle" class="ghostBtn">첫 화면으로</button>
     </div>
   </div>
@@ -160,6 +166,7 @@
   <div id="scoreboard" class="overlay hidden">
     <div class="glass wide">
       <h3>점수판 <small id="scoreTitle"></small></h3>
+      <div id="teamScores" class="hidden"></div>
       <table id="scoreTable"><thead><tr><th>이름</th><th>킬</th><th>데스</th><th>어시</th></tr></thead><tbody></tbody></table>
       <div class="nickRow"><input id="nickInput" maxlength="12" placeholder="새 닉네임 (한글 · 영문 · 숫자 2~12자)" autocomplete="off" /><button id="nickBtn" class="primaryBtn">닉네임 변경</button></div>
       <p class="hintSmall">Tab 또는 Esc 로 닫기</p>
@@ -175,6 +182,27 @@
       <div class="mapBar"><button id="mapMe" class="ghostBtn">내 위치로</button><button id="mapSpawn" class="ghostBtn">리스폰 위치로</button><span id="mapInfo"></span></div>
     </div>
   </div>
+
+  <!-- 에보: 팀 · 무기 선택 (무기고도 같은 창) -->
+  <div id="evoModal" class="overlay hidden">
+    <div class="glass evoBox">
+      <h3 id="evoTitle">에보 — 팀과 무기 고르기</h3>
+      <div id="evoTeams" class="evoTeams">
+        <button data-team="blue" class="teamBtn blue"><b>블루</b><small id="evoNBlue"></small></button>
+        <button data-team="auto" class="teamBtn auto"><b>자동</b><small>인원 적은 팀</small></button>
+        <button data-team="red" class="teamBtn red"><b>레드</b><small id="evoNRed"></small></button>
+      </div>
+      <div class="evoLabel">주무기 <small>하나 고르기 — 총알은 모두 90발</small></div>
+      <div id="evoGuns" class="evoGuns"></div>
+      <div class="evoLabel">기본 지급 <small>권총(보조) · 칼 · 수류탄 3개</small></div>
+      <div id="evoFixed" class="evoFixed"></div>
+      <p class="hintSmall" id="evoHint">리스폰 구역의 무기고(초록 철제 캐비닛)를 오른쪽 클릭하면 언제든 무기를 바꾸고 탄을 채울 수 있습니다.</p>
+      <button id="evoGo" class="primaryBtn">출전!</button>
+    </div>
+  </div>
+  <div id="matchBar" class="hidden"><span class="b"><i>블루</i><b id="mBlue">0</b></span><span class="mid"><b id="mTime">10:00</b><small id="mGoal">목표 50</small></span><span class="r"><b id="mRed">0</b><i>레드</i></span></div>
+  <div id="matchEnd" class="hidden"><div><h1 id="matchWin"></h1><p id="matchScore"></p><small id="matchNext"></small></div></div>
+  <div id="protectFx" class="hidden">스폰 보호 중</div>
 
   <!-- 인벤토리 (ui/inventory.js 가 채움) -->
   <div id="invScreen" class="hidden"></div>

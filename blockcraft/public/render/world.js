@@ -1,7 +1,8 @@
 // 월드 그리기 — 청크 데이터 · 빛(하늘빛 + 횃불빛) · 메시 · 셰이더
 import * as THREE from "../vendor/three.module.min.js";
 import { BLOCKS, AIR, B } from "/shared/blocks.js";
-import { CHUNK, HEIGHT, generateChunk, index } from "/shared/worldgen.js";
+import { CHUNK, HEIGHT, index } from "/shared/worldgen.js";
+import { genChunk } from "/shared/gen.js";
 
 const WATER = B.WATER, LEAVES = B.LEAVES;
 const R = CHUNK * 3;                 // 빛 계산 영역 (주변 3x3 청크) 가로 · 세로
@@ -20,6 +21,14 @@ for (const b of BLOCKS) {
   EMIT[b.id] = b.light ?? 0;
 }
 const opaque = (b) => KIND[b] === 1;
+// 정육면체가 아닌 모양 (상자 여러 개, 0~1 칸 좌표)
+const SHAPES = {
+  drum: [[0.14, 0, 0.26, 0.86, 1, 0.74], [0.26, 0, 0.14, 0.74, 1, 0.86], [0.2, 0, 0.2, 0.8, 1, 0.8]],
+  pole: [[0.38, 0, 0.38, 0.62, 1, 0.62]],
+  walllamp: [[0.3, 0.45, 0.25, 0.7, 0.7, 0.75], [0.45, 0.7, 0.45, 0.55, 1, 0.55]],
+};
+const SHAPE = [];
+for (const b of BLOCKS) if (b?.shape) SHAPE[b.id] = SHAPES[b.shape];
 /** 하늘빛이 줄지 않고 곧장 내려가는 블록 */
 const skyPass = (b) => b === AIR || KIND[b] === 4 || KIND[b] === 5 || b === B.GLASS;
 
@@ -160,7 +169,8 @@ export class WorldView {
     this.renderDist = 6;
   }
 
-  reset(seed, edits) {
+  reset(seed, edits, gen = "normal") {
+    this.gen = gen;
     for (const c of this.chunks.values()) this.dispose(c);
     this.chunks.clear();
     this.editsByChunk.clear();
@@ -178,7 +188,7 @@ export class WorldView {
     const k = ckey(cx, cz);
     let c = this.chunks.get(k);
     if (!c) {
-      const data = generateChunk(cx, cz, this.seed);
+      const data = genChunk(cx, cz, this.seed, this.gen);
       const edits = this.editsByChunk.get(k);
       if (edits) for (const [pos, b] of edits) {
         const [x, y, z] = pos.split(",").map(Number);
@@ -333,6 +343,7 @@ export class WorldView {
       const b = data[index(x, y, z)];
       if (b === AIR) continue;
       const k = KIND[b];
+      if (SHAPE[b]) { this.boxes(out.solid, b, SHAPE[b], x, y, z, lightAt(x, y, z, SKY), lightAt(x, y, z, BLK)); continue; }
       if (k === 4) { this.torch(out.solid, x, y, z, lightAt(x, y, z, SKY), lightAt(x, y, z, BLK)); continue; }
       if (k === 5) { this.plant(out.solid, b, x, y, z, lightAt(x, y, z, SKY), lightAt(x, y, z, BLK)); continue; }
       const liquid = k === 3;
@@ -389,6 +400,25 @@ export class WorldView {
         for (const [px, py, pz, u, v] of pts) { g.pos.push(x + px, y + py, z + pz); g.uv.push(u, v); g.shade.push(0.95); g.light.push(s / 15, l / 15); }
         if (flip) g.idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
         else g.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      }
+    }
+  }
+
+  /** 모양 블록 — 상자 여러 개 */
+  boxes(g, b, list, x, y, z, s, l) {
+    const uvs = this.uvs[b];
+    for (const bx of list) {
+      for (const f of FACES) {
+        const [u0, v0, u1, v1] = uvs[f.tex];
+        const base = g.pos.length / 3;
+        for (let i = 0; i < 4; i++) {
+          const p = f.c[i];
+          g.pos.push(x + (p[0] ? bx[3] : bx[0]), y + (p[1] ? bx[4] : bx[1]), z + (p[2] ? bx[5] : bx[2]));
+          g.uv.push(f.uv[i][0] ? u1 : u0, f.uv[i][1] ? v1 : v0);
+          g.shade.push(f.light);
+          g.light.push(s / 15, Math.max(l, EMIT[b]) / 15);
+        }
+        g.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
       }
     }
   }

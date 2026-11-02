@@ -4,7 +4,8 @@ import { randomInt } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, copyFileSync, readdirSync, unlinkSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { AIR, B, BLOCKS, isOpaque } from "../shared/blocks.js";
-import { CHUNK, HEIGHT, generateChunk, index, findSpawn } from "../shared/worldgen.js";
+import { CHUNK, HEIGHT, index, findSpawn } from "../shared/worldgen.js";
+import { genChunk } from "../shared/gen.js";
 
 export const DAY = 24000; // 하루 = 24000틱 = 20분 (1초에 20틱)
 const BACKUP_EVERY = 10 * 60_000; // 10분마다 백업
@@ -54,10 +55,14 @@ export function readJsonWithBackup(file, dir) {
 }
 
 export class World {
-  constructor(file, backupDir) {
+  /** opts.gen: "normal"(자연 지형) · "evo"(에보 팀전 맵), opts.spawn · opts.rules: 처음 만들 때 기본값 */
+  constructor(file, backupDir, opts = {}) {
     this.file = file;
     this.backupDir = backupDir;
-    const w = readJsonWithBackup(file, backupDir) ?? { seed: Number(process.env.WORLD_SEED) || randomInt(1, 2_000_000_000), edits: {}, createdAt: new Date().toISOString() };
+    const w = readJsonWithBackup(file, backupDir) ?? { seed: Number(process.env.WORLD_SEED) || randomInt(1, 2_000_000_000), edits: {}, createdAt: new Date().toISOString(), gen: opts.gen ?? "normal" };
+    w.gen ??= "normal";
+    if (opts.spawn) w.spawn ??= opts.spawn;
+    if (opts.rules) w.rules = { ...opts.rules, ...(w.rules ?? {}) };
     w.edits ??= {};
     w.furnaces ??= {};
     w.chests ??= {};
@@ -81,6 +86,7 @@ export class World {
   }
 
   get seed() { return this.w.seed; }
+  get gen() { return this.w.gen; }
   get spawn() { return this.w.spawn; }
   get edits() { return this.w.edits; }
   get furnaces() { return this.w.furnaces; }
@@ -110,7 +116,7 @@ export class World {
     const k = ckey(cx, cz);
     let c = this.chunks.get(k);
     if (!c) {
-      c = generateChunk(cx, cz, this.w.seed);
+      c = genChunk(cx, cz, this.w.seed, this.w.gen);
       const edits = this.editsByChunk.get(k);
       if (edits) for (const [pos, b] of edits) {
         const [x, y, z] = pos.split(",").map(Number);

@@ -16,6 +16,11 @@ export const B = {
   DIAMOND_ORE: 30, TALL_GRASS: 31, FLOWER_YELLOW: 32, FLOWER_RED: 33,
   CHEST: 34, LAVA: 35, CACTUS: 36, BIRCH_LOG: 37, BIRCH_LEAVES: 38, SPRUCE_LOG: 39, SPRUCE_LEAVES: 40,
   SANDSTONE: 41, DEAD_BUSH: 42, OBSIDIAN: 43,
+  // 에보(팀전) 맵용
+  CONCRETE_LIGHT: 44, CONCRETE_DARK: 45, YARD: 46, YARD_LINE_X: 47, YARD_LINE_Z: 48,
+  CONTAINER: 49, CONTAINER_TOP: 50, CONTAINER_CORNER: 51, CONTAINER_DOOR: 52, SHUTTER: 53, WINDOW: 54,
+  CRATE: 55, BLOCK_WALL: 56, CEILING: 57, FLOOR_TILE: 58, LAMP: 59, METAL_PANEL: 60,
+  SPAWN_RED: 61, SPAWN_BLUE: 62, DUMPSTER: 63, DRUM: 64, ARMORY: 65, POLE: 66, WALL_LAMP: 67, SIGN: 68,
 };
 
 export const BLOCKS = [
@@ -63,6 +68,32 @@ export const BLOCKS = [
   { id: 41, name: "사암", tex: ["sandstone_top", "sandstone_top", "sandstone"], kind: "solid", hard: 0.8, tool: "pickaxe", need: 0 },
   { id: 42, name: "마른 덤불", tex: ["dead_bush", "dead_bush", "dead_bush"], kind: "plant", hard: 0, drop: null },
   { id: 43, name: "흑요석", tex: ["obsidian", "obsidian", "obsidian"], kind: "solid", hard: 50, tool: "pickaxe", need: 3 },
+  // ── 에보 맵 블록 (shape: 정육면체가 아닌 모양 — 부딪힘은 한 칸) ──
+  { id: 44, name: "밝은 콘크리트", tex: ["concrete_light", "concrete_light", "concrete_light"], kind: "solid", hard: 1.8, tool: "pickaxe", need: 0 },
+  { id: 45, name: "어두운 콘크리트", tex: ["concrete_dark", "concrete_dark", "concrete_dark"], kind: "solid", hard: 1.8, tool: "pickaxe", need: 0 },
+  { id: 46, name: "마당 바닥", tex: ["yard", "concrete_dark", "yard"], kind: "solid", hard: 1.5, tool: "pickaxe", need: 0 },
+  { id: 47, name: "마당 선 (가로)", tex: ["yard_line_x", "concrete_dark", "yard"], kind: "solid", hard: 1.5, tool: "pickaxe", need: 0 },
+  { id: 48, name: "마당 선 (세로)", tex: ["yard_line_z", "concrete_dark", "yard"], kind: "solid", hard: 1.5, tool: "pickaxe", need: 0 },
+  { id: 49, name: "컨테이너 벽", tex: ["container_top", "container_rail", "container_side"], kind: "solid", hard: 3, tool: "pickaxe", need: 0 },
+  { id: 50, name: "컨테이너 윗판", tex: ["container_top", "container_rail", "container_side_top"], kind: "solid", hard: 3, tool: "pickaxe", need: 0 },
+  { id: 51, name: "컨테이너 모서리", tex: ["container_corner_top", "container_rail", "container_corner"], kind: "solid", hard: 3, tool: "pickaxe", need: 0 },
+  { id: 52, name: "컨테이너 문", tex: ["container_top", "container_rail", "container_door"], kind: "solid", hard: 3, tool: "pickaxe", need: 0 },
+  { id: 53, name: "셔터", tex: ["concrete_dark", "concrete_dark", "shutter"], kind: "solid", hard: 3, tool: "pickaxe", need: 0 },
+  { id: 54, name: "창고 창문", tex: ["window", "window", "window"], kind: "solid", hard: 0.5 },
+  { id: 55, name: "나무 상자", tex: ["crate_top", "crate_top", "crate"], kind: "solid", hard: 2, tool: "axe" },
+  { id: 56, name: "회색 조적벽", tex: ["block_wall", "block_wall", "block_wall"], kind: "solid", hard: 2, tool: "pickaxe", need: 0 },
+  { id: 57, name: "천장", tex: ["ceiling", "ceiling", "ceiling"], kind: "solid", hard: 2, tool: "pickaxe", need: 0 },
+  { id: 58, name: "타일 바닥", tex: ["floor_tile", "concrete_dark", "concrete_dark"], kind: "solid", hard: 1.5, tool: "pickaxe", need: 0 },
+  { id: 59, name: "형광등", tex: ["lamp", "lamp", "lamp_side"], kind: "solid", hard: 0.5, light: 15 },
+  { id: 60, name: "골함석 벽", tex: ["metal_panel", "metal_panel", "metal_panel"], kind: "solid", hard: 3, tool: "pickaxe", need: 0 },
+  { id: 61, name: "레드 스폰 표시", tex: ["spawn_red", "concrete_dark", "yard"], kind: "solid", hard: 1.5, tool: "pickaxe", need: 0 },
+  { id: 62, name: "블루 스폰 표시", tex: ["spawn_blue", "concrete_dark", "yard"], kind: "solid", hard: 1.5, tool: "pickaxe", need: 0 },
+  { id: 63, name: "녹색 수거함", tex: ["dumpster_top", "dumpster_side", "dumpster_side"], kind: "solid", hard: 3, tool: "pickaxe", need: 0 },
+  { id: 64, name: "드럼통", tex: ["drum_top", "drum_top", "drum_side"], kind: "cutout", shape: "drum", hard: 2, tool: "pickaxe", need: 0 },
+  { id: 65, name: "무기고", tex: ["armory_top", "armory_top", "armory"], kind: "solid", hard: 4, tool: "pickaxe", need: 0, light: 6 },
+  { id: 66, name: "철 기둥", tex: ["pole", "pole", "pole"], kind: "cutout", shape: "pole", hard: 2, tool: "pickaxe", need: 0 },
+  { id: 67, name: "벽 조명", tex: ["wall_lamp_top", "wall_lamp_light", "wall_lamp"], kind: "torch", shape: "walllamp", hard: 0.5, light: 13 },
+  { id: 68, name: "간판 뒤판", tex: ["concrete_dark", "concrete_dark", "sign_back"], kind: "solid", hard: 2, tool: "pickaxe", need: 0 },
 ];
 
 export const BLOCK_COUNT = BLOCKS.length;

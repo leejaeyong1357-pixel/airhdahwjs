@@ -1,7 +1,8 @@
 // 월드 하나(= 멀티플레이 서버 월드, 또는 한 사람의 싱글플레이 월드)
 // 블록 · 몹 · 아이템 · 상자 · 화로 · 시간 · 날씨와 그 안의 플레이어를 맡는다.
 import { AIR, B, BLOCKS, isBlockId, needsSupport, isOpaque } from "../shared/blocks.js";
-import { ITEMS, KIT, KIT_COUNT, blockDrops, blockXp, digSeconds } from "../shared/items.js";
+import { ITEMS, KIT, KIT_COUNT, blockDrops, blockXp, digSeconds, loadoutKit, isPrimary } from "../shared/items.js";
+import { SPAWNS, ARENA_INFO, inZone } from "../shared/arena.js";
 import { applyOp, digest, wear, useOne } from "../shared/invops.js";
 import { addItem, roomFor } from "../shared/inventory.js";
 import { HEIGHT } from "../shared/worldgen.js";
@@ -12,17 +13,33 @@ import { Containers } from "./containers.js";
 const r2 = (v) => Math.round(v * 100) / 100;
 const num = (v) => Number.isFinite(v);
 const vec3 = (v) => Array.isArray(v) && v.length === 3 && v.every(num);
+// 에보 — 팀전 규칙 (매번 이 값으로 고정)
+const EVO_RULES = { keepInventory: true, mobGriefing: false, pvp: true, doMobSpawning: false, build: false, daylightCycle: false, weatherCycle: false };
+export const MATCH_KILLS = 50;          // 먼저 50킬
+export const MATCH_SECONDS = 10 * 60;   // 또는 10분
+const PROTECT_MS = 3000;
+const AUTO_RESPAWN_S = 5;               // 에보: 죽으면 5초 뒤 자동 부활                // 부활 뒤 3초 무적 (쏘면 풀림)
+const TEAM_NAME = { red: "레드", blue: "블루" };
 
 export class Realm {
   /** key: "main" 또는 "solo:<아이디>", onCommand(pl, line) */
-  constructor({ key, file, backupDir, title, owner = null, onCommand, onSave, onNick }) {
+  constructor({ key, file, backupDir, title, owner = null, arena = false, onCommand, onSave, onNick, onLoadout }) {
     this.onNick = onNick;
+    this.onLoadout = onLoadout;
+    this.arena = arena;
     this.key = key;
     this.title = title;
     this.owner = owner;
     this.onCommand = onCommand;
     this.onSave = onSave;
-    this.world = new World(file, backupDir);
+    this.world = new World(file, backupDir, arena ? { gen: "evo", spawn: SPAWNS.red[0].p, rules: EVO_RULES } : {});
+    if (arena) {
+      Object.assign(this.world.rules, EVO_RULES);
+      this.world.w.spawn = [...SPAWNS.red[0].p];
+      this.world.time = 6000; // 한낮 고정
+      this.world.w.weather = { kind: "clear", left: 1e9 };
+      this.newMatch();
+    }
     this.players = new Map();
     this.entities = new Entities(this.world, {
       players: () => [...this.players.values()],
@@ -49,14 +66,109 @@ export class Realm {
   }
 
   publicInfo(pl) {
-    return { id: pl.id, name: pl.name, color: pl.color, look: pl.look, p: pl.p, r: pl.r, held: pl.heldId, f: pl.flags, dead: pl.dead, armor: pl.st.armor.map((a) => a?.id ?? 0) };
+    return { id: pl.id, name: pl.name, color: pl.color, look: pl.look, p: pl.p, r: pl.r, held: pl.heldId, f: pl.flags, dead: pl.dead, armor: pl.st.armor.map((a) => a?.id ?? 0), team: pl.team ?? null };
+  }
+
+  // ── 에보 팀전 ────────────────────────────────────────────
+  teamCount(team) { return [...this.players.values()].filter((p) => p.team === team).length; }
+  /** 사람이 적은 팀 (같으면 점수가 낮은 팀, 그것도 같으면 무작위) */
+  smallerTeam(except = null) {
+    const c = (t) => [...this.players.values()].filter((p) => p !== except && p.team === t).length;
+    const r = c("red"), b = c("blue");
+    if (r !== b) return r < b ? "red" : "blue";
+    if (this.match && this.match.red !== this.match.blue) return this.match.red < this.match.blue ? "red" : "blue";
+    return Math.random() < 0.5 ? "red" : "blue";
+  }
+  /** 팀 리스폰 자리 — 다른 사람과 가장 덜 겹치는 곳 */
+  spawnPoint(pl) {
+    const list = SPAWNS[pl.team] ?? SPAWNS.red;
+    let best = list[0], bestD = -1;
+    for (const s of [...list].sort(() => Math.random() - 0.5)) {
+      const d = Math.min(99, ...[...this.players.values()].filter((o) => o !== pl && !o.dead).map((o) => Math.hypot(o.p[0] - s.p[0], o.p[2] - s.p[2])));
+      if (d > bestD) { best = s; bestD = d; }
+    }
+    return best;
+  }
+  /** 팀 리스폰으로 보내고 무기 다시 주기 (부활 · 팀 바꾸기 · 새 판) */
+  placeAtSpawn(pl) {
+    const s = this.spawnPoint(pl);
+    pl.dead = false;
+    pl.hp = 20; pl.food = 20; pl.sat = 5;
+    pl.p = [...s.p];
+    pl.r = [s.yaw, 0];
+    pl.tpGrace = true;
+    pl.protectUntil = Date.now() + PROTECT_MS;
+    pl.statsDirty = true;
+    pl.send({ t: "respawn", p: pl.p, r: pl.r, protect: PROTECT_MS / 1000 });
+    pl.send(pl.stats());
+    this.giveKit(pl);
+    this.broadcast({ t: "prespawn", id: pl.id, p: pl.p }, pl);
+  }
+  newMatch() {
+    this.match = { red: 0, blue: 0, target: MATCH_KILLS, endsAt: Date.now() + MATCH_SECONDS * 1000, over: false, winner: null, restartAt: 0 };
+  }
+  matchInfo() {
+    const m = this.match;
+    return { red: m.red, blue: m.blue, target: m.target, left: Math.max(0, Math.round((m.endsAt - Date.now()) / 1000)), over: m.over, winner: m.winner, restart: m.over ? Math.max(0, Math.round((m.restartAt - Date.now()) / 1000)) : 0, nRed: this.teamCount("red"), nBlue: this.teamCount("blue") };
+  }
+  pushMatch() { if (this.arena) this.broadcast({ t: "match", ...this.matchInfo() }); }
+  endMatch(winner) {
+    const m = this.match;
+    if (m.over) return;
+    m.over = true;
+    m.winner = winner;
+    m.restartAt = Date.now() + 10_000;
+    this.pushMatch();
+    this.sys(winner ? `${TEAM_NAME[winner]} 팀 승리! (${m.blue} : ${m.red}) — 10초 뒤 새 판` : `무승부 (${m.blue} : ${m.red}) — 10초 뒤 새 판`);
+  }
+  restartMatch() {
+    this.newMatch();
+    this.scores.clear();
+    for (const pl of this.players.values()) this.placeAtSpawn(pl);
+    this.pushScores();
+    this.pushMatch();
+    this.sys("새 판 시작! 먼저 50킬 하는 팀이 이깁니다.");
+  }
+  setTeam(pl, team) {
+    if (!this.arena || (team !== "red" && team !== "blue")) return;
+    if (pl.team === team) { this.placeAtSpawn(pl); return; }
+    // 너무 한쪽으로 몰리지 않게 (관리자는 예외)
+    if (pl.team && !pl.admin && this.teamCount(team) > this.teamCount(pl.team)) { this.sys(`${TEAM_NAME[team]} 팀 인원이 더 많아서 바꿀 수 없습니다.`, pl); return; }
+    pl.team = team;
+    this.broadcast({ t: "team", id: pl.id, team });
+    this.sys(`${pl.name} 님이 ${TEAM_NAME[team]} 팀이 되었습니다.`);
+    this.placeAtSpawn(pl);
+    this.pushScores();
+    this.pushMatch();
+  }
+  setLoadout(pl, primary) {
+    if (!isPrimary(primary)) return;
+    pl.loadout = { primary };
+    this.onLoadout?.(pl, pl.loadout);
+    // 리스폰 구역 안이거나 죽어 있으면 바로, 아니면 다음 부활 때
+    if (!this.arena || pl.dead || inZone(pl.team, pl.p[0], pl.p[2])) { if (!pl.dead) this.giveKit(pl); this.sys(`무기: ${ITEMS[primary].name} · 권총 · 칼 · 수류탄`, pl); }
+    else this.sys(`${ITEMS[primary].name} — 다음 부활 때 받습니다. (무기고에서는 바로)`, pl);
   }
 
   join(pl) {
     this.players.set(pl.id, pl);
     const w = this.world;
+    if (this.arena) {
+      pl.arena = true;
+      pl.team = this.smallerTeam(pl);
+      pl.loadout = pl.user.loadout && isPrimary(pl.user.loadout.primary) ? pl.user.loadout : { primary: ITEMS[303].id };
+      pl.hp = 20; pl.food = 20;
+      const s = this.spawnPoint(pl);
+      pl.p = [...s.p]; pl.r = [s.yaw, 0];
+      pl.protectUntil = Date.now() + PROTECT_MS;
+      if (pl.mode === "creative" && !pl.admin) pl.mode = "survival";
+      const st = pl.st;
+      st.inv.fill(null); st.armor.fill(null); st.cursor = null; st.grid = [];
+      loadoutKit(pl.loadout).forEach((id, i) => { st.inv[i] = { id, n: KIT_COUNT[id] ?? 1 }; });
+    }
     pl.send({
       t: "welcome", id: pl.id, name: pl.name, admin: pl.admin, color: pl.color, look: pl.look, realm: this.key, title: this.title,
+      gen: w.gen, team: pl.team ?? null, loadout: pl.loadout ?? null, arena: this.arena ? ARENA_INFO : null, match: this.arena ? this.matchInfo() : null,
       seed: w.seed, spawn: w.spawn, edits: w.edits, time: w.time, weather: w.weather, rules: w.rules,
       p: pl.p, r: pl.r, sel: pl.sel, mode: pl.mode,
       inv: pl.st.inv, armor: pl.st.armor,
@@ -66,7 +178,8 @@ export class Realm {
     this.giveKit(pl);
     this.broadcast({ t: "join", ...this.publicInfo(pl) }, pl);
     this.pushScores();
-    if (this.players.size > 1 || !this.owner) this.sys(`${pl.name} 님이 들어왔습니다. (접속 ${this.players.size}명)`);
+    this.pushMatch();
+    if (this.players.size > 1 || !this.owner) this.sys(`${pl.name} 님이 ${pl.team ? `${TEAM_NAME[pl.team]} 팀으로 ` : ""}들어왔습니다. (접속 ${this.players.size}명)`);
   }
 
   leave(pl) {
@@ -76,6 +189,7 @@ export class Realm {
     this.players.delete(pl.id);
     this.broadcast({ t: "leave", id: pl.id });
     this.pushScores();
+    this.pushMatch();
     if (this.players.size || !this.owner) this.sys(`${pl.name} 님이 나갔습니다. (접속 ${this.players.size}명)`);
     if (!this.players.size) this.emptySince = Date.now();
     this.onSave?.(pl);
@@ -83,6 +197,11 @@ export class Realm {
 
   /** 피해 → 죽었으면 처리 */
   damagePlayer(pl, dmg, cause, from = null, kb = 1, by = "", attacker = null) {
+    if (this.arena && attacker && attacker !== pl) {
+      if (attacker.team && attacker.team === pl.team) return;     // 같은 팀은 안 다침
+      if ((pl.protectUntil ?? 0) > Date.now()) return;             // 부활 무적
+      if (this.match?.over) return;
+    }
     const before = pl.hp;
     if (attacker && attacker !== pl) { pl.damagers ??= new Map(); pl.damagers.set(attacker.key, Date.now()); pl.lastAttacker = attacker; pl.lastAttackAt = Date.now(); }
     const died = pl.damage(dmg, cause, from, kb, by);
@@ -108,7 +227,7 @@ export class Realm {
     return sc;
   }
   scoreboard() {
-    return [...this.players.values()].map((p) => ({ id: p.id, ...this.score(p) })).sort((a, b) => b.k - a.k || a.d - b.d);
+    return [...this.players.values()].map((p) => ({ id: p.id, team: p.team ?? null, ...this.score(p) })).sort((a, b) => b.k - a.k || a.d - b.d);
   }
   pushScores() { this.broadcast({ t: "scores", list: this.scoreboard() }); }
 
@@ -125,11 +244,17 @@ export class Realm {
         const helper = [...this.players.values()].find((p) => p.key === key);
         if (helper) this.score(helper).a++;
       }
-      this.broadcast({ t: "feed", killer: killer.name, victim: pl.name, head: cause === "headshot", weapon: cause });
+      this.broadcast({ t: "feed", killer: killer.name, victim: pl.name, head: cause === "headshot", weapon: cause, kt: killer.team ?? null, vt: pl.team ?? null });
+      if (this.arena && !this.match.over && killer.team && killer.team !== pl.team) {
+        this.match[killer.team]++;
+        if (this.match[killer.team] >= this.match.target) this.endMatch(killer.team);
+        else this.pushMatch();
+      }
     }
     pl.damagers = new Map();
     pl.lastAttacker = null;
     pl.dead = true;
+    pl.deadAt = Date.now();
     pl.hp = 0;
     this.boxes.close(pl);
     const st = pl.st;
@@ -141,7 +266,7 @@ export class Realm {
     } else applyOp(st, { o: "close" }, pl.mode);
     st.cursor = null; st.grid = []; st.screen = null;
     pl.statsDirty = true;
-    pl.send({ t: "dead", why: pl.deathCause ?? "죽었습니다" });
+    pl.send({ t: "dead", why: pl.deathCause ?? "죽었습니다", auto: this.arena ? AUTO_RESPAWN_S : 0, killer: killer?.name ?? null });
     pl.sync();
     this.broadcast({ t: "pdead", id: pl.id }, pl);
     this.sys(`${pl.name} 님이 ${pl.deathCause ?? "죽었습니다"}.`);
@@ -151,6 +276,7 @@ export class Realm {
 
   respawn(pl) {
     if (!pl.dead) return;
+    if (this.arena) { this.placeAtSpawn(pl); return; }
     pl.dead = false;
     pl.hp = 20; pl.food = 20; pl.sat = 5; pl.ex = 0;
     pl.p = [...this.world.spawn];
@@ -164,6 +290,15 @@ export class Realm {
   /** 칼 · M16 · 저격총 — 없으면 단축칸에 넣어 주고 탄창을 채운다 */
   giveKit(pl) {
     const st = pl.st;
+    if (this.arena) {
+      // 에보: 1 주무기 · 2 권총 · 3 칼 · 4 수류탄 — 나머지 칸은 비운다
+      const kit = loadoutKit(pl.loadout);
+      st.inv.fill(null); st.armor.fill(null); st.cursor = null; st.grid = [];
+      kit.forEach((id, i) => { st.inv[i] = { id, n: KIT_COUNT[id] ?? 1 }; });
+      this.fillAmmo(pl, kit);
+      this.broadcast({ t: "held", id: pl.id, held: pl.heldId }, pl);
+      return;
+    }
     // 죽어서 남아 있던 칼 · 총은 없애고 다시 준다 (여러 개 생기지 않게)
     for (const id of KIT) {
       const want = KIT_COUNT[id] ?? 1;
@@ -174,12 +309,16 @@ export class Realm {
       if (free >= 0) st.inv[free] = { id, n: want };
       else addItem(st.inv, { id, n: want });
     }
+    this.fillAmmo(pl, KIT);
+  }
+  /** 탄창 · 예비탄 가득 */
+  fillAmmo(pl, kit) {
     pl.ammo = {};
     pl.reserve = {};
     pl.reload = null;
     pl.pinAt = null;
-    for (const id of KIT) if (ITEMS[id].gun) { pl.ammo[id] = ITEMS[id].gun.mag; pl.reserve[id] = ITEMS[id].gun.total - ITEMS[id].gun.mag; }
-    pl.send({ t: "ammo", ammo: pl.ammo, reserve: pl.reserve });
+    for (const id of kit) if (ITEMS[id].gun) { pl.ammo[id] = ITEMS[id].gun.mag; pl.reserve[id] = ITEMS[id].gun.total - ITEMS[id].gun.mag; }
+    pl.send({ t: "ammo", ammo: pl.ammo, reserve: pl.reserve, full: true });
     pl.sync();
   }
 
@@ -219,6 +358,7 @@ export class Realm {
     if (!(dl > 0.5)) return;
     const d = m.d.map((v) => v / dl);
     pl.lastShot = now;
+    pl.protectUntil = 0;
     pl.ammo[pl.heldId] -= 1;
     const o = m.o;
     // 벽(불투명 블록)까지 거리
@@ -233,7 +373,7 @@ export class Realm {
       const t = rayBox(o, d, [x - w, y, z - w], [x + w, y + h, z + w]);
       if (t != null && t < wall && (!best || t < best.t)) best = { kind, target, t, y, h };
     };
-    for (const p2 of this.players.values()) if (p2 !== pl && !p2.dead) test("player", p2, p2.p[0], p2.p[1], p2.p[2], 0.3, p2.flags & 1 ? 1.5 : 1.8);
+    for (const p2 of this.players.values()) if (p2 !== pl && !p2.dead && !(this.arena && p2.team && p2.team === pl.team)) test("player", p2, p2.p[0], p2.p[1], p2.p[2], 0.3, p2.flags & 1 ? 1.5 : 1.8);
     for (const e of this.entities.mobs.values()) test("mob", e, e.x, e.y, e.z, e.def.w, e.def.h);
     const end = best ? best.t : wall;
     const hitP = [o[0] + d[0] * end, o[1] + d[1] * end, o[2] + d[2] * end].map(r2);
@@ -322,6 +462,7 @@ export class Realm {
       case "dig": {
         const { x, y, z } = m;
         if (![x, y, z].every(Number.isInteger) || y < 0 || y >= HEIGHT || pl.dead || !near(x, y, z, 7)) return this.fix(pl, x, y, z);
+        if (w.rules.build === false && pl.mode !== "creative") return this.fix(pl, x, y, z); // 에보 맵은 부술 수 없음
         const b = w.get(x, y, z);
         if (pl.mode === "survival") {
           // 캐는 시간 확인 (네트워크 지연을 감안해 조금 여유)
@@ -337,6 +478,7 @@ export class Realm {
       case "place": {
         const { x, y, z } = m;
         if (![x, y, z].every(Number.isInteger) || y < 1 || y >= HEIGHT || pl.dead || !near(x, y, z, 7)) return this.fix(pl, x, y, z);
+        if (w.rules.build === false && pl.mode !== "creative") return this.fix(pl, x, y, z);
         const held = pl.held;
         const b = held && ITEMS[held.id]?.block;
         if (!b || !isBlockId(b)) return this.fix(pl, x, y, z);
@@ -359,6 +501,13 @@ export class Realm {
         const { x, y, z } = m;
         if (![x, y, z].every(Number.isInteger) || pl.dead || !near(x, y, z, 7)) return;
         const b = w.get(x, y, z);
+        if (b === B.ARMORY) {
+          // 무기고 — 자기 팀 리스폰 구역의 무기고만. 탄 · 수류탄을 채우고 무기 선택 창을 연다
+          if (this.arena && !inZone(pl.team, x + 0.5, z + 0.5)) { this.sys("상대 팀 무기고는 쓸 수 없습니다.", pl); return; }
+          this.giveKit(pl);
+          pl.send({ t: "armory", loadout: pl.loadout ?? null });
+          return;
+        }
         if (b === B.CRAFTING_TABLE) { applyOp(pl.st, { o: "open", screen: "table" }, pl.mode); check(m.d); }
         else if (b === B.CHEST || b === B.FURNACE) { applyOp(pl.st, { o: "close" }, pl.mode); this.boxes.open(pl, `${x},${y},${z}`); pl.sync(); }
         return;
@@ -402,6 +551,7 @@ export class Realm {
         const now = Date.now();
         const held = ITEMS[pl.heldId];
         const knife = held?.weapon === "knife";
+        pl.protectUntil = 0;
         if (knife && now - (pl.lastAttack ?? 0) < 220) return;           // 칼: 1초에 4번까지, 한 번에 반 칸 (20번 맞으면 죽음)
         const charge = Math.min(1, (now - (pl.lastAttack ?? 0)) / 600); // 맨손 · 검은 연타하면 약해진다
         pl.lastAttack = now;
@@ -425,6 +575,8 @@ export class Realm {
       }
       case "shoot": this.shoot(pl, m); return;
       case "unpin": pl.pinAt = null; return; // 던지기 전에 무기를 바꿈 → 취소
+      case "team": this.setTeam(pl, m.team); return;
+      case "loadout": this.setLoadout(pl, m.primary); return;
       case "pin": {
         if (!ITEMS[pl.heldId]?.grenade || pl.dead) return;
         pl.pinAt = Date.now();
@@ -508,15 +660,22 @@ export class Realm {
   tick(dt) {
     this.tickN++;
     const w = this.world;
-    w.time = w.time + 20 * dt;
+    if (w.rules.daylightCycle !== false) w.time = w.time + 20 * dt;
     // 날씨 — 맑음 10~25분, 비 3~8분 (가끔 천둥)
     const wt = w.w.weather;
-    wt.left -= dt;
+    if (w.rules.weatherCycle !== false) wt.left -= dt;
+    if (this.arena && this.match) {
+      const now = Date.now();
+      if (!this.match.over && now >= this.match.endsAt) this.endMatch(this.match.red === this.match.blue ? null : this.match.red > this.match.blue ? "red" : "blue");
+      if (this.match.over && now >= this.match.restartAt) this.restartMatch();
+      if (this.tickN % 100 === 0) this.pushMatch();
+    }
     if (wt.left <= 0) this.setWeather(wt.kind === "clear" ? (Math.random() < 0.25 ? "thunder" : "rain") : "clear");
     for (const pl of this.players.values()) if (pl.tick(dt)) this.kill(pl);
     this.entities.tick(dt);
     this.boxes.tick(dt);
     for (const pl of this.players.values()) {
+      if (this.arena && pl.dead && !this.match?.over && Date.now() - (pl.deadAt ?? 0) > AUTO_RESPAWN_S * 1000) this.placeAtSpawn(pl);
       if (pl.reload && Date.now() >= pl.reload.at) {
         const id = pl.reload.gun;
         const take = Math.min(ITEMS[id].gun.mag - pl.ammo[id], pl.reserve[id] ?? 0); // 예비 탄에서 채운다

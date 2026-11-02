@@ -3,15 +3,15 @@
 //   인벤토리 · 체력 · 조합 결과는 서버가 정하고, 여기서는 먼저 보여 준 뒤 서버 결과에 맞춘다.
 import * as THREE from "./vendor/three.module.min.js";
 import { BLOCKS, AIR, B, isSolid, isTargetable, needsSupport, isOpaque } from "/shared/blocks.js";
-import { ITEMS, digSeconds } from "/shared/items.js";
+import { ITEMS, digSeconds, PRIMARIES, GUNS } from "/shared/items.js";
 import { MOBS, MOB } from "/shared/mobs.js";
 import { roomFor, addItem } from "/shared/inventory.js";
 import { newState, applyOp, digest, wear, useOne } from "/shared/invops.js";
 import { HEIGHT, column, BIOME } from "/shared/worldgen.js";
-import { buildAtlas, buildSkins, hudIcon } from "./textures.js";
+import { buildAtlas, buildSkins, hudIcon, itemIcon } from "./textures.js";
 import { WorldView, makeMaterials, brightness } from "./render/world.js";
 import { Sky, daylightAt } from "./render/sky.js";
-import { initModels, makeHumanoid, animateHumanoid, makeMob, animateMob, tint, makeItemMesh, makeArrow, disposeTree, Hand, Particles, nameSprite, setArmor, speechSprite } from "./render/models.js";
+import { initModels, makeHumanoid, animateHumanoid, makeMob, animateMob, tint, makeItemMesh, makeArrow, disposeTree, Hand, Particles, nameSprite, setArmor, speechSprite, setTeamVest, TEAM_COLOR } from "./render/models.js";
 import { InventoryUI, fillSlot } from "./ui/inventory.js";
 import { LookEditor } from "./ui/look.js";
 import { WorldMap } from "./ui/map.js";
@@ -19,7 +19,7 @@ import { sfx, unlock, setVolume } from "./sound.js";
 
 THREE.ColorManagement.enabled = false;
 const $ = (id) => document.getElementById(id);
-const VERSION = "2.0.0";
+const VERSION = "2.1.0";
 const REACH = 5, ATTACK_REACH = 3.6;
 const PW = 0.3;
 const WATER = B.WATER, LAVA = B.LAVA;
@@ -114,7 +114,10 @@ const worldMap = new WorldMap(world, atlas, () => ({
   me: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
   spawn: game.spawn ?? [0.5, 60, 0.5],
   dead: game.dead,
-  others: [...others.values()].map((o) => ({ name: o.name, color: o.color, x: o.model.root.position.x, z: o.model.root.position.z, dead: o.dead })),
+  team: game.arena ? game.team : null,
+  zones: game.arena?.zones ?? null,
+  others: [...others.values()].filter((o) => !game.arena || o.team === game.team)
+    .map((o) => ({ name: o.name, color: o.color, team: o.team, x: o.model.root.position.x, z: o.model.root.position.z, dead: o.dead })),
 }));
 function openMap(focusSpawn = false) {
   if (uiMode === "map") return;
@@ -167,6 +170,12 @@ function onMessage(m) {
     case "kick": game.kickMsg = m.msg; return;
     case "welcome": return onWelcome(m);
     case "join": addOther(m); return;
+    case "team": {
+      if (m.id === game.id) { game.team = m.team; setTeamVest(selfModel, m.team); refreshTeamUi(); return; }
+      const o = others.get(m.id); if (o) { o.team = m.team; applyTeam(o); } return;
+    }
+    case "match": onMatch(m); return;
+    case "armory": game.loadout = m.loadout ?? game.loadout; openEvo("armory"); return;
     case "leave": removeOther(m.id); renderPlayers(); return;
     case "move": { const o = others.get(m.id); if (o) { o.target.set(...m.p); o.rot = m.r; o.flags = m.f ?? 0; } return; }
     case "held": { const o = others.get(m.id); if (o) setOtherHeld(o, m.held); return; }
@@ -186,7 +195,7 @@ function onMessage(m) {
     case "nick": {
       if (m.id === game.id) { game.name = m.name; if (game.me) game.me.name = m.name; renderScores(); return; }
       const o = others.get(m.id);
-      if (o) { o.name = m.name; o.model.root.remove(o.tag); o.tag = nameSprite(m.name); o.tag.position.y = 2.25; o.model.root.add(o.tag); }
+      if (o) { o.name = m.name; applyTeam(o); }
       return;
     }
     case "dance": { const o = others.get(m.id); if (o) setDance(o, m.on); return; }
@@ -241,7 +250,11 @@ function onWelcome(m) {
   m.inv.forEach((s, i) => { game.st.inv[i] = s; });
   m.armor.forEach((s, i) => { game.st.armor[i] = s; });
   game.sel = m.sel ?? 0;
-  world.reset(m.seed, m.edits);
+  world.reset(m.seed, m.edits, m.gen ?? "normal");
+  game.arena = m.arena ?? null;
+  game.team = m.team ?? null;
+  game.loadout = m.loadout ?? null;
+  setupArena();
   player.pos.set(...m.p);
   player.yaw = m.r?.[0] ?? 0; player.pitch = m.r?.[1] ?? 0;
   player.vel.set(0, 0, 0);
@@ -256,7 +269,8 @@ function onWelcome(m) {
   chatLine("", `${m.title} — ${m.name} 님, TECZEN WORLD 에 오신 걸 환영합니다! 화면을 클릭하면 시작합니다.`);
   updateMode();
   changed();
-  showPause(true);
+  if (game.arena) { onMatch(m.match); chatLine("", `에보 — ${teamName(game.team)} 팀입니다. 먼저 ${m.match?.target ?? 50}킬 하는 팀이 이깁니다. 무기고에서 무기를 바꿀 수 있습니다.`); openEvo("join"); }
+  else showPause(true);
 }
 
 function onSets(m) {
@@ -313,6 +327,14 @@ function onDead(m) {
   if (ui.isOpen) ui.close();
   document.exitPointerLock?.();
   $("deathWhy").textContent = m.why;
+  $("deathAuto").textContent = "";
+  clearInterval(game.autoTimer);
+  if (m.auto) {
+    const until = performance.now() + m.auto * 1000;
+    const tickAuto = () => { const l = Math.max(0, Math.ceil((until - performance.now()) / 1000)); $("deathAuto").textContent = `${l}초 뒤 우리 팀 리스폰에서 자동 부활`; };
+    tickAuto();
+    game.autoTimer = setInterval(tickAuto, 250);
+  }
   $("death").classList.remove("hidden");
   $("pause").classList.add("hidden");
   keys.clear();
@@ -320,14 +342,166 @@ function onDead(m) {
 function onRespawn(m) {
   game.dead = false;
   game.air = 300;
+  clearInterval(game.autoTimer);
   player.pos.set(...m.p);
+  if (m.r) { player.yaw = m.r[0]; player.pitch = m.r[1]; }
+  if (m.protect) { game.protectUntil = performance.now() + m.protect * 1000; }
   player.vel.set(0, 0, 0);
   player.fallTop = null;
   $("death").classList.add("hidden");
   if (uiMode === "map") worldMap.hide();
+  if (uiMode === "evo") return; // 팀 · 무기 창을 보고 있으면 그대로
   uiMode = "pause";
   lockPointer();
 }
+
+// ── 에보 (블루 vs 레드) ────────────────────────────────────
+const TEAM_KO = { red: "레드", blue: "블루" };
+const teamName = (t) => TEAM_KO[t] ?? "-";
+/** 다른 사람 — 팀 조끼, 이름표(같은 팀만 보임, 팀 색 바탕) */
+function applyTeam(o) {
+  setTeamVest(o.model, game.arena ? o.team : null);
+  if (o.tag) { o.model.root.remove(o.tag); o.tag.material.map?.dispose(); o.tag.material.dispose(); }
+  const mate = !!game.arena && !!o.team && o.team === game.team;
+  o.tag = nameSprite(o.name, mate ? (o.team === "red" ? "rgba(170,40,30,.8)" : "rgba(30,80,190,.8)") : "rgba(0,0,0,0.45)");
+  o.tag.position.y = 2.25;
+  o.tag.visible = !game.arena || mate;
+  o.model.root.add(o.tag);
+}
+function refreshTeamUi() {
+  for (const o of others.values()) applyTeam(o);
+  setTeamVest(selfModel, game.arena ? game.team : null);
+  if (game.arena && game.team) {
+    const z = game.arena.zones[game.team];
+    game.spawn = [(z[0] + z[2] + 1) / 2, game.arena.floor, (z[1] + z[3] + 1) / 2];
+  }
+  renderScores();
+}
+let signMesh = null;
+function setupArena() {
+  const on = !!game.arena;
+  $("matchBar").classList.toggle("hidden", !on);
+  $("pauseEvo").classList.toggle("hidden", !on);
+  $("deathGuns").classList.toggle("hidden", !on);
+  if (!on) $("matchEnd").classList.add("hidden");
+  if (signMesh) { scene.remove(signMesh); disposeTree(signMesh); signMesh = null; }
+  if (on) for (const d of game.arena.decals) if (d.kind === "sign") { signMesh = makeSign(d); scene.add(signMesh); }
+  refreshTeamUi();
+}
+/** 낡은 간판 — 녹슨 판에 바랜 글씨와 지게차 그림 (픽셀 그림) */
+function makeSign(d) {
+  const w = Math.round((d.x1 - d.x0) * 16), h = Math.round((d.y1 - d.y0) * 16);
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const g = c.getContext("2d");
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const v = rnd();
+    g.fillStyle = v < 0.18 ? "#8a4a24" : v < 0.3 ? "#b0663a" : v < 0.36 ? "#6e7378" : "#9c5530";
+    g.fillRect(x, y, 1, 1);
+  }
+  g.fillStyle = "#7c8086"; g.fillRect(0, 0, w, 3); g.fillRect(0, h - 3, w, 3); g.fillRect(0, 0, 3, h); g.fillRect(w - 3, 0, 3, h);
+  g.fillStyle = "#4e5156"; g.fillRect(3, 3, w - 6, 1); g.fillRect(3, h - 4, w - 6, 1);
+  // 바랜 글씨
+  g.fillStyle = "rgba(235,232,220,.82)";
+  g.font = "bold 13px Malgun Gothic, sans-serif";
+  g.fillText("TECZEN 물류 B동", 8, 18);
+  g.font = "9px Malgun Gothic, sans-serif";
+  for (const [i, t] of ["제3 창고 · 하역장", "관계자 외 출입 금지", "지게차 통행 주의"].entries()) g.fillText(t, 8, 32 + i * 11);
+  // 지게차 그림 (흰 선)
+  g.strokeStyle = "rgba(240,238,230,.85)"; g.lineWidth = 2;
+  const ox = w - 60, oy = h - 14;
+  g.strokeRect(ox, oy - 18, 22, 14); g.strokeRect(ox + 4, oy - 30, 12, 12);
+  g.beginPath(); g.moveTo(ox + 26, oy - 40); g.lineTo(ox + 26, oy); g.lineTo(ox + 44, oy); g.stroke();
+  g.beginPath(); g.arc(ox + 5, oy, 4, 0, Math.PI * 2); g.arc(ox + 19, oy, 4, 0, Math.PI * 2); g.stroke();
+  // 벗겨진 자국
+  for (let i = 0; i < 40; i++) { g.fillStyle = rnd() < 0.5 ? "rgba(90,50,30,.7)" : "rgba(120,124,128,.6)"; g.fillRect(Math.floor(rnd() * w), Math.floor(rnd() * h), 1 + Math.floor(rnd() * 3), 1); }
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(d.x1 - d.x0, d.y1 - d.y0), new THREE.MeshBasicMaterial({ map: tex, color: 0xd8d8d8 }));
+  m.position.set((d.x0 + d.x1) / 2, (d.y0 + d.y1) / 2, d.z + 0.02);
+  return m;
+}
+function onMatch(m) {
+  if (!m) return;
+  game.match = { ...m, at: performance.now() };
+  $("mBlue").textContent = m.blue; $("mRed").textContent = m.red;
+  $("mGoal").textContent = `목표 ${m.target} · 블루 ${m.nBlue}명 · 레드 ${m.nRed}명`;
+  const end = $("matchEnd");
+  if (m.over) {
+    const h = $("matchWin");
+    h.textContent = m.winner ? `${teamName(m.winner)} 팀 승리!` : "무승부";
+    h.className = m.winner ?? "";
+    $("matchScore").textContent = `블루 ${m.blue} : ${m.red} 레드${m.winner && m.winner === game.team ? " — 이겼습니다!" : m.winner ? " — 졌습니다" : ""}`;
+    $("matchNext").textContent = `${m.restart}초 뒤 새 판`;
+    if (end.classList.contains("hidden")) sfx.headshot();
+    end.classList.remove("hidden");
+  } else end.classList.add("hidden");
+}
+function updateMatchBar() {
+  const m = game.match;
+  if (!game.arena || !m) return;
+  const left = Math.max(0, m.left - (performance.now() - m.at) / 1000);
+  $("mTime").textContent = m.over ? "끝" : `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")}`;
+  if (m.over) $("matchNext").textContent = `${Math.max(0, Math.ceil(m.restart - (performance.now() - m.at) / 1000))}초 뒤 새 판`;
+  const prot = (game.protectUntil ?? 0) > performance.now() && !game.dead;
+  $("protectFx").classList.toggle("hidden", !prot);
+  if (prot) $("protectFx").textContent = `스폰 보호 중 ${((game.protectUntil - performance.now()) / 1000).toFixed(1)}초 (쏘면 풀림)`;
+}
+
+// 팀 · 무기 선택 창 (처음 입장 · 무기고 · 일시정지 · 죽은 화면)
+const evoSel = { team: null, primary: 303, mode: "join" };
+function gunStats(g) {
+  const rps = Math.round(1 / g.rate);
+  return `탄창 ${g.mag} · 총 ${g.total}발 · ${g.auto ? `연사 ${rps}발/초` : "단발"}${g.scope ? " · 스코프" : ""}`;
+}
+function openEvo(mode) {
+  if (!game.arena) return;
+  evoSel.mode = mode;
+  evoSel.team = mode === "join" ? "auto" : game.team;
+  evoSel.primary = game.loadout?.primary ?? 303;
+  if (uiMode !== "evo") evoSel.back = game.dead ? "dead" : "pause";
+  uiMode = "evo";
+  keys.clear(); mouseL = mouseR = false;
+  document.exitPointerLock?.();
+  $("pause").classList.add("hidden");
+  $("evoTitle").textContent = mode === "armory" ? "무기고 — 탄 · 수류탄을 채웠습니다" : mode === "dead" ? "다음 부활 무기" : mode === "join" ? "에보 — 팀과 무기 고르기" : "팀 · 무기 바꾸기";
+  $("evoTeams").classList.toggle("hidden", mode === "armory" || mode === "dead");
+  $("evoGo").textContent = mode === "join" ? "출전!" : mode === "armory" ? "이 무기로 정비" : "확인";
+  $("evoGuns").innerHTML = PRIMARIES.map((id) => {
+    const it = ITEMS[id];
+    return `<button class="gunCard" data-id="${id}"><img src="${itemIcon(id)}" alt=""><b>${esc(it.name)}</b><small>${esc(it.gun.desc)}</small><span class="st">${gunStats(it.gun)}</span></button>`;
+  }).join("");
+  $("evoFixed").innerHTML = [[311, "권총 · 탄 90"], [302, "칼"], [305, "수류탄 3개"]].map(([id, t]) => `<span><img src="${itemIcon(id)}" alt="">${t}</span>`).join("");
+  for (const b of document.querySelectorAll("#evoGuns .gunCard")) b.onclick = () => { evoSel.primary = Number(b.dataset.id); markEvo(); sfx.click(); };
+  for (const b of document.querySelectorAll("#evoTeams .teamBtn")) b.onclick = () => { evoSel.team = b.dataset.team; markEvo(); sfx.click(); };
+  markEvo();
+  $("evoModal").classList.remove("hidden");
+}
+function markEvo() {
+  for (const b of document.querySelectorAll("#evoGuns .gunCard")) b.classList.toggle("on", Number(b.dataset.id) === evoSel.primary);
+  for (const b of document.querySelectorAll("#evoTeams .teamBtn")) b.classList.toggle("on", b.dataset.team === evoSel.team);
+  const m = game.match;
+  $("evoNBlue").textContent = `${m?.nBlue ?? 0}명${game.team === "blue" ? " (지금)" : ""}`;
+  $("evoNRed").textContent = `${m?.nRed ?? 0}명${game.team === "red" ? " (지금)" : ""}`;
+}
+function closeEvo() {
+  $("evoModal").classList.add("hidden");
+  if (game.dead) { uiMode = "dead"; return; }
+  uiMode = "pause";
+  lockPointer();
+}
+$("evoGo").onclick = () => {
+  sfx.click();
+  if (evoSel.primary !== game.loadout?.primary || evoSel.mode === "armory") { net({ t: "loadout", primary: evoSel.primary }); game.loadout = { primary: evoSel.primary }; }
+  let team = evoSel.team;
+  if (team === "auto") team = game.team; // 처음 들어올 때 서버가 이미 인원 적은 팀으로 넣어 둠
+  if (team && team !== game.team && evoSel.mode !== "armory" && evoSel.mode !== "dead") net({ t: "team", team });
+  closeEvo();
+};
+$("pauseEvo").onclick = () => openEvo("change");
+$("deathGuns").onclick = () => openEvo("dead");
 
 // ── 다른 플레이어 ──────────────────────────────────────────
 const others = new Map();
@@ -339,11 +513,12 @@ function addOther(p) {
   model.root.add(tag);
   model.root.position.set(...p.p);
   scene.add(model.root);
-  const o = { id: p.id, name: p.name, color: p.color, look: p.look, model, tag, target: new THREE.Vector3(...p.p), rot: p.r ?? [0, 0], flags: p.f ?? 0, held: 0, heldMesh: null, dead: !!p.dead, last: new THREE.Vector3(...p.p) };
+  const o = { id: p.id, name: p.name, team: p.team ?? null, color: p.color, look: p.look, model, tag, target: new THREE.Vector3(...p.p), rot: p.r ?? [0, 0], flags: p.f ?? 0, held: 0, heldMesh: null, dead: !!p.dead, last: new THREE.Vector3(...p.p) };
   model.root.visible = !o.dead;
   setOtherHeld(o, p.held ?? 0);
   if (p.armor) setArmor(model, p.armor);
   others.set(p.id, o);
+  applyTeam(o);
   renderPlayers();
 }
 function setOtherHeld(o, id) {
@@ -717,6 +892,7 @@ function updateDig(dt) {
     return;
   }
   if (!mouseL || !locked() || game.dead) { stopDig(); return; }
+  if (game.rules?.build === false && game.mode !== "creative") { stopDig(); return; } // 에보: 블록을 부술 수 없음
   const hit = raycastBlock();
   if (!hit || BLOCKS[hit.b]?.unbreakable) { stopDig(); return; }
   if (!dig.active || hit.x !== dig.x || hit.y !== dig.y || hit.z !== dig.z) {
@@ -759,10 +935,10 @@ const tracers = [];
 function ammoTotals() {
   const out = [];
   const inv = game.st?.inv ?? [];
-  for (const id of [303, 304]) {
+  for (const id of GUNS) {
     if (!inv.some((s) => s?.id === id)) continue;
     const n = gun.ammo[id] ?? 0, r = gun.reserve[id] ?? 0;
-    out.push(`<span class="${heldId() === id ? "on" : ""}">${id === 303 ? "M16" : "저격총"} <b>${n + r}.${n}</b></span>`);
+    out.push(`<span class="${heldId() === id ? "on" : ""}">${esc(ITEMS[id].name)} <b>${n + r}.${n}</b></span>`);
   }
   const g = inv.reduce((a, s) => a + (s?.id === 305 ? s.n : 0), 0);
   if (inv.some((s) => s?.id === 305) || g) out.push(`<span class="${heldId() === 305 ? "on" : ""}">💣 <b>${g}</b></span>`);
@@ -803,6 +979,7 @@ function fire() {
   if (!(gun.ammo[id] > 0)) { sfx.dry(); reload(); gun.last = now; return; }
   gun.last = now;
   gun.ammo[id] -= 1;
+  game.protectUntil = 0;
   // 퍼짐 — 조준하면 줄고 움직이면 늘어난다
   const moving = Math.hypot(player.vel.x, player.vel.z) > 1 || !player.onGround;
   const spread = g.spread * (gun.aim ? 0.3 : 1) * (moving ? 2.5 : 1) + (gun.aim || g.scope ? 0 : 0.004);
@@ -950,6 +1127,16 @@ function toggleDance(on = !game.dancing) {
 function renderScores() {
   const tb = document.querySelector("#scoreTable tbody");
   if (!tb) return;
+  const teams = !!game.arena;
+  $("teamScores").classList.toggle("hidden", !teams);
+  $("scoreTable").classList.toggle("hidden", teams);
+  if (teams) {
+    const m = game.match ?? { blue: 0, red: 0 };
+    $("teamScores").innerHTML = ["blue", "red"].map((t) => {
+      const rows = (game.scores ?? []).filter((r) => r.team === t);
+      return `<div class="col ${t}"><h4><span>${teamName(t)} ${rows.length}명</span><span>${m[t]}킬</span></h4><table><tr><th>이름</th><th>킬</th><th>데스</th><th>어시</th></tr>${rows.map((r) => `<tr class="${r.id === game.id ? "me" : ""}"><td>${esc(r.name)}${r.id === game.id ? " (나)" : ""}</td><td>${r.k}</td><td>${r.d}</td><td>${r.a}</td></tr>`).join("")}</table></div>`;
+    }).join("");
+  }
   tb.innerHTML = (game.scores ?? []).map((r) => `<tr class="${r.id === game.id ? "me" : ""}"><td>${esc(r.name)}${r.id === game.id ? " (나)" : ""}</td><td>${r.k}</td><td>${r.d}</td><td>${r.a}</td></tr>`).join("");
   $("scoreTitle").textContent = `· ${game.title ?? ""} 접속 ${(game.scores ?? []).length}명`;
 }
@@ -974,7 +1161,7 @@ function addFeed(m) {
   const el = document.createElement("div");
   el.className = "feedLine";
   const icon = m.head ? "<span class=h>🎯 헤드샷</span>" : { grenade: "💣", knife: "🔪", gun: "🔫", player: "👊" }[m.weapon] ?? "⚔";
-  el.innerHTML = `<span class=k>${esc(m.killer)}</span> ${icon} <span class=v>${esc(m.victim)}</span>`;
+  el.innerHTML = `<span class="k ${m.kt ?? ""}">${esc(m.killer)}</span> ${icon} <span class="v ${m.vt ?? ""}">${esc(m.victim)}</span>`;
   $("feed").append(el);
   while ($("feed").children.length > 5) $("feed").firstChild.remove();
   setTimeout(() => { el.style.opacity = 0; }, 6000);
@@ -986,6 +1173,8 @@ function rightPress() {
   if (game.dead) return;
   const hit = raycastBlock();
   // 작업대 · 상자 · 화로 열기 (웅크리면 대신 블록을 놓는다)
+  if (hit && hit.b === B.ARMORY) { net({ t: "use", x: hit.x, y: hit.y, z: hit.z }); return; } // 무기고
+  if (game.rules?.build === false && game.mode !== "creative" && !ITEMS[heldId()]?.food) return;
   if (hit && !player.sneak && [B.CRAFTING_TABLE, B.CHEST, B.FURNACE].includes(hit.b)) {
     if (hit.b === B.CRAFTING_TABLE) { applyOp(game.st, { o: "open", screen: "table" }, game.mode); openUI("table", false); }
     net({ t: "use", x: hit.x, y: hit.y, z: hit.z, d: digest(game.st) });
@@ -1265,6 +1454,7 @@ document.addEventListener("keydown", (e) => {
     return;
   }
   if (uiMode === "map") { if (e.code === "KeyM" || e.code === "Escape") { e.preventDefault(); closeMap(); } return; }
+  if (uiMode === "evo") { if (e.code === "Escape" && evoSel.mode !== "join") { e.preventDefault(); closeEvo(); } if (e.code === "Enter") $("evoGo").click(); return; }
   if (e.code === "KeyM" && !e.repeat && ["play", "pause", "dead"].includes(uiMode)) { e.preventDefault(); openMap(game.dead); return; }
   if (game.dead) return;
   if (["Tab", "F3", "F5", "F1", "Slash"].includes(e.code) || (e.ctrlKey && ["KeyS", "KeyD", "KeyW"].includes(e.code))) e.preventDefault();
@@ -1334,6 +1524,7 @@ async function refreshTitle() {
   $("titleStatus").innerHTML = me
     ? `<b>${esc(me.name)}</b> 님 로그인됨${me.admin ? " · 관리자" : ""} · 서버 접속 ${status.online}명`
     : `로그인하고 시작하세요 · 서버 접속 ${status.online}명`;
+  if (status.evo) $("titleStatus").innerHTML += ` · 에보 ${status.evo}명`;
   $("titleVersion").textContent = `TECZEN WORLD v${status.version ?? VERSION}`;
 }
 
@@ -1349,6 +1540,7 @@ function openLogin(msg = "") {
 let joinMode = false;
 function setAuthTab(join) {
   joinMode = join;
+  $("authEvoSub").textContent = join ? "가입하고 블루 vs 레드 팀전으로" : "로그인하고 블루 vs 레드 팀전으로";
   $("tabLogin").classList.toggle("on", !join);
   $("tabJoin").classList.toggle("on", join);
   $("pw2Row").classList.toggle("hidden", !join);
@@ -1358,8 +1550,21 @@ function setAuthTab(join) {
 }
 $("tabLogin").onclick = () => setAuthTab(false);
 $("tabJoin").onclick = () => setAuthTab(true);
+let evoAfterLogin = false;
+/** 에보 바로 입장 (로그인 · 캐릭터가 있어야) */
+function startEvo() {
+  if (!game.me) { openLogin("먼저 로그인하거나 가입하세요."); return; }
+  if (!game.me.look) { game.pendingEvo = true; openLook(true); return; }
+  for (const id of ["loginModal", "playModal"]) $(id).classList.add("hidden");
+  connect("evo");
+}
+$("authEvo").onclick = () => { unlock(); evoAfterLogin = true; $("authForm").requestSubmit(); };
+$("btnEvo").onclick = () => { unlock(); startEvo(); };
+$("playEvo").onclick = () => { unlock(); startEvo(); };
 $("authForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const evo = evoAfterLogin;
+  evoAfterLogin = false;
   const name = $("authName").value.trim(), password = $("authPw").value;
   if (joinMode && password !== $("authPw2").value) { $("authError").textContent = "비밀번호 확인이 다릅니다."; return; }
   $("authSubmit").disabled = true;
@@ -1371,8 +1576,8 @@ $("authForm").addEventListener("submit", async (e) => {
     $("authPw").value = $("authPw2").value = "";
     await refreshTitle();
     $("loginModal").classList.add("hidden");
-    toast(joinMode ? `가입했습니다. ${r.name} 님 환영합니다!${r.admin ? " (첫 가입자 — 관리자)" : ""}` : `${r.name} 님 로그인했습니다.`);
-    openPlay();
+    toast(joinMode ? `가입했습니다. ${r.name} 님 환영합니다!${r.admin ? " (관리자)" : ""}` : `${r.name} 님 로그인했습니다.`);
+    if (evo) startEvo(); else openPlay();
   } catch (err) { $("authError").textContent = err.message; }
   $("authSubmit").disabled = false;
 });
@@ -1388,7 +1593,7 @@ const lookEditor = new LookEditor(async (look) => {
   const r = await api("/api/look", { token: game.token, look });
   if (game.me) game.me.look = r.look;
   game.look = r.look;
-  if (!game.connected) setTimeout(openPlay, 0);
+  if (!game.connected) setTimeout(() => { if (game.pendingEvo) { game.pendingEvo = false; startEvo(); } else openPlay(); }, 0);
 });
 function openLook(first = false) {
   if (!game.me) { openLogin("먼저 로그인하거나 가입하세요."); return; }
@@ -1459,7 +1664,7 @@ function loop(now) {
   if (game.connected) frame(dt, now, real);
   renderer.clear();
   renderer.render(scene, camera);
-  if (game.connected && game.view === 0 && !game.dead && !game.dancing) { renderer.clearDepth(); renderer.render(hand.scene, hand.camera); }
+  if (game.connected && (game.view === 0 || game.scoped) && !game.dead && !game.dancing) { renderer.clearDepth(); renderer.render(hand.scene, hand.camera); }
 }
 
 function frame(dt, now, real = dt) {
@@ -1508,6 +1713,7 @@ function frame(dt, now, real = dt) {
   const g = heldGun();
   const aiming = !!g && gun.aim && locked() && !game.dead && !(gun.reloading > performance.now());
   const scoped = aiming && g.scope;
+  game.scoped = scoped;
   $("scope").classList.toggle("hidden", !scoped);
   $("crosshair").style.display = scoped ? "none" : "";
   const wantFov = aiming ? settings.fov * g.zoom : settings.fov * (player.sprint && speed > 4 ? 1.12 : 1) * (player.flying && player.sprint ? 1.1 : 1);
@@ -1516,7 +1722,7 @@ function frame(dt, now, real = dt) {
 
   // 3인칭 (F5)
   const dancing = !!game.dancing && !game.dead;
-  const third = (game.view > 0 || dancing) && !game.dead;
+  const third = (game.view > 0 || dancing) && !game.dead && !scoped; // 3인칭에서도 저격총 스코프는 눈으로 본다
   selfModel.root.visible = third;
   if (third) {
     if (dancing || game.view === 2) {
@@ -1549,6 +1755,7 @@ function frame(dt, now, real = dt) {
       selfModel.hue = game.hue;
       selfModel.heldId = -1;
       scene.add(selfModel.root);
+      setTeamVest(selfModel, game.team);
     }
     selfModel.dance = dancing;
     selfModel.gun = !!heldGun();
@@ -1620,6 +1827,7 @@ function frame(dt, now, real = dt) {
   renderHud();
   renderTopRight();
   if (worldMap.open) worldMap.draw();
+  updateMatchBar();
 
   frames++;
   if (now - fpsAt > 500) { fps = Math.round((frames * 1000) / (now - fpsAt)); frames = 0; fpsAt = now; }

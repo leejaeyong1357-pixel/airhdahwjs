@@ -1,7 +1,8 @@
 // 지도 (M) — 위에서 내려다본 월드 + 리스폰 지점 · 내 위치 · 다른 사람
 // 불러온 청크는 실제 블록으로, 아직 안 불러온 곳은 같은 시드로 지형을 만들어서 그린다 (가운데부터 조금씩).
 import { BLOCKS, AIR, B } from "/shared/blocks.js";
-import { generateChunk, index, CHUNK, HEIGHT, SEA } from "/shared/worldgen.js";
+import { index, CHUNK, HEIGHT, SEA } from "/shared/worldgen.js";
+import { genChunk } from "/shared/gen.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -47,7 +48,7 @@ export class WorldMap {
   }
 
   show(focusSpawn = false) {
-    if (this.world.seed !== this.seed) { this.tiles.clear(); this.seed = this.world.seed; }
+    if (`${this.world.seed}/${this.world.gen}` !== this.seed) { this.tiles.clear(); this.seed = `${this.world.seed}/${this.world.gen}`; }
     // 불러온 청크는 바뀌었을 수 있으니 다시 그린다
     for (const [k, t] of this.tiles) if (t.real) this.tiles.delete(k);
     const s = this.get();
@@ -75,7 +76,7 @@ export class WorldMap {
     if (live) data = live.data;
     else {
       if (!allowGen) return have ?? null;
-      data = generateChunk(cx, cz, this.world.seed);
+      data = genChunk(cx, cz, this.world.seed, this.world.gen);
       const edits = this.world.editsByChunk.get(k);
       if (edits) for (const [pos, b] of edits) { const [x, y, z] = pos.split(",").map(Number); data[index(x - cx * CHUNK, y, z - cz * CHUNK)] = b; }
     }
@@ -150,6 +151,14 @@ export class WorldMap {
     ctx.stroke();
 
     const now = performance.now() / 1000;
+    // 에보 — 양 팀 리스폰 구역
+    if (s.zones) for (const [t, z] of Object.entries(s.zones)) {
+      const col = t === "red" ? "255,80,70" : "80,140,255";
+      ctx.fillStyle = `rgba(${col},.28)`; ctx.strokeStyle = `rgba(${col},.95)`; ctx.lineWidth = 2;
+      ctx.fillRect(sx(z[0]), sy(z[1]), (z[2] - z[0] + 1) * Z, (z[3] - z[1] + 1) * Z);
+      ctx.strokeRect(sx(z[0]), sy(z[1]), (z[2] - z[0] + 1) * Z, (z[3] - z[1] + 1) * Z);
+      label(ctx, `${t === "red" ? "레드" : "블루"} 리스폰${t === s.team ? " (우리)" : ""}`, sx((z[0] + z[2] + 1) / 2), sy(z[1]) - 6, t === "red" ? "#ff8a80" : "#8ab4ff");
+    }
     // 리스폰 지점 — 깜빡이는 원 + 깃발
     const [spx, , spz] = s.spawn;
     const px = sx(spx), py = sy(spz);
@@ -166,13 +175,13 @@ export class WorldMap {
     ctx.fillRect(px - 1, py - 26, 2, 26);
     ctx.fillStyle = "#ff3b3b";
     ctx.beginPath(); ctx.moveTo(px + 1, py - 26); ctx.lineTo(px + 17, py - 21); ctx.lineTo(px + 1, py - 15); ctx.fill();
-    label(ctx, "리스폰", px, py + 22, "#ff6b6b");
+    if (!s.zones) label(ctx, "리스폰", px, py + 22, "#ff6b6b");
 
     // 다른 사람
     for (const o of s.others) {
       if (o.dead) continue;
       const ox = sx(o.x), oy = sy(o.z);
-      ctx.fillStyle = `hsl(${o.color}, 80%, 60%)`;
+      ctx.fillStyle = o.team === "red" ? "#ff5a4e" : o.team === "blue" ? "#4f8cff" : `hsl(${o.color}, 80%, 60%)`;
       ctx.strokeStyle = "#000"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(ox, oy, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       label(ctx, o.name, ox, oy - 10, "#fff");

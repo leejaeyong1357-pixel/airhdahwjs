@@ -265,6 +265,115 @@ function flower(px, petal, center) {
   px(7, 6, center);
 }
 
+// ── 에보 맵 블록 그림 ──────────────────────────────────────
+function grime(px, base, vary, seed, dots = 0, dotC = null) {
+  const r = rng(seed);
+  for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) px(x, y, shade(base, 1 - vary + r() * vary * 2));
+  for (let i = 0; i < dots; i++) px(Math.floor(r() * 16), Math.floor(r() * 16), dotC ?? shade(base, 0.8));
+}
+/** 컨테이너 골판 — 세로 골 (period 4) */
+function ribs(px, base, seed, rail = true) {
+  const r = rng(seed);
+  for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+    const k = x % 4;
+    const f = k === 0 ? 0.74 : k === 1 ? 1.06 : k === 2 ? 0.98 : 0.88;
+    px(x, y, shade(base, f * (0.96 + r() * 0.06)));
+  }
+  if (rail) for (let x = 0; x < TILE; x++) px(x, 15, shade(base, 0.62));
+  // 녹 · 때 자국
+  for (let i = 0; i < 5; i++) { const x = Math.floor(r() * 16), y = 9 + Math.floor(r() * 6); px(x, y, [150, 120, 95]); }
+}
+const CONT = [214, 216, 218];
+Object.assign(DRAW, {
+  concrete_light: (px) => { grime(px, [206, 201, 190], 0.05, 101, 10); for (let i = 0; i < 16; i++) { px(i, 15, [176, 171, 160]); px(15, i, [184, 179, 168]); } },
+  concrete_dark: (px) => { grime(px, [128, 127, 124], 0.07, 102, 14); for (let i = 0; i < 16; i++) { px(i, 15, [104, 103, 100]); } },
+  yard: (px) => {
+    const r = rng(103);
+    for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+      const v = r();
+      px(x, y, v < 0.12 ? [150, 144, 132] : v < 0.25 ? [208, 202, 190] : shade([184, 178, 165], 0.94 + r() * 0.1));
+    }
+  },
+  yard_line_x: (px) => { DRAW.yard(px); const r = rng(104); for (let x = 0; x < 16; x++) for (let y = 5; y < 11; y++) if (r() > 0.12) px(x, y, shade([228, 214, 160], 0.94 + r() * 0.08)); },
+  yard_line_z: (px) => { DRAW.yard(px); const r = rng(105); for (let y = 0; y < 16; y++) for (let x = 5; x < 11; x++) if (r() > 0.12) px(x, y, shade([228, 214, 160], 0.94 + r() * 0.08)); },
+  container_side: (px) => ribs(px, CONT, 106),
+  container_side_top: (px) => { ribs(px, CONT, 107, false); for (let x = 0; x < 16; x++) { px(x, 0, [150, 152, 156]); px(x, 1, [176, 178, 182]); } },
+  container_top: (px) => { const r = rng(108); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) px(x, y, shade(CONT, (y % 4 === 0 ? 0.82 : 1) * (0.96 + r() * 0.06))); },
+  container_rail: (px) => grime(px, [150, 152, 156], 0.05, 109),
+  container_corner: (px) => {
+    grime(px, [168, 170, 174], 0.04, 110);
+    for (let y = 0; y < 16; y++) { px(0, y, [120, 122, 126]); px(15, y, [130, 132, 136]); px(1, y, [190, 192, 196]); px(14, y, [150, 152, 156]); }
+  },
+  container_corner_top: (px) => { grime(px, [160, 162, 166], 0.04, 111); for (let y = 5; y < 11; y++) for (let x = 5; x < 11; x++) px(x, y, [60, 60, 64]); },
+  container_door: (px) => {
+    ribs(px, [206, 208, 210], 112);
+    for (let y = 0; y < 16; y++) { px(7, y, [120, 122, 126]); px(8, y, [235, 236, 238]); }
+    for (const x of [3, 12]) for (let y = 0; y < 16; y++) { px(x, y, [92, 94, 98]); px(x + 1, y, [140, 142, 146]); } // 잠금봉
+    for (const x of [3, 12]) { px(x - 1, 8, [70, 70, 74]); px(x + 2, 8, [70, 70, 74]); px(x - 1, 9, [70, 70, 74]); }
+    for (const y of [2, 13]) for (let x = 0; x < 16; x++) if (x % 5 === 1) px(x, y, [80, 80, 84]); // 경첩
+  },
+  shutter: (px) => {
+    const r = rng(113);
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) px(x, y, shade(y % 4 === 3 ? [104, 106, 108] : y % 4 === 0 ? [170, 172, 174] : [146, 148, 150], 0.95 + r() * 0.08));
+  },
+  window: (px) => {
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const frame = x === 0 || x === 15 || y === 0 || y === 15;
+      const shine = !frame && (x + y === 12 || x + y === 13 || x + y === 22);
+      px(x, y, frame ? [26, 28, 32] : shine ? [120, 146, 160] : shade([58, 76, 88], 0.9 + ((x * 3 + y) % 5) * 0.03));
+    }
+  },
+  crate: (px) => {
+    const r = rng(114);
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const border = x < 2 || x > 13 || y < 2 || y > 13;
+      const seam = !border && x % 4 === 1;
+      px(x, y, border ? shade([118, 82, 46], 0.9 + r() * 0.15) : seam ? [96, 66, 36] : shade([168, 122, 72], 0.9 + r() * 0.15));
+    }
+    for (const [x, y] of [[1, 1], [14, 1], [1, 14], [14, 14]]) px(x, y, [60, 60, 64]); // 못
+  },
+  crate_top: (px) => { DRAW.crate(px); for (let x = 2; x < 14; x++) px(x, 7, [110, 76, 42]); },
+  block_wall: (px) => {
+    const r = rng(115);
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const row = y < 8 ? 0 : 1;
+      const mortar = y === 7 || y === 15 || (row === 0 ? x === 15 : x === 7);
+      px(x, y, mortar ? [146, 142, 134] : shade([196, 192, 182], 0.94 + r() * 0.1));
+    }
+  },
+  ceiling: (px) => grime(px, [84, 84, 86], 0.06, 116, 8),
+  floor_tile: (px) => { grime(px, [190, 182, 166], 0.05, 117, 6); for (let i = 0; i < 16; i++) { px(i, 0, [160, 152, 138]); px(0, i, [160, 152, 138]); } },
+  lamp: (px) => { for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) px(x, y, x < 2 || x > 13 || y < 5 || y > 10 ? [150, 150, 154] : [250, 252, 255]); },
+  lamp_side: (px) => grime(px, [150, 150, 154], 0.04, 118),
+  metal_panel: (px) => { const r = rng(119); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) px(x, y, shade([152, 156, 160], (x % 3 === 0 ? 0.78 : 1) * (0.94 + r() * 0.1))); },
+  spawn_red: (px) => { DRAW.yard(px); const r = rng(120); for (let y = 2; y < 14; y++) for (let x = 2; x < 14; x++) if (r() > 0.08) px(x, y, shade([196, 70, 56], 0.9 + r() * 0.15)); },
+  spawn_blue: (px) => { DRAW.yard(px); const r = rng(121); for (let y = 2; y < 14; y++) for (let x = 2; x < 14; x++) if (r() > 0.08) px(x, y, shade([58, 110, 214], 0.9 + r() * 0.15)); },
+  dumpster_side: (px) => { const r = rng(122); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) px(x, y, shade(x % 5 === 0 ? [30, 84, 62] : [44, 112, 84], 0.92 + r() * 0.12)); for (let x = 0; x < 16; x++) { px(x, 0, [28, 70, 52]); px(x, 1, [60, 140, 106]); } },
+  dumpster_top: (px) => { const r = rng(123); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) px(x, y, shade(x === 7 || x === 8 ? [30, 80, 60] : [52, 128, 96], 0.92 + r() * 0.12)); },
+  drum_side: (px) => {
+    const r = rng(124);
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const ring = y === 2 || y === 3 || y === 12 || y === 13;
+      const rust = r() < 0.25;
+      px(x, y, ring ? shade([88, 44, 26], 0.9 + r() * 0.1) : rust ? [150, 82, 40] : shade([124, 62, 36], 0.9 + r() * 0.15));
+    }
+  },
+  drum_top: (px) => { for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const d = Math.hypot(x - 7.5, y - 7.5); px(x, y, d > 6.5 ? [88, 44, 26] : d > 5.5 ? [110, 56, 32] : (x === 4 && y === 4) ? [30, 30, 30] : [128, 66, 38]); } },
+  armory: (px) => {
+    // 총 거치대 — 짙은 철제 캐비닛 + 총 실루엣
+    const r = rng(125);
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) px(x, y, x === 0 || x === 15 || y === 0 || y === 15 ? [40, 44, 40] : shade([70, 80, 64], 0.92 + r() * 0.1));
+    for (const x0 of [3, 7, 11]) { line(px, x0, 2, x0, 13, [24, 24, 26]); line(px, x0 + 1, 3, x0 + 1, 8, [36, 36, 38]); px(x0 + 1, 11, [36, 36, 38]); px(x0 + 1, 12, [36, 36, 38]); }
+    for (let x = 1; x < 15; x++) px(x, 14, [150, 130, 60]);
+  },
+  armory_top: (px) => { grime(px, [90, 96, 88], 0.06, 126); for (let i = 0; i < 16; i++) { px(i, 0, [40, 44, 40]); px(0, i, [40, 44, 40]); px(15, i, [40, 44, 40]); px(i, 15, [40, 44, 40]); } },
+  pole: (px) => { for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) px(x, y, shade([170, 172, 176], 0.8 + Math.sin((x / 15) * Math.PI) * 0.25)); },
+  wall_lamp: (px) => grime(px, [110, 112, 116], 0.05, 127),
+  wall_lamp_top: (px) => grime(px, [130, 132, 136], 0.05, 128),
+  wall_lamp_light: (px) => { for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) px(x, y, [255, 244, 200]); },
+  sign_back: (px) => grime(px, [96, 98, 100], 0.05, 129),
+});
+
 const WOOL = { white: [234, 236, 237], red: [161, 39, 34], blue: [53, 57, 157], yellow: [249, 198, 39], green: [84, 109, 27], black: [32, 32, 38] };
 for (const [k, c] of Object.entries(WOOL)) {
   DRAW[`wool_${k}`] = (px) => {
@@ -407,6 +516,30 @@ ITEM_DRAW.sniper = (px) => {
   ], { s: [30, 30, 34], b: [90, 160, 220], k: [44, 46, 40], o: [86, 96, 58] }, 0, 4);
 };
 
+ITEM_DRAW.ak47 = (px) => {
+  clear(px);
+  pattern(px, [
+    "......k.........", "wwwwkkkkkkkkkkkk", "wwwwkgggggkkkkk.", "ww..kkkwwkk.....", "w....kk..kk.....", ".....k...kk.....", "........kk......", "........k.......",
+  ], { k: [36, 36, 40], g: [76, 76, 84], w: [128, 76, 40] }, 0, 4);
+};
+ITEM_DRAW.mp5 = (px) => {
+  clear(px);
+  pattern(px, [
+    "......kkk.......", "k...kkkkkkkkkk..", "kkkkkgggggkkkkkk", "k...kkkkkkkk....", "......kk.kk.....", "......kk..k.....", ".......k..k.....",
+  ], { k: [30, 30, 34], g: [70, 70, 78] }, 0, 4);
+};
+ITEM_DRAW.lmg = (px) => {
+  clear(px);
+  pattern(px, [
+    "....kkkkkk......", "kk..kggggkkkkkkk", "kkkkkkkkkkkkkkkk", "kk..kkoooo.kk...", "k...kkoooo..k...", "......oooo..k...", ".......kk.......",
+  ], { k: [40, 42, 38], g: [84, 86, 80], o: [96, 104, 64] }, 0, 4);
+};
+ITEM_DRAW.pistol = (px) => {
+  clear(px);
+  pattern(px, [
+    ".kkkkkkkkk", ".kgggggggk", ".kkkkkkkkk", "..kkk.k...", "..kkkk....", "..kkk.....", ".kkk......", ".kkk......",
+  ], { k: [34, 34, 38], g: [96, 96, 104] }, 3, 4);
+};
 ITEM_DRAW.grenade = (px) => {
   clear(px);
   pattern(px, [

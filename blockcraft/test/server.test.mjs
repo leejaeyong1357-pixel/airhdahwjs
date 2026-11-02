@@ -361,7 +361,7 @@ test("총 · 칼 — 헤드샷 한 방, 몸 10발, 칼 20번, 탄창 30/10, 장�
   await Bc.wait((m) => m.t === "respawn");
   const kit = await Bc.wait((m) => m.t === "ammo");
   assert.equal(kit.ammo[303] + kit.reserve[303], 90, "부활하면 M16 90발 (30 + 예비 60)");
-  assert.equal(kit.ammo[304] + kit.reserve[304], 30, "저격총 30발 (10 + 예비 20)");
+  assert.equal(kit.ammo[304] + kit.reserve[304], 90, "저격총도 90발 (10 + 예비 80)");
   // 몸에 10발 → 죽음 (M16)
   await A.ask({ t: "chat", msg: `/tp 직원1 ${sx} ${y} ${sz}` }, (m) => m.t === "chat");
   place(Bc, [sx, y, sz - 6]);
@@ -478,6 +478,76 @@ test("새로 가입한 직원은 관리자가 아님", async () => {
   const res = await c.ask({ t: "chat", msg: "/give 다이아몬드 1" }, (m) => m.t === "chat" && m.msg.includes("관리자"));
   assert.match(res.msg, /관리자만/);
   c.close();
+});
+
+test("에보 — 팀 배정 · 무기 선택 · 부수기 금지 · 같은 팀 사격 안 됨 · 킬하면 팀 점수 · 자동 부활 · 무기고", async () => {
+  const login = async (name, pw) => (await post(srv.base, "/api/login", { name, password: pw })).body.token;
+  await post(srv.base, "/api/register", { name: "직원2", password: "abcd" });
+  const A = await connect(srv.base, await login("관리자", "1234"), "evo");
+  assert.equal(A.welcome.realm, "evo");
+  assert.equal(A.welcome.gen, "evo");
+  assert.ok(["red", "blue"].includes(A.welcome.team), "팀 배정");
+  assert.ok(A.welcome.arena.spawns.red.length === 5 && A.welcome.arena.spawns.blue.length === 5, "팀마다 리스폰 5곳");
+  const kitA = A.welcome.inv;
+  assert.deepEqual([kitA[0], kitA[1], kitA[2], kitA[3]].map((s) => s?.id), [303, 311, 302, 305], "주무기 · 권총 · 칼 · 수류탄");
+  assert.equal(kitA[3].n, 3);
+  const amA = await A.wait((m) => m.t === "ammo");
+  assert.equal(amA.ammo[303] + amA.reserve[303], 90); assert.equal(amA.ammo[311] + amA.reserve[311], 90, "권총도 90발");
+  const B1 = await connect(srv.base, await login("직원1", "abcd"), "evo");
+  assert.notEqual(B1.welcome.team, A.welcome.team, "두 번째 사람은 인원 적은 팀으로");
+  const C = await connect(srv.base, await login("직원2", "abcd"), "evo");
+  if (C.welcome.team !== A.welcome.team) {
+    C.send({ t: "team", team: A.welcome.team });
+    await C.wait((m) => m.t === "respawn");
+  }
+  // 맵 블록은 부술 수 없다
+  const [ax, ay, az] = A.welcome.p.map(Math.floor);
+  const fix = await A.ask({ t: "dig", x: ax, y: ay - 1, z: az }, (m) => m.t === "sets");
+  assert.notEqual(fix.s[0][3], 0, "부수기 거절 → 원래 블록으로");
+  // 마당에 세운다: A(관리자) 뒤, 앞에 같은 팀 직원2 · 그 뒤 상대 직원1
+  await A.ask({ t: "chat", msg: "/tp 관리자 40.5 40 30.5" }, (m) => m.t === "tp");
+  await A.ask({ t: "chat", msg: "/tp 직원2 40.5 40 27.5" }, (m) => m.t === "chat");
+  await A.ask({ t: "chat", msg: "/tp 직원1 40.5 40 24.5" }, (m) => m.t === "chat");
+  A.send({ t: "move", p: [40.5, 40, 30.5], r: [0, 0] });
+  C.send({ t: "move", p: [40.5, 40, 27.5], r: [0, 0] });
+  B1.send({ t: "move", p: [40.5, 40, 24.5], r: [0, 0] });
+  await sleep(3200); // 부활 무적 3초가 지나길
+  // 같은 팀(직원2)을 쏘면 총알이 지나가 뒤의 상대(직원1)가 맞는다 — 몸통 높이
+  const body = await A.ask({ t: "shoot", o: [40.5, 41.5, 30.5], d: [0, -0.1, -1] }, (m) => m.t === "hit");
+  assert.ok(body.hit, "상대가 맞음");
+  assert.ok(!C.msgs.some((m) => m.t === "hurt"), "같은 팀은 안 다침");
+  await sleep(150);
+  // 헤드샷 → 킬 → 팀 점수
+  const head = await A.ask({ t: "shoot", o: [40.5, 41.5, 30.5], d: [0, 0.018, -1] }, (m) => m.t === "hit", 3000);
+  assert.ok(head.head && head.kill, "헤드샷 킬");
+  const match = await A.wait((m) => m.t === "match" && m[A.welcome.team] === 1);
+  assert.equal(match[B1.welcome.team], 0);
+  const dead = await B1.wait((m) => m.t === "dead");
+  assert.equal(dead.auto, 5, "5초 뒤 자동 부활");
+  const re = await B1.wait((m) => m.t === "respawn", 7000);
+  const z = A.welcome.arena.zones[B1.welcome.team];
+  assert.ok(re.p[0] >= z[0] && re.p[0] <= z[2] + 1 && re.p[2] >= z[1] && re.p[2] <= z[3] + 1, "자기 팀 리스폰 구역에서 부활");
+  // 무기 바꾸기 (리스폰 구역 안이라 바로) — 계정에 저장
+  const sy = await B1.ask({ t: "loadout", primary: 304 }, (m) => m.t === "sync" && m.inv[0]?.id === 304);
+  assert.equal(sy.inv[1].id, 311);
+  // 무기고 — 자기 팀 것만
+  const arm = B1.welcome.team === "red" ? [12, 40, 63] : [49, 40, -21];
+  await A.ask({ t: "chat", msg: `/tp 직원1 ${arm[0] + 1.5} 40 ${arm[2] + 0.5}` }, (m) => m.t === "chat");
+  B1.send({ t: "move", p: [arm[0] + 1.5, 40, arm[2] + 0.5], r: [0, 0] });
+  await sleep(100);
+  const ar = await B1.ask({ t: "use", x: arm[0], y: arm[1], z: arm[2] }, (m) => m.t === "armory");
+  assert.equal(ar.loadout.primary, 304);
+  // 관리자(A)는 직원1 과 다른 팀 — 직원1 팀 무기고는 A 에게 상대 팀 것
+  await A.ask({ t: "chat", msg: `/tp 관리자 ${arm[0] + 1.5} 40 ${arm[2] + 1.5}` }, (m) => m.t === "tp");
+  A.send({ t: "move", p: [arm[0] + 1.5, 40, arm[2] + 1.5], r: [0, 0] });
+  await sleep(100);
+  const deny = await A.ask({ t: "use", x: arm[0], y: arm[1], z: arm[2] }, (m) => m.t === "armory" || (m.t === "chat" && m.msg.includes("상대 팀")));
+  assert.equal(deny.t, "chat", "상대 팀 무기고는 못 씀");
+  B1.close();
+  await sleep(150);
+  const B2 = await connect(srv.base, await login("직원1", "abcd"), "evo");
+  assert.equal(B2.welcome.inv[0].id, 304, "고른 무기는 다시 들어와도 그대로");
+  A.close(); B2.close(); C.close();
 });
 
 test("싱글플레이 월드는 따로", async () => {

@@ -26,7 +26,7 @@ import { Realm } from "./server/realm.js";
 import { Player } from "./server/player.js";
 import { backup } from "./server/world.js";
 
-export const VERSION = "2.0.0";
+export const VERSION = "2.1.0";
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 25565);
 const MAX_PLAYERS = 50;
@@ -45,6 +45,7 @@ const accounts = new Accounts(join(DATA_DIR, "accounts.json"), ADMINS);
 const realms = new Map();
 function savePlayer(pl) {
   const u = pl.user;
+  if (pl.realm.arena) return; // 에보는 판마다 새로 시작 (무기 선택만 계정에 저장)
   u.states ??= {};
   u.states[pl.realm.key] = pl.serialize();
   u.lastRealm = pl.realm.key;
@@ -74,7 +75,10 @@ function changeNick(pl, raw) {
 function getRealm(key, user) {
   let r = realms.get(key);
   if (r) return r;
-  if (key === "main") {
+  if (key === "evo") {
+    r = new Realm({ key, file: join(DATA_DIR, "evo.json"), backupDir: BACKUP_DIR, title: "에보 (블루 vs 레드)", arena: true, onCommand: command, onSave: savePlayer, onNick: changeNick,
+      onLoadout: (pl, lo) => { pl.user.loadout = lo; accounts.dirty = true; } });
+  } else if (key === "main") {
     r = new Realm({ key, file: join(DATA_DIR, "world.json"), backupDir: BACKUP_DIR, title: "멀티플레이", onCommand: command, onSave: savePlayer, onNick: changeNick });
   } else {
     const id = createHash("sha1").update(user.name.toLowerCase()).digest("hex").slice(0, 16);
@@ -126,7 +130,7 @@ function readBody(req) {
 async function api(req, res, path) {
   const ip = req.socket.remoteAddress ?? "?";
   if (path === "/api/status" && req.method === "GET") {
-    return json(res, 200, { online: realms.get("main").players.size, max: MAX_PLAYERS, accounts: accounts.count, version: VERSION });
+    return json(res, 200, { online: realms.get("main").players.size, evo: realms.get("evo")?.players.size ?? 0, max: MAX_PLAYERS, accounts: accounts.count, version: VERSION });
   }
   if (req.method !== "POST") return json(res, 405, { error: "잘못된 요청" });
   let body;
@@ -199,12 +203,12 @@ server.on("upgrade", (req, socket) => {
         old.send({ t: "kick", msg: "다른 곳에서 같은 계정으로 접속해서 연결을 끊었습니다." });
         old.conn.close();
       }
-      const realmKey = m.realm === "solo" ? `solo:${key}` : "main";
+      const realmKey = m.realm === "solo" ? `solo:${key}` : m.realm === "evo" ? "evo" : "main";
       const realm = getRealm(realmKey, u);
-      if (realmKey === "main" && realm.players.size >= MAX_PLAYERS) { conn.send({ t: "kick", msg: "서버가 가득 찼습니다." }); return conn.close(); }
+      if (realmKey !== "solo" && !realmKey.startsWith("solo:") && realm.players.size >= MAX_PLAYERS) { conn.send({ t: "kick", msg: "서버가 가득 찼습니다." }); return conn.close(); }
       // 예전 저장 형식(u.state) 옮기기
       if (u.state && !u.states) { u.states = { main: u.state }; delete u.state; }
-      const saved = u.states?.[realmKey === "main" ? "main" : realmKey];
+      const saved = realm.arena ? null : u.states?.[realmKey === "main" ? "main" : realmKey];
       me = new Player({ id: nextPid++, user: u, conn, realm, saved, spawn: realm.world.spawn });
       if (realmKey !== "main") me.admin = me.admin || false;
       realm.join(me);
@@ -245,7 +249,7 @@ function command(me, line) {
   console.log(`[명령 ${realm.title}] ${me.name}: ${line}`);
   switch (cmd) {
     case "help": case "도움말": HELP.forEach(sys); return;
-    case "spawn": case "스폰": me.p = [...realm.world.spawn]; me.tpGrace = true; me.send({ t: "tp", p: me.p }); return;
+    case "spawn": case "스폰": me.p = realm.arena ? [...realm.spawnPoint(me).p] : [...realm.world.spawn]; me.tpGrace = true; me.send({ t: "tp", p: me.p }); return;
     case "kill": realm.damagePlayer(me, 1000, "kill"); return;
     case "who": case "list": sys(`접속자 ${realm.players.size}명: ${[...realm.players.values()].map((p) => p.name).join(", ")}`); return;
     case "gamemode": case "gm": {

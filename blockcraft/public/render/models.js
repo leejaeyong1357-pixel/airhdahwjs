@@ -140,6 +140,24 @@ export function makeHumanoid(kind = "player", look = 200) {
   return h;
 }
 
+/** 팀 조끼 + 팔 띠 (에보) — team: "red" · "blue" · null */
+export const TEAM_COLOR = { red: 0xd23a2e, blue: 0x2f6fe0 };
+export function setTeamVest(h, team) {
+  if (!h.vest) {
+    const s = 1 / 16;
+    const mat = skinMat();
+    mat.userData.base = new THREE.Color(0xffffff);
+    h.mats.push(mat);
+    const vest = part(mat, 8.8, 7.5, 4.8, "armor", s);
+    vest.position.y = 2.2 * s;
+    h.body.add(vest);
+    const bands = h.arms.map((a) => { const b = part(mat, 4.6, 2, 4.6, "armor", s); b.position.y = -2.5 * s; a.add(b); return b; });
+    h.vest = { mat, parts: [vest, ...bands] };
+  }
+  h.vest.mat.userData.base = new THREE.Color(TEAM_COLOR[team] ?? 0xffffff);
+  for (const p of h.vest.parts) p.visible = !!team;
+}
+
 /** 입은 방어구 보이기 — ids: [투구, 갑옷, 바지, 신발] 아이템 번호 (0 = 없음) */
 export function setArmor(h, ids) {
   ids.forEach((id, slot) => {
@@ -647,14 +665,14 @@ export class Particles {
 }
 
 /** 이름표 */
-export function nameSprite(text) {
+export function nameSprite(text, bg = "rgba(0,0,0,0.45)") {
   const c = document.createElement("canvas");
   const ctx = c.getContext("2d");
   ctx.font = "bold 40px Malgun Gothic, sans-serif";
   const w = Math.ceil(ctx.measureText(text).width) + 24;
   c.width = w; c.height = 56;
   ctx.font = "bold 40px Malgun Gothic, sans-serif";
-  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, w, 56);
   ctx.fillStyle = "#fff";
   ctx.textBaseline = "middle";

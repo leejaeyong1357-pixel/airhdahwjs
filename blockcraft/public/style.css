@@ -234,3 +234,44 @@ label input:focus { outline: 2px solid #4a8cff; }
 .mapBar .ghostBtn { padding: 7px 12px; }
 .mapBar b { color: #ffd060; }
 .mapBar small { color: #9fb3d6; }
+
+/* 에보 */
+.evoBtn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px; border-radius: 6px; border: 1px solid #ff9a6a; color: #fff; font-weight: 800;
+  background: linear-gradient(90deg, #1f4fb8 0%, #1f4fb8 48%, #b8322a 52%, #b8322a 100%); box-shadow: 0 0 14px rgba(255,120,80,.25); }
+.evoBtn b { font-size: 20px; letter-spacing: 2px; text-shadow: 0 2px 0 rgba(0,0,0,.4); }
+.evoBtn small { font-weight: 500; font-size: 12px; color: #f0f4ff; }
+.evoBtn:hover { filter: brightness(1.15); }
+#evoModal { z-index: 36; }
+.glass.evoBox { width: min(760px, calc(100vw - 32px)); gap: 8px; }
+.evoTeams { display: grid; grid-template-columns: 1fr .7fr 1fr; gap: 8px; }
+.teamBtn { padding: 12px; border-radius: 8px; border: 2px solid transparent; color: #fff; display: flex; flex-direction: column; align-items: center; gap: 2px; font-weight: 800; }
+.teamBtn b { font-size: 18px; } .teamBtn small { font-weight: 500; opacity: .85; }
+.teamBtn.blue { background: #1b3f8f; } .teamBtn.red { background: #8f2620; } .teamBtn.auto { background: #2a3550; }
+.teamBtn.on { border-color: #ffd060; box-shadow: 0 0 12px rgba(255,208,96,.6); }
+.evoLabel { font-weight: 800; color: #dfe7f3; margin-top: 4px; } .evoLabel small { font-weight: 400; color: #9fb3d6; margin-left: 6px; }
+.evoGuns { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.gunCard { background: #121c32; border: 2px solid #2c3e64; border-radius: 8px; padding: 8px; color: #dfe7f3; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
+.gunCard canvas, .gunCard img { width: 64px; height: 64px; image-rendering: pixelated; }
+.gunCard b { font-size: 15px; } .gunCard small { font-size: 11px; color: #9fb3d6; min-height: 28px; }
+.gunCard .st { font-size: 11px; color: #ffd060; }
+.gunCard.on { border-color: #ffd060; background: #1d2a48; box-shadow: 0 0 10px rgba(255,208,96,.4); }
+.evoFixed { display: flex; gap: 10px; flex-wrap: wrap; }
+.evoFixed span { display: flex; align-items: center; gap: 6px; background: #121c32; border: 1px solid #2c3e64; border-radius: 6px; padding: 4px 10px 4px 4px; color: #dfe7f3; font-size: 13px; }
+.evoFixed img, .evoFixed canvas { width: 32px; height: 32px; image-rendering: pixelated; }
+#matchBar { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; gap: 0; z-index: 12; font-weight: 800; color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.5); pointer-events: none; }
+#matchBar > span { display: flex; align-items: center; gap: 8px; padding: 4px 14px; }
+#matchBar .b { background: rgba(31,79,184,.85); border-radius: 8px 0 0 8px; } #matchBar .r { background: rgba(184,50,42,.85); border-radius: 0 8px 8px 0; }
+#matchBar .b b, #matchBar .r b { font-size: 26px; } #matchBar i { font-style: normal; font-size: 13px; opacity: .9; }
+#matchBar .mid { background: rgba(10,16,30,.8); flex-direction: column; gap: 0; padding: 2px 14px; }
+#matchBar .mid b { font-size: 18px; } #matchBar .mid small { font-size: 11px; color: #c9d6ea; font-weight: 500; }
+#matchEnd { position: fixed; inset: 0; display: grid; place-items: center; z-index: 35; pointer-events: none; background: radial-gradient(rgba(0,0,0,.55), rgba(0,0,0,.2)); color: #fff; text-align: center; }
+#matchEnd h1 { font-size: 64px; margin: 0; text-shadow: 0 4px 0 rgba(0,0,0,.5); }
+#matchEnd h1.blue { color: #6fa4ff; } #matchEnd h1.red { color: #ff6b5e; }
+#matchEnd p { font-size: 26px; font-weight: 800; margin: 6px 0; }
+#protectFx { position: fixed; left: 50%; top: 62%; transform: translateX(-50%); color: #9fe0ff; font-weight: 800; text-shadow: 0 2px 0 #000; z-index: 12; pointer-events: none; }
+#teamScores { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#teamScores .col { border-radius: 8px; padding: 6px 8px; } #teamScores .col.blue { background: rgba(31,79,184,.35); } #teamScores .col.red { background: rgba(184,50,42,.35); }
+#teamScores h4 { margin: 0 0 4px; display: flex; justify-content: space-between; } #teamScores table { width: 100%; border-collapse: collapse; font-size: 14px; }
+#teamScores td, #teamScores th { padding: 2px 4px; text-align: right; } #teamScores td:first-child, #teamScores th:first-child { text-align: left; }
+#teamScores tr.me td { color: #ffd060; font-weight: 800; }
+.feedLine .k.blue, .feedLine .v.blue { color: #7fb0ff; } .feedLine .k.red, .feedLine .v.red { color: #ff7d70; }

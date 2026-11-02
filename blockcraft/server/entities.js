@@ -427,6 +427,7 @@ export class Entities {
   // ── 몹 생기기 ────────────────────────────────────────────
   trySpawn(players) {
     const w = this.world;
+    if (w.rules.doMobSpawning === false) return;
     for (const pl of players) {
       let passive = 0, hostile = 0;
       for (const m of this.mobs.values()) {
