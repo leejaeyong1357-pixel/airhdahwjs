@@ -14,7 +14,7 @@ export class Player {
   constructor({ id, user, conn, realm, saved, spawn }) {
     this.id = id;
     this.user = user;
-    this.name = user.name;
+    this.name = user.nick ?? user.name; // 화면에 보이는 이름 (Tab 에서 바꿀 수 있음)
     this.key = user.name.toLowerCase();
     this.admin = !!user.admin;
     this.color = user.color ?? 200;
@@ -78,7 +78,7 @@ export class Player {
   damage(amount, cause, from = null, kb = 1, by = "") {
     if (this.dead || amount <= 0) return false;
     if (this.mode === "creative" && cause !== "void" && cause !== "kill") return false;
-    const armored = ["mob", "player", "explosion", "arrow", "gun", "knife"].includes(cause);
+    const armored = ["mob", "player", "explosion", "arrow", "gun", "knife", "grenade"].includes(cause);
     const instant = cause === "headshot";
     // 총 · 칼은 맞을 때마다 들어간다 (무적 시간 없음)
     if (armored && cause !== "gun" && cause !== "knife" && this.invuln > 0) return false;
@@ -105,6 +105,7 @@ export class Player {
     const f = ITEMS[id];
     if (!f?.food) return false;
     this.food = Math.min(20, this.food + f.food);
+    if (f.heal) this.heal(f.heal); // 고기는 체력도 채운다
     this.sat = Math.min(this.food, this.sat + (f.sat ?? f.food * 0.6));
     this.statsDirty = true;
     return true;
@@ -131,7 +132,7 @@ function deathText(cause, by) {
   return {
     mob: by ? `${by}에게 당했습니다` : "몹에게 당했습니다", player: `${by} 님에게 당했습니다`, explosion: "폭발에 휘말렸습니다",
     arrow: by ? `${by}의 화살에 맞았습니다` : "화살에 맞았습니다", fall: "높은 곳에서 떨어졌습니다", drown: "물에 빠졌습니다",
-    gun: `${by} 님의 총에 맞았습니다`, headshot: `${by} 님에게 헤드샷을 맞았습니다`, knife: `${by} 님의 칼에 찔렸습니다`,
+    gun: `${by} 님의 총에 맞았습니다`, grenade: by ? `${by} 님의 수류탄에 터졌습니다` : "수류탄에 터졌습니다", headshot: `${by} 님에게 헤드샷을 맞았습니다`, knife: `${by} 님의 칼에 찔렸습니다`,
     lava: "용암에 빠졌습니다", starve: "굶어 죽었습니다", cactus: "선인장에 찔렸습니다", void: "세상 밖으로 떨어졌습니다", kill: "목숨을 끊었습니다",
   }[cause] ?? "죽었습니다";
 }

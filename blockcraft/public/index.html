@@ -93,7 +93,8 @@
         <div><b>왼쪽 (꾹)</b> 캐기 · 공격</div><div><b>F5</b> 3인칭</div>
         <div><b>오른쪽</b> 놓기 · 열기 · 먹기</div><div><b>E · Tab</b> 인벤토리 · 조합</div>
         <div><b>1~9 · 휠</b> 단축칸</div><div><b>Q</b> 버리기</div>
-        <div><b>T · /</b> 채팅 · 명령어</div><div><b>F3</b> 좌표</div>
+        <div><b>/</b> 명령어</div><div><b>F3</b> 좌표</div>
+        <div><b>수류탄</b> 꾹: 핀 · 떼면 던지기</div><div><b>R</b> 재장전</div>
       </div>
     </div>
   </div>
@@ -108,6 +109,7 @@
     <div id="ammo" class="hidden"></div>
     <div id="debug" class="hidden"></div>
     <div id="mode"></div>
+    <div id="feed"></div>
     <div id="topRight"></div>
     <div id="chatLog"></div>
     <input id="chatInput" class="hidden" maxlength="200" placeholder="메시지 입력 후 Enter  (/help 명령어 목록)" autocomplete="off" />
@@ -147,6 +149,16 @@
       <p id="deathWhy"></p>
       <button id="respawnBtn" class="primaryBtn">부활</button>
       <button id="deathTitle" class="ghostBtn">첫 화면으로</button>
+    </div>
+  </div>
+
+  <!-- 점수판 (Tab) -->
+  <div id="scoreboard" class="overlay hidden">
+    <div class="glass wide">
+      <h3>점수판 <small id="scoreTitle"></small></h3>
+      <table id="scoreTable"><thead><tr><th>이름</th><th>킬</th><th>데스</th><th>어시</th></tr></thead><tbody></tbody></table>
+      <div class="nickRow"><input id="nickInput" maxlength="12" placeholder="새 닉네임 (한글 · 영문 · 숫자 2~12자)" autocomplete="off" /><button id="nickBtn" class="primaryBtn">닉네임 변경</button></div>
+      <p class="hintSmall">Tab 또는 Esc 로 닫기</p>
     </div>
   </div>
 

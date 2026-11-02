@@ -8,7 +8,7 @@ export const I = {
   // 270~285 도구
   LEATHER: 286, BONE: 287, ARROW: 288, BREAD: 289,
   // 290~301 방어구
-  KNIFE: 302, M16: 303, SNIPER: 304,
+  KNIFE: 302, M16: 303, SNIPER: 304, GRENADE: 305, WOLF_PELT: 306, WOLF_COAT: 307,
 };
 
 const TIERS = [
@@ -48,11 +48,11 @@ for (const b of BLOCKS) {
 const plain = [
   [I.STICK, "막대기", "stick"], [I.COAL, "석탄", "coal"], [I.IRON_INGOT, "철괴", "iron_ingot"], [I.DIAMOND, "다이아몬드", "diamond"],
   [I.APPLE, "사과", "apple", { food: 4, sat: 2.4 }],
-  [I.RAW_PORK, "익히지 않은 돼지고기", "raw_pork", { food: 3, sat: 1.8 }], [I.COOKED_PORK, "익힌 돼지고기", "cooked_pork", { food: 8, sat: 12.8 }],
-  [I.RAW_BEEF, "익히지 않은 소고기", "raw_beef", { food: 3, sat: 1.8 }], [I.STEAK, "스테이크", "steak", { food: 8, sat: 12.8 }],
-  [I.RAW_CHICKEN, "익히지 않은 닭고기", "raw_chicken", { food: 2, sat: 1.2 }], [I.COOKED_CHICKEN, "익힌 닭고기", "cooked_chicken", { food: 6, sat: 7.2 }],
+  [I.RAW_PORK, "익히지 않은 돼지고기", "raw_pork", { food: 3, sat: 1.8, heal: 4 }], [I.COOKED_PORK, "익힌 돼지고기", "cooked_pork", { food: 8, sat: 12.8, heal: 8 }],
+  [I.RAW_BEEF, "익히지 않은 소고기", "raw_beef", { food: 3, sat: 1.8, heal: 4 }], [I.STEAK, "스테이크", "steak", { food: 8, sat: 12.8, heal: 8 }],
+  [I.RAW_CHICKEN, "익히지 않은 닭고기", "raw_chicken", { food: 2, sat: 1.2, heal: 3 }], [I.COOKED_CHICKEN, "익힌 닭고기", "cooked_chicken", { food: 6, sat: 7.2, heal: 6 }],
   [I.ROTTEN_FLESH, "썩은 살점", "rotten_flesh", { food: 4, sat: 0.8 }], [I.FEATHER, "깃털", "feather"], [I.GUNPOWDER, "화약", "gunpowder"],
-  [I.LEATHER, "가죽", "leather"], [I.BONE, "뼈", "bone"], [I.ARROW, "화살", "arrow"], [I.BREAD, "빵", "bread", { food: 5, sat: 6 }],
+  [I.LEATHER, "가죽", "leather"], [I.WOLF_PELT, "늑대 가죽", "wolf_pelt"], [I.BONE, "뼈", "bone"], [I.ARROW, "화살", "arrow"], [I.BREAD, "빵", "bread", { food: 5, sat: 6 }],
 ];
 for (const [id, name, icon, extra] of plain) ITEMS[id] = { id, name, icon, stack: 64, ...extra };
 
@@ -79,17 +79,22 @@ ARMOR_TIERS.forEach((t) => {
 });
 
 // 무기 — 리스폰하면 받는다. 몸에 맞으면 칼 1(20대) · 총 2(10발), 머리에 맞은 총알은 한 방
-// 탄창: M16 30발 · 저격총 10발 (R 재장전)
+// 총알: M16 90발(탄창 30 + 예비 60) · 저격총 30발(탄창 10 + 예비 20), R 재장전 — 리스폰하면 다시 가득
+// 수류탄 3개 — 꾹 누르면 핀을 뽑고(3초 뒤 폭발) 떼면 던진다
 ITEMS[I.KNIFE] = { id: I.KNIFE, name: "칼", icon: "knife", stack: 1, damage: 1, weapon: "knife", kit: true };
 ITEMS[I.M16] = {
   id: I.M16, name: "M16", icon: "m16", stack: 1, kit: true,
-  gun: { auto: true, rate: 0.11, mag: 30, reload: 2, body: 2, range: 90, spread: 0.01, kick: 0.015, zoom: 0.72 },
+  gun: { auto: true, rate: 0.11, mag: 30, total: 90, reload: 2, body: 2, range: 90, spread: 0.01, kick: 0.015, zoom: 0.72 },
 };
 ITEMS[I.SNIPER] = {
   id: I.SNIPER, name: "저격총", icon: "sniper", stack: 1, kit: true,
-  gun: { auto: false, rate: 1.2, mag: 10, reload: 3, body: 2, range: 160, spread: 0.0, kick: 0.06, zoom: 0.16, scope: true },
+  gun: { auto: false, rate: 1.2, mag: 10, total: 30, reload: 3, body: 2, range: 160, spread: 0.0, kick: 0.06, zoom: 0.16, scope: true },
 };
-export const KIT = [I.KNIFE, I.M16, I.SNIPER];
+ITEMS[I.GRENADE] = { id: I.GRENADE, name: "수류탄", icon: "grenade", stack: 3, kit: true, grenade: { fuse: 3, radius: 5, damage: 30, speed: 17 } };
+// 늑대 가죽 옷 — 늑대 가죽 2장으로 만든다 (방어구 몸 칸, 방어력 · 내구도 높음)
+ITEMS[I.WOLF_COAT] = { id: I.WOLF_COAT, name: "늑대 가죽 옷", icon: "wolf_coat", stack: 1, armor: 1, points: 7, uses: 400, tierKey: "wolf" };
+export const KIT = [I.KNIFE, I.M16, I.SNIPER, I.GRENADE];
+export const KIT_COUNT = { [I.GRENADE]: 3 };
 
 export const TOOL_TIERS = TIERS;
 export const TOOL_KIND_LIST = TOOL_KINDS;

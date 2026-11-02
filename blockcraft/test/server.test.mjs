@@ -82,7 +82,8 @@ test("빈손 시작 · 나무 캐기(시간 필요) · 줍기 · 조합 · 놓�
   const Bc = await connect(srv.base, b.token);
   assert.equal(A.welcome.t, "welcome");
   const kit = await A.wait((m) => m.t === "sync");
-  assert.deepEqual(kit.inv.filter(Boolean).map((s) => s.id).sort(), [302, 303, 304], "처음엔 칼 · M16 · 저격총만");
+  assert.deepEqual(kit.inv.filter(Boolean).map((s) => s.id).sort(), [302, 303, 304, 305], "처음엔 칼 · M16 · 저격총 · 수류탄만");
+  assert.equal(kit.inv.find((s) => s?.id === 305).n, 3, "수류탄 3개");
   assert.deepEqual(A.welcome.spawn, Bc.welcome.spawn, "모두 같은 스폰");
   await A.wait((m) => m.t === "join" && m.name === "직원1");
 
@@ -170,8 +171,7 @@ test("작업대 · 곡괭이 · 화로 굽기 · 상자", async () => {
   await say("/give 다이아몬드 2");
   const s0 = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
   const slotOf = (st, id) => st.inv.findIndex((s) => s?.id === id);
-  const planks = slotOf(s0, B.PLANKS), cobble = slotOf(s0, B.COBBLE), stick = slotOf(s0, I.STICK);
-  assert.ok(planks >= 0 && cobble >= 0 && stick >= 0);
+  assert.ok(slotOf(s0, B.PLANKS) >= 0 && slotOf(s0, B.COBBLE) >= 0 && slotOf(s0, I.STICK) >= 0);
 
   // 작업대 놓기
   const [sx, sy, sz] = A.welcome.spawn;
@@ -203,6 +203,8 @@ test("작업대 · 곡괭이 · 화로 굽기 · 상자", async () => {
   // 작업대 열기 → 3x3 조합 (돌 곡괭이)
   A.send({ t: "use", x: tx, y: ty, z: tz });
   const op = (o) => A.send({ t: "op", op: o });
+  const sNow = await A.ask({ t: "op", op: { o: "open", screen: "table" }, d: "x" }, (m) => m.t === "sync"); // 칸 위치 다시 확인
+  const cobble = slotOf(sNow, B.COBBLE), stick = slotOf(sNow, I.STICK);
   op({ o: "click", a: "inv", i: cobble, b: 0 });
   for (const i of [0, 1, 2]) op({ o: "click", a: "craft", i, b: 2 }); // 오른쪽 클릭 1개씩
   op({ o: "click", a: "inv", i: cobble, b: 0 });
@@ -211,7 +213,7 @@ test("작업대 · 곡괭이 · 화로 굽기 · 상자", async () => {
   op({ o: "click", a: "inv", i: stick, b: 0 });
   op({ o: "click", a: "result", b: 0, s: true });
   const s2 = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
-  assert.ok(slotOf(s2, 274) >= 0, "돌 곡괭이가 만들어짐");
+  assert.ok(slotOf(s2, 274) >= 0, `돌 곡괭이가 만들어짐 ${JSON.stringify(s2.inv.map((x) => x && x.id))} grid ${JSON.stringify(s2.grid)}`);
 
   // 화로 놓고 철광석 굽기
   await A.ask({ t: "chat", msg: "/give 화로 1" }, (m) => m.t === "give");
@@ -358,8 +360,8 @@ test("총 · 칼 — 헤드샷 한 방, 몸 10발, 칼 20번, 탄창 30/10, 장�
   Bc.send({ t: "respawn" });
   await Bc.wait((m) => m.t === "respawn");
   const kit = await Bc.wait((m) => m.t === "ammo");
-  assert.equal(kit.ammo[303], 30, "부활하면 M16 30발");
-  assert.equal(kit.ammo[304], 10, "저격총 10발");
+  assert.equal(kit.ammo[303] + kit.reserve[303], 90, "부활하면 M16 90발 (30 + 예비 60)");
+  assert.equal(kit.ammo[304] + kit.reserve[304], 30, "저격총 30발 (10 + 예비 20)");
   // 몸에 10발 → 죽음 (M16)
   await A.ask({ t: "chat", msg: `/tp 직원1 ${sx} ${y} ${sz}` }, (m) => m.t === "chat");
   place(Bc, [sx, y, sz - 6]);
@@ -377,6 +379,7 @@ test("총 · 칼 — 헤드샷 한 방, 몸 10발, 칼 20번, 탄창 30/10, 장�
   await r;
   const full = await A.wait((m) => m.t === "ammo" && !m.reloading && m.ammo[303] === 30, 4000);
   assert.equal(full.ammo[303], 30, "장전하면 30발");
+  assert.equal(full.reserve[303], 50, "예비 탄에서 10발 가져옴");
   // 칼 20번
   Bc.send({ t: "respawn" });
   await Bc.wait((m) => m.t === "respawn");
@@ -392,6 +395,76 @@ test("총 · 칼 — 헤드샷 한 방, 몸 10발, 칼 20번, 탄창 30/10, 장�
   await died2;
   assert.equal(stabs, 20, "칼 20번에 죽음");
   Bc.send({ t: "respawn" });
+  A.close(); Bc.close();
+});
+
+test("수류탄 · 킬/데스/어시 점수판 · 닉네임 · 고기 먹으면 체력", async () => {
+  const { body: a } = await post(srv.base, "/api/login", { name: "관리자", password: "1234" });
+  const { body: b } = await post(srv.base, "/api/login", { name: "직원1", password: "abcd" });
+  const A = await connect(srv.base, a.token);
+  const Bc = await connect(srv.base, b.token);
+  const [sx, , sz] = A.welcome.spawn;
+  const y = 90;
+  await A.ask({ t: "chat", msg: `/tp ${sx} ${y} ${sz}` }, (m) => m.t === "tp");
+  await A.ask({ t: "chat", msg: `/tp 직원1 ${sx} ${y - 5} ${sz - 1}` }, (m) => m.t === "chat");
+  A.send({ t: "move", p: [sx, y, sz], r: [0, 0] });
+  // 공중에서 던진 수류탄은 아래로 떨어지다 3초 뒤 폭발 — 직원1 을 그 자리 근처로
+  const st = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
+  A.send({ t: "sel", i: st.inv.findIndex((it) => it?.id === 305) });
+  await sleep(60);
+  A.send({ t: "pin" });
+  await sleep(2000);                           // 2초 쥐고 있다가
+  A.send({ t: "throw", o: [sx, y + 1.5, sz], v: [0, 0, -2] });
+  // 직원1 을 수류탄이 떨어질 곳 바로 옆에 둔다
+  const boom = A.wait((m) => m.t === "boom", 3000);
+  let boomed = false;
+  boom.then(() => { boomed = true; }, () => {});
+  // 떨어지는 수류탄을 직원1 이 계속 따라간다
+  while (!boomed) {
+    const e = await A.wait((m) => m.t === "ents", 1000).catch(() => null);
+    const g = e?.g?.[0];
+    if (g) Bc.send({ t: "move", p: [g[1], g[2] - 0.9, g[3]], r: [0, 0] });
+  }
+  const b1 = await boom;
+  assert.ok(b1.grenade, "수류탄이 약 1초 뒤 폭발 (2초 쥐고 있었음)");
+  const hurt = await Bc.wait((m) => m.t === "hurt" && m.cause === "grenade", 2000);
+  assert.ok(hurt.dmg > 10, "가까이서 큰 피해");
+  const s2 = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
+  assert.equal(s2.inv.find((it) => it?.id === 305).n, 2, "수류탄 1개 씀");
+  // 수류탄에 죽었으면 부활
+  if (Bc.msgs.some((m) => m.t === "dead") || await Bc.wait((m) => m.t === "dead", 500).then(() => true, () => false)) {
+    Bc.send({ t: "respawn" });
+    await Bc.wait((m) => m.t === "respawn");
+  }
+  // 점수판: 칼로 마무리 → A 킬, B 데스
+  await A.ask({ t: "chat", msg: `/tp 직원1 ${sx} ${y} ${sz - 1.5}` }, (m) => m.t === "chat");
+  Bc.send({ t: "move", p: [sx, y, sz - 1.5], r: [0, 0] });
+  A.send({ t: "sel", i: s2.inv.findIndex((it) => it?.id === 302) });
+  await sleep(100);
+  const sc = A.wait((m) => m.t === "scores" && m.list.some((r) => r.d > 0), 10000);
+  for (let i = 0; i < 25 && !A.msgs.some((m) => m.t === "feed"); i++) { A.send({ t: "attack", pid: Bc.welcome.id }); await sleep(250); }
+  const board = await sc;
+  const ra = board.list.find((r) => r.name === "관리자"), rb = board.list.find((r) => r.id === Bc.welcome.id);
+  assert.ok(ra.k >= 1, "킬"); assert.ok(rb.d >= 1, "데스");
+  Bc.send({ t: "respawn" });
+  // 닉네임 변경
+  const nick = A.wait((m) => m.t === "nick" && m.name === "왕초");
+  Bc.send({ t: "nick", nick: "왕초" });
+  await nick;
+  const dup = await A.ask({ t: "nick", nick: "왕초" }, (m) => m.t === "chat" && m.msg.includes("이미"));
+  assert.ok(dup, "같은 닉네임은 못 씀");
+  // 고기 먹으면 체력
+  await A.ask({ t: "chat", msg: "/give 익힌돼지고기 2" }, (m) => m.t === "give");
+  A.send({ t: "env", why: "fall", dmg: 10 });
+  await A.wait((m) => m.t === "stats" && m.hp <= 10);
+  const s3 = await A.ask({ t: "op", op: { o: "close" }, d: "x" }, (m) => m.t === "sync");
+  const pi = s3.inv.findIndex((it) => it?.id === 262);
+  if (pi > 8) A.send({ t: "op", op: { o: "key", a: "inv", i: pi, n: 8 } });
+  A.send({ t: "sel", i: pi > 8 ? 8 : pi });
+  A.send({ t: "eatstart" });
+  await sleep(1500);
+  const healed = await A.ask({ t: "eat" }, (m) => m.t === "stats" && m.hp > 10);
+  assert.ok(healed.hp >= 18, "익힌 돼지고기 → 체력 +8");
   A.close(); Bc.close();
 });
 

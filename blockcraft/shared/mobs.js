@@ -14,6 +14,8 @@ export const MOBS = [
   { key: "bomber", name: "폭탄몬", hp: 20, w: 0.32, h: 1.5, walk: 1.0, run: 2.7, attitude: "hostile", fuse: 1.5, sight: 16, xp: 5 },
   // 멧돼지 — 평소엔 얌전, 맞으면 들이받는다
   { key: "boar", name: "멧돼지", hp: 14, w: 0.45, h: 1.0, walk: 1.2, run: 3.6, attitude: "neutral", damage: 4, sight: 20, xp: 3 },
+  // 늑대 — 숲 · 눈밭에 무리 지어 다닌다. 건드리면 무리가 같이 덤빈다
+  { key: "wolf", name: "늑대", hp: 12, w: 0.32, h: 0.9, walk: 1.4, run: 4.4, attitude: "neutral", damage: 4, sight: 20, xp: 3, pack: true },
   // 해골 궁수 — 멀리서 화살을 쏜다
   { key: "archer", name: "해골 궁수", hp: 20, w: 0.3, h: 1.95, walk: 1.0, run: 2.4, attitude: "hostile", damage: 3, sight: 20, ranged: true, xp: 5 },
 ];
@@ -34,6 +36,7 @@ export function mobDrops(type, extra, rnd = Math.random) {
     case MOB.BOMBER: return [[I.GUNPOWDER, n(0, 2)]];
     case MOB.BOAR: return [[I.RAW_PORK, n(1, 3)], [I.LEATHER, n(0, 1)]];
     case MOB.ARCHER: return [[I.BONE, n(0, 2)], [I.ARROW, n(0, 2)]];
+    case MOB.WOLF: return [[I.WOLF_PELT, n(1, 2)]];
     default: return [];
   }
 }

@@ -50,21 +50,42 @@ function savePlayer(pl) {
   u.lastRealm = pl.realm.key;
   accounts.dirty = true;
 }
+/** 닉네임 바꾸기 — 다른 사람 아이디 · 닉네임과 겹치면 안 됨. 실패하면 이유 문자열 */
+function changeNick(pl, raw) {
+  const nick = String(raw ?? "").trim();
+  if (!/^[\p{L}\p{N}_]{2,12}$/u.test(nick)) return "닉네임은 한글 · 영문 · 숫자 2~12자로 해 주세요.";
+  if (Date.now() - (pl.nickAt ?? 0) < 10_000) return "닉네임은 10초에 한 번 바꿀 수 있습니다.";
+  const low = nick.toLowerCase();
+  for (const [k, u] of Object.entries(accounts.data.users)) {
+    if (k === pl.key) continue;
+    if (k === low || String(u.nick ?? "").toLowerCase() === low) return `'${nick}' 은(는) 이미 쓰는 이름입니다.`;
+  }
+  const old = pl.name;
+  pl.user.nick = nick;
+  pl.name = nick;
+  pl.nickAt = Date.now();
+  accounts.dirty = true;
+  pl.realm.broadcast({ t: "nick", id: pl.id, name: nick });
+  pl.realm.sys(`${old} 님이 닉네임을 '${nick}'(으)로 바꿨습니다.`);
+  pl.realm.pushScores();
+  return null;
+}
+
 function getRealm(key, user) {
   let r = realms.get(key);
   if (r) return r;
   if (key === "main") {
-    r = new Realm({ key, file: join(DATA_DIR, "world.json"), backupDir: BACKUP_DIR, title: "멀티플레이", onCommand: command, onSave: savePlayer });
+    r = new Realm({ key, file: join(DATA_DIR, "world.json"), backupDir: BACKUP_DIR, title: "멀티플레이", onCommand: command, onSave: savePlayer, onNick: changeNick });
   } else {
     const id = createHash("sha1").update(user.name.toLowerCase()).digest("hex").slice(0, 16);
-    r = new Realm({ key, file: join(DATA_DIR, "solo", `${id}.json`), backupDir: join(BACKUP_DIR, "solo"), title: "싱글플레이", owner: user.name.toLowerCase(), onCommand: command, onSave: savePlayer });
+    r = new Realm({ key, file: join(DATA_DIR, "solo", `${id}.json`), backupDir: join(BACKUP_DIR, "solo"), title: "싱글플레이", owner: user.name.toLowerCase(), onCommand: command, onSave: savePlayer, onNick: changeNick });
   }
   realms.set(key, r);
   return r;
 }
 getRealm("main");
 const allPlayers = () => [...realms.values()].flatMap((r) => [...r.players.values()]);
-const findPlayer = (name, realm) => [...(realm ? realm.players.values() : allPlayers())].find((p) => p.name.toLowerCase() === String(name).toLowerCase());
+const findPlayer = (name, realm) => [...(realm ? realm.players.values() : allPlayers())].find((p) => p.name.toLowerCase() === String(name).toLowerCase() || p.key === String(name).toLowerCase()); // 닉네임 또는 아이디
 
 // ── 정적 파일 · API ────────────────────────────────────────
 const MIME = {
@@ -136,7 +157,7 @@ async function api(req, res, path) {
       if (!u) return json(res, 401, { error: "다시 로그인해 주세요." });
       const solo = `solo:${u.name.toLowerCase()}`;
       return json(res, 200, {
-        name: u.name, admin: u.admin, last: u.lastRealm === solo ? "solo" : u.lastRealm ? "main" : null,
+        name: u.nick ?? u.name, id: u.name, admin: u.admin, last: u.lastRealm === solo ? "solo" : u.lastRealm ? "main" : null,
         look: u.look ?? null, suggest: cleanLook({}, u.admin),
         hasMain: !!(u.states?.main ?? u.state), hasSolo: !!u.states?.[solo],
       });

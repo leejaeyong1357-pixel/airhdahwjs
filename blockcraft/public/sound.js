@@ -81,5 +81,8 @@ export const sfx = {
   hitmark: () => tone(1900, 1700, 0.05, 0.18, "square"),
   headshot: () => { tone(2600, 2600, 0.12, 0.25, "triangle"); noise(0.15, 500, 1, 0.5, "bandpass", 0.14); },
   squish: () => { noise(0.14, 380, 1.4, 0.55, "bandpass", 0.13); tone(160, 70, 0.12, 0.2, "sine"); },
+  pin: () => { tone(2600, 2400, 0.04, 0.2, "square"); setTimeout(() => noise(0.05, 4000, 2, 0.2), 60); },
+  throwG: () => noise(0.18, 1800, 0.8, 0.3, "bandpass", 0.16),
+  beat: (i) => { if (i % 2 === 0) tone(120, 45, 0.16, 0.45, "sine"); else noise(0.04, 7000, 1, 0.12, "highpass"); if (i === 1 || i === 3) tone(660 + (i === 3 ? 220 : 0), 640, 0.08, 0.06, "square"); },
   slash: () => noise(0.09, 5200, 1.2, 0.35, "bandpass", 0.08),
 };

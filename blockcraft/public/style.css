@@ -204,3 +204,16 @@ label input:focus { outline: 2px solid #4a8cff; }
 #scope .lens { width: 66vh; height: 66vh; border-radius: 50%; position: relative; box-shadow: inset 0 0 40px rgba(0,0,0,.7); }
 #scope .lens::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #000; }
 #scope .lens::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: #000; }
+
+/* 점수판 · 킬 알림 */
+#scoreboard { z-index: 32; }
+#scoreTable { width: 100%; border-collapse: collapse; font-size: 15px; }
+#scoreTable th { text-align: left; color: #9fb3d6; font-size: 13px; padding: 6px 8px; border-bottom: 1px solid #34466b; }
+#scoreTable td { padding: 7px 8px; border-bottom: 1px solid rgba(52,70,107,.5); }
+#scoreTable th:not(:first-child), #scoreTable td:not(:first-child) { text-align: center; width: 70px; }
+#scoreTable tr.me td { color: #ffe27a; font-weight: 700; }
+.nickRow { display: flex; gap: 8px; margin-top: 10px; }
+.nickRow input { flex: 1; padding: 10px 12px; border-radius: 6px; border: 1px solid #34466b; background: #08101f; color: #fff; font-size: 15px; }
+#feed { position: absolute; right: 12px; top: 64px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.feedLine { background: rgba(0,0,0,.55); padding: 4px 10px; border-radius: 4px; font-size: 14px; font-weight: 700; transition: opacity 1s; }
+.feedLine .k { color: #8fd0ff; } .feedLine .v { color: #ff9a9a; } .feedLine .h { color: #ff4040; }

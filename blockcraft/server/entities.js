@@ -10,6 +10,7 @@ import { HEIGHT } from "../shared/worldgen.js";
 import { blocksBody } from "./world.js";
 
 const GRAVITY = 28;
+export const GRENADE_G = 20; // 수류탄 중력 (브라우저의 궤적 미리보기와 같은 값)
 const ITEM_LIFE = 300;
 const MAX_ITEMS = 400;
 const MAX_MOBS = 140;
@@ -27,6 +28,7 @@ export class Entities {
     this.mobs = new Map();
     this.items = new Map();
     this.arrows = new Map();
+    this.grenades = new Map();
     this.nextId = 1;
     this.spawnTimer = 0;
   }
@@ -94,7 +96,13 @@ export class Entities {
     }
     this.hooks.broadcast({ t: "mobhurt", id: m.id });
     if (m.def.attitude === "passive") { m.state = "flee"; m.timer = 5; }
-    if (m.def.attitude === "neutral" && by) { m.angry = 25; m.target = by.id; m.state = "chase"; }
+    if (m.def.attitude === "neutral" && by) {
+      m.angry = 25; m.target = by.id; m.state = "chase";
+      // 늑대는 무리가 같이 덤빈다
+      if (m.def.pack) for (const o of this.mobs.values()) {
+        if (o !== m && o.type === m.type && Math.hypot(o.x - m.x, o.z - m.z) < 14) { o.angry = 25; o.target = by.id; o.state = "chase"; }
+      }
+    }
     if (m.def.attitude === "hostile" && by && by.mode === "survival") { m.target = by.id; m.state = "chase"; }
     if (m.hp <= 0) {
       this.mobs.delete(m.id);
@@ -148,6 +156,7 @@ export class Entities {
     const players = this.hooks.players().filter((p) => !p.dead);
     for (const it of [...this.items.values()]) this.tickItem(it, dt);
     for (const a of [...this.arrows.values()]) this.tickArrow(a, dt, players);
+    for (const g of [...this.grenades.values()]) this.tickGrenade(g, dt);
     for (const m of [...this.mobs.values()]) this.tickMob(m, dt, players);
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
@@ -185,6 +194,32 @@ export class Entities {
         A.age = Math.min(A.age, Bi.age);
         this.items.delete(Bi.id);
         this.hooks.broadcast({ t: "take", id: Bi.id, by: 0 });
+      }
+    }
+  }
+
+  // ── 수류탄 ───────────────────────────────────────────────
+  throwGrenade(owner, o, v, fuse) {
+    const id = this.nextId++;
+    this.grenades.set(id, { id, owner, x: o[0], y: o[1], z: o[2], vx: v[0], vy: v[1], vz: v[2], fuse });
+    return id;
+  }
+
+  tickGrenade(g, dt) {
+    g.fuse -= dt;
+    if (g.fuse <= 0) { this.grenades.delete(g.id); this.hooks.grenadeBoom(g); return; }
+    g.vy -= GRENADE_G * dt;
+    const steps = 3;
+    for (let i = 0; i < steps; i++) {
+      const sdt = dt / steps;
+      for (const ax of ["x", "y", "z"]) {
+        const v = g["v" + ax];
+        const n = { x: g.x, y: g.y, z: g.z };
+        n[ax] += v * sdt;
+        if (blocksBody(this.world.get(Math.floor(n.x), Math.floor(n.y), Math.floor(n.z)))) {
+          g["v" + ax] = -v * 0.35;                                 // 튕기기
+          if (ax === "y") { g.vx *= 0.7; g.vz *= 0.7; }
+        } else g[ax] = n[ax];
       }
     }
   }
@@ -276,7 +311,7 @@ export class Entities {
       else {
         const flat = Math.hypot(tgt.p[0] - m.x, tgt.p[2] - m.z);
         speed = def.run;
-        if (m.type === MOB.ZOMBIE || m.type === MOB.BOAR) {
+        if (m.type === MOB.ZOMBIE || m.type === MOB.BOAR || m.type === MOB.WOLF) {
           if (flat < 1.4 && Math.abs(tgt.p[1] - m.y) < 1.8 && m.attackCd <= 0 && seen) {
             m.attackCd = 1; m.act = 0.4;
             this.hooks.damagePlayer(tgt, def.damage, "mob", [m.x, m.y, m.z], 1, def.name);
@@ -403,8 +438,8 @@ export class Entities {
         const y = w.surface(x, z);
         if ((w.get(x, y - 1, z) === B.GRASS || w.get(x, y - 1, z) === B.SNOW) && w.standable(x, y, z)) {
           const r = Math.random();
-          const type = r < 0.08 ? MOB.BOAR : [MOB.PIG, MOB.COW, MOB.SHEEP, MOB.CHICKEN][Math.floor(Math.random() * 4)];
-          const n = type === MOB.BOAR ? 1 : 1 + Math.floor(Math.random() * 3);
+          const type = r < 0.08 ? MOB.BOAR : r < 0.25 ? MOB.WOLF : [MOB.PIG, MOB.PIG, MOB.CHICKEN, MOB.CHICKEN, MOB.COW, MOB.SHEEP][Math.floor(Math.random() * 6)];
+          const n = type === MOB.BOAR ? 1 : type === MOB.WOLF ? 2 + Math.floor(Math.random() * 2) : 1 + Math.floor(Math.random() * 3);
           for (let i = 0; i < n; i++) {
             const sx = x + Math.floor(rand(-2, 3)), sz = z + Math.floor(rand(-2, 3)), sy = w.surface(sx, sz);
             if (!w.standable(sx, sy, sz)) continue;
@@ -438,7 +473,8 @@ export class Entities {
 
   /** 이 플레이어 주변 몹 · 아이템 · 화살 (1초에 10번 보냄 — 관심 영역만) */
   snapshot(p) {
-    const m = [], i = [], a = [];
+    const m = [], i = [], a = [], g = [];
+    for (const e of this.grenades.values()) g.push([e.id, r2(e.x), r2(e.y), r2(e.z)]);
     for (const e of this.mobs.values()) {
       if (Math.abs(e.x - p[0]) > 80 || Math.abs(e.z - p[2]) > 80) continue;
       const flags = (e.hurt > 0 ? 1 : 0) | (e.burn > 0 ? 2 : 0) | (e.act > 0 ? 4 : 0) | (e.angry > 0 || e.target ? 8 : 0);
@@ -453,7 +489,7 @@ export class Entities {
       if (Math.abs(e.x - p[0]) > 64 || Math.abs(e.z - p[2]) > 64) continue;
       a.push([e.id, r2(e.x), r2(e.y), r2(e.z), r2(Math.atan2(e.vx, e.vz)), r2(Math.atan2(e.vy, Math.hypot(e.vx, e.vz)))]);
     }
-    return { m, i, a };
+    return { m, i, a, g };
   }
 }
 

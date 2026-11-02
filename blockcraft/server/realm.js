@@ -1,7 +1,7 @@
 // 월드 하나(= 멀티플레이 서버 월드, 또는 한 사람의 싱글플레이 월드)
 // 블록 · 몹 · 아이템 · 상자 · 화로 · 시간 · 날씨와 그 안의 플레이어를 맡는다.
 import { AIR, B, BLOCKS, isBlockId, needsSupport, isOpaque } from "../shared/blocks.js";
-import { ITEMS, KIT, blockDrops, blockXp, digSeconds } from "../shared/items.js";
+import { ITEMS, KIT, KIT_COUNT, blockDrops, blockXp, digSeconds } from "../shared/items.js";
 import { applyOp, digest, wear, useOne } from "../shared/invops.js";
 import { addItem, roomFor } from "../shared/inventory.js";
 import { HEIGHT } from "../shared/worldgen.js";
@@ -15,7 +15,8 @@ const vec3 = (v) => Array.isArray(v) && v.length === 3 && v.every(num);
 
 export class Realm {
   /** key: "main" 또는 "solo:<아이디>", onCommand(pl, line) */
-  constructor({ key, file, backupDir, title, owner = null, onCommand, onSave }) {
+  constructor({ key, file, backupDir, title, owner = null, onCommand, onSave, onNick }) {
+    this.onNick = onNick;
     this.key = key;
     this.title = title;
     this.owner = owner;
@@ -29,9 +30,11 @@ export class Realm {
       broadcast: (obj) => this.broadcast(obj),
       blocksChanged: (list) => this.broadcast({ t: "sets", s: list }),
       removeContainer: (k) => this.boxes.remove(k),
+      grenadeBoom: (g) => this.grenadeBoom(g),
     });
     this.boxes = new Containers(this.world, (pl, obj) => pl.send(obj));
     this.tickN = 0;
+    this.scores = new Map(); // 아이디 → { name, k, d, a } (서버가 켜져 있는 동안)
     this.emptySince = Date.now();
     this.world.save(true);
   }
@@ -62,6 +65,7 @@ export class Realm {
     pl.send(pl.stats());
     this.giveKit(pl);
     this.broadcast({ t: "join", ...this.publicInfo(pl) }, pl);
+    this.pushScores();
     if (this.players.size > 1 || !this.owner) this.sys(`${pl.name} 님이 들어왔습니다. (접속 ${this.players.size}명)`);
   }
 
@@ -71,14 +75,16 @@ export class Realm {
     applyOp(pl.st, { o: "close" }, pl.mode).drops.forEach((it) => this.entities.spawnItem(it, pl.p[0], pl.p[1] + 1, pl.p[2]));
     this.players.delete(pl.id);
     this.broadcast({ t: "leave", id: pl.id });
+    this.pushScores();
     if (this.players.size || !this.owner) this.sys(`${pl.name} 님이 나갔습니다. (접속 ${this.players.size}명)`);
     if (!this.players.size) this.emptySince = Date.now();
     this.onSave?.(pl);
   }
 
   /** 피해 → 죽었으면 처리 */
-  damagePlayer(pl, dmg, cause, from = null, kb = 1, by = "") {
+  damagePlayer(pl, dmg, cause, from = null, kb = 1, by = "", attacker = null) {
     const before = pl.hp;
+    if (attacker && attacker !== pl) { pl.damagers ??= new Map(); pl.damagers.set(attacker.key, Date.now()); pl.lastAttacker = attacker; pl.lastAttackAt = Date.now(); }
     const died = pl.damage(dmg, cause, from, kb, by);
     if (pl.hp < before) {
       this.broadcast({ t: "phurt", id: pl.id }, pl); // 다른 사람 화면에서 빨갛게 번쩍
@@ -89,13 +95,40 @@ export class Realm {
       }
     }
     if (died) {
-      this.kill(pl);
+      this.kill(pl, cause);
       this.broadcast({ t: "blood", p: [pl.p[0], pl.p[1] + 0.9, pl.p[2]], n: 70, gore: true });
     }
   }
 
-  kill(pl) {
+  /** 점수판 (킬 · 데스 · 어시스트) */
+  score(pl) {
+    let sc = this.scores.get(pl.key);
+    if (!sc) this.scores.set(pl.key, (sc = { name: pl.name, k: 0, d: 0, a: 0 }));
+    sc.name = pl.name;
+    return sc;
+  }
+  scoreboard() {
+    return [...this.players.values()].map((p) => ({ id: p.id, ...this.score(p) })).sort((a, b) => b.k - a.k || a.d - b.d);
+  }
+  pushScores() { this.broadcast({ t: "scores", list: this.scoreboard() }); }
+
+  kill(pl, cause = "") {
     if (pl.dead) return;
+    // 마지막으로 때린 사람이 킬, 10초 안에 때린 다른 사람들은 어시스트
+    const now = Date.now();
+    const killer = pl.lastAttacker && now - pl.lastAttackAt < 10_000 && this.players.has(pl.lastAttacker.id) ? pl.lastAttacker : null;
+    this.score(pl).d++;
+    if (killer) {
+      this.score(killer).k++;
+      for (const [key, t] of pl.damagers ?? []) {
+        if (key === killer.key || now - t > 10_000) continue;
+        const helper = [...this.players.values()].find((p) => p.key === key);
+        if (helper) this.score(helper).a++;
+      }
+      this.broadcast({ t: "feed", killer: killer.name, victim: pl.name, head: cause === "headshot", weapon: cause });
+    }
+    pl.damagers = new Map();
+    pl.lastAttacker = null;
     pl.dead = true;
     pl.hp = 0;
     this.boxes.close(pl);
@@ -112,6 +145,7 @@ export class Realm {
     pl.sync();
     this.broadcast({ t: "pdead", id: pl.id }, pl);
     this.sys(`${pl.name} 님이 ${pl.deathCause ?? "죽었습니다"}.`);
+    this.pushScores();
     this.onSave?.(pl);
   }
 
@@ -132,17 +166,43 @@ export class Realm {
     const st = pl.st;
     // 죽어서 남아 있던 칼 · 총은 없애고 다시 준다 (여러 개 생기지 않게)
     for (const id of KIT) {
-      const has = [...st.inv, st.cursor, ...st.grid].some((it) => it?.id === id);
-      if (has) continue;
+      const want = KIT_COUNT[id] ?? 1;
+      const at = st.inv.findIndex((it) => it?.id === id);
+      if (at >= 0) { st.inv[at] = { id, n: Math.max(st.inv[at].n, want) }; continue; } // 수류탄은 3개로 채움
+      if ([st.cursor, ...st.grid].some((it) => it?.id === id)) continue;
       const free = st.inv.findIndex((it, i) => i < 9 && !it);
-      if (free >= 0) st.inv[free] = { id, n: 1 };
-      else addItem(st.inv, { id, n: 1 });
+      if (free >= 0) st.inv[free] = { id, n: want };
+      else addItem(st.inv, { id, n: want });
     }
     pl.ammo = {};
+    pl.reserve = {};
     pl.reload = null;
-    for (const id of KIT) if (ITEMS[id].gun) pl.ammo[id] = ITEMS[id].gun.mag;
-    pl.send({ t: "ammo", ammo: pl.ammo });
+    pl.pinAt = null;
+    for (const id of KIT) if (ITEMS[id].gun) { pl.ammo[id] = ITEMS[id].gun.mag; pl.reserve[id] = ITEMS[id].gun.total - ITEMS[id].gun.mag; }
+    pl.send({ t: "ammo", ammo: pl.ammo, reserve: pl.reserve });
     pl.sync();
+  }
+
+  /** 수류탄 폭발 — 반경 안 사람 · 몹 피해 (벽 뒤는 덜 아픔), 던진 사람에게 킬 */
+  grenadeBoom(g) {
+    const gd = ITEMS[305].grenade;
+    const c = [g.x, g.y + 0.2, g.z];
+    this.broadcast({ t: "boom", p: c.map(r2), power: 2.5, grenade: true });
+    const owner = this.players.get(g.owner.id) ?? null;
+    for (const p2 of [...this.players.values()]) {
+      if (p2.dead) continue;
+      const d = Math.hypot(p2.p[0] - c[0], p2.p[1] + 0.9 - c[1], p2.p[2] - c[2]);
+      if (d >= gd.radius) continue;
+      const cover = this.world.sees(c, [p2.p[0], p2.p[1] + 1.2, p2.p[2]]) ? 1 : 0.35;
+      const dmg = Math.round((1 - d / gd.radius) * gd.damage * cover);
+      if (dmg <= 0) continue;
+      if (p2 !== g.owner && !this.world.rules.pvp) continue;
+      this.damagePlayer(p2, dmg, "grenade", c, 2, g.owner.name, p2 === g.owner ? null : owner);
+    }
+    for (const e of [...this.entities.mobs.values()]) {
+      const d = Math.hypot(e.x - c[0], e.y + e.def.h / 2 - c[1], e.z - c[2]);
+      if (d < gd.radius) { e.inv = 0; this.entities.damageMob(e, (1 - d / gd.radius) * gd.damage, c, owner); }
+    }
   }
 
   /** 총 쏘기 — 서버가 탄 · 연사 속도 · 벽을 확인하고 맞은 곳(머리 · 몸)을 정한다 */
@@ -151,7 +211,7 @@ export class Realm {
     if (!g || pl.dead || pl.reload) return;
     const now = Date.now();
     if (now - (pl.lastShot ?? 0) < g.rate * 1000 * 0.8) return;
-    if (!(pl.ammo?.[pl.heldId] > 0)) { pl.send({ t: "ammo", ammo: pl.ammo, empty: true }); return; }
+    if (!(pl.ammo?.[pl.heldId] > 0)) { pl.send({ t: "ammo", ammo: pl.ammo, reserve: pl.reserve, empty: true }); return; }
     if (!vec3(m.o) || !vec3(m.d)) return;
     const eye = [pl.p[0], pl.p[1] + 1.5, pl.p[2]];
     if (Math.hypot(m.o[0] - eye[0], m.o[1] - eye[1], m.o[2] - eye[2]) > 2) return;
@@ -184,7 +244,7 @@ export class Realm {
       if (best.kind === "player") {
         const t2 = best.target;
         if (this.world.rules.pvp && t2.mode === "survival") {
-          this.damagePlayer(t2, head ? 1000 : g.body, head ? "headshot" : "gun", pl.p, head ? 1.2 : 0.35, pl.name);
+          this.damagePlayer(t2, head ? 1000 : g.body, head ? "headshot" : "gun", pl.p, head ? 1.2 : 0.35, pl.name, pl);
           kill = t2.dead;
         }
       } else {
@@ -195,7 +255,7 @@ export class Realm {
       }
       this.broadcast({ t: "blood", p: hitP, n: head ? 45 : 14, dir: d.map(r2), head });
     }
-    pl.send({ t: "hit", hit: !!best, head, kill, e: hitP, ammo: pl.ammo });
+    pl.send({ t: "hit", hit: !!best, head, kill, e: hitP, ammo: pl.ammo, reserve: pl.reserve });
   }
 
   // ── 블록 ─────────────────────────────────────────────────
@@ -351,7 +411,7 @@ export class Realm {
           const o = this.players.get(m.pid);
           if (o && !o.dead && o !== pl && this.world.rules.pvp &&
               Math.hypot(o.p[0] - pl.p[0], o.p[1] - pl.p[1], o.p[2] - pl.p[2]) < 5) {
-            this.damagePlayer(o, dmg, knife ? "knife" : "player", pl.p, knife ? 0.5 : 1, pl.name);
+            this.damagePlayer(o, dmg, knife ? "knife" : "player", pl.p, knife ? 0.5 : 1, pl.name, pl);
             hit = true;
           }
         }
@@ -363,11 +423,42 @@ export class Realm {
         return;
       }
       case "shoot": this.shoot(pl, m); return;
+      case "pin": {
+        if (!ITEMS[pl.heldId]?.grenade || pl.dead) return;
+        pl.pinAt = Date.now();
+        this.broadcast({ t: "pin", id: pl.id }, pl);
+        return;
+      }
+      case "throw": {
+        const gd = ITEMS[pl.heldId]?.grenade;
+        if (!gd || !pl.pinAt || pl.dead || !vec3(m.o) || !vec3(m.v)) return;
+        const eye = [pl.p[0], pl.p[1] + 1.5, pl.p[2]];
+        if (Math.hypot(m.o[0] - eye[0], m.o[1] - eye[1], m.o[2] - eye[2]) > 2) return;
+        const sp = Math.hypot(...m.v);
+        const v = sp > gd.speed * 1.15 ? m.v.map((c) => (c / sp) * gd.speed) : m.v;
+        const fuse = Math.max(0.05, gd.fuse - (Date.now() - pl.pinAt) / 1000); // 오래 쥐고 있으면 빨리 터진다
+        pl.pinAt = null;
+        useOne(pl.st.inv, pl.sel);
+        this.entities.throwGrenade(pl, m.o, v, fuse);
+        this.broadcast({ t: "throw", id: pl.id }, pl);
+        check(m.d);
+        return;
+      }
+      case "nick": {
+        const r = this.onNick?.(pl, m.nick);
+        if (r) pl.send({ t: "chat", name: "", msg: r });
+        return;
+      }
+      case "dance": {
+        pl.dancing = !!m.on && !pl.dead;
+        this.broadcast({ t: "dance", id: pl.id, on: pl.dancing }, pl);
+        return;
+      }
       case "reload": {
         const g = ITEMS[pl.heldId]?.gun;
-        if (!g || pl.reload || pl.dead || (pl.ammo?.[pl.heldId] ?? 0) >= g.mag) return;
+        if (!g || pl.reload || pl.dead || (pl.ammo?.[pl.heldId] ?? 0) >= g.mag || !(pl.reserve?.[pl.heldId] > 0)) return;
         pl.reload = { gun: pl.heldId, at: Date.now() + g.reload * 1000 };
-        pl.send({ t: "ammo", ammo: pl.ammo, reloading: g.reload });
+        pl.send({ t: "ammo", ammo: pl.ammo, reserve: pl.reserve, reloading: g.reload });
         this.broadcast({ t: "reload", id: pl.id }, pl);
         return;
       }
@@ -375,7 +466,7 @@ export class Realm {
       case "eat": {
         const held = pl.held;
         if (!held || !ITEMS[held.id]?.food || pl.dead) return;
-        if (pl.food >= 20 && held.id !== 260) return pl.sync();
+        if (pl.food >= 20 && pl.hp >= 20 && held.id !== 260) return pl.sync(); // 배부르고 체력도 가득이면 못 먹음
         if (Date.now() - pl.eatAt < 1300) return pl.sync();
         pl.eat(held.id);
         if (pl.mode === "survival") useOne(pl.st.inv, pl.sel);
@@ -423,9 +514,11 @@ export class Realm {
     this.boxes.tick(dt);
     for (const pl of this.players.values()) {
       if (pl.reload && Date.now() >= pl.reload.at) {
-        pl.ammo[pl.reload.gun] = ITEMS[pl.reload.gun].gun.mag;
+        const id = pl.reload.gun;
+        const take = Math.min(ITEMS[id].gun.mag - pl.ammo[id], pl.reserve[id] ?? 0); // 예비 탄에서 채운다
+        pl.ammo[id] += take; pl.reserve[id] -= take;
         pl.reload = null;
-        pl.send({ t: "ammo", ammo: pl.ammo });
+        pl.send({ t: "ammo", ammo: pl.ammo, reserve: pl.reserve });
       }
       if (pl.statsDirty) { pl.statsDirty = false; pl.send(pl.stats()); }
       if (pl.needSync) { pl.needSync = false; pl.sync(); }

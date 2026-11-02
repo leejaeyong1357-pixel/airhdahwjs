@@ -37,7 +37,7 @@ function part(mat, w, h, d, faces, s, pivot = [0, 0, 0]) {
 const skinMat = () => new THREE.MeshBasicMaterial({ map: SKIN_TEX, alphaTest: 0.5 });
 
 // ── 사람 모양 ──────────────────────────────────────────────
-const ARMOR_TINT = { leather: 0xa0663a, iron: 0xd8d8dc, diamond: 0x55e0d8 };
+const ARMOR_TINT = { leather: 0xa0663a, iron: 0xd8d8dc, diamond: 0x55e0d8, wolf: 0x8a8a90 };
 
 /** 그림자 — 발밑 둥근 그림자 */
 export function makeShadow(size = 0.8) {
@@ -163,6 +163,29 @@ export function animateHumanoid(h, speed, dt, pitch = 0, crouch = false, act = f
   const sw = speed > 0.3 ? Math.sin(h.walk) * amp : 0;
   h.legs[0].rotation.x = sw; h.legs[1].rotation.x = -sw;
   const idle = Math.sin(h.t * 1.6) * 0.04;
+  if (h.dance) {
+    // L 춤 — 오른손으로 이마에 L 자, 왼팔은 허리, 박자에 맞춰 다리를 번갈아 옆으로 차며 깡충
+    const t = (h.danceT = (h.danceT ?? 0) + dt);
+    const beat = Math.floor(t * 4) % 2;                 // 1초에 4박
+    const hop = Math.abs(Math.sin(t * Math.PI * 4)) * 0.12;
+    h.root.children.forEach((c) => { if (c !== h.shadow) c.userData.baseY ??= c.position.y; });
+    for (const c of h.root.children) if (c.userData.baseY != null && c !== h.shadow) c.position.y = c.userData.baseY + hop;
+    h.arms[1].rotation.set(-2.6, 0, -0.9);            // 오른팔 — 손이 이마로
+    h.arms[0].rotation.set(0.2, 0, 0.9 + Math.sin(t * Math.PI * 4) * 0.2); // 왼팔 — 옆으로 흔들
+    h.legs[0].rotation.set(0, 0, beat ? 0.7 : 0);       // 다리 번갈아 옆차기
+    h.legs[1].rotation.set(0, 0, beat ? 0 : -0.7);
+    h.body.rotation.z = beat ? 0.08 : -0.08;
+    h.head.rotation.set(-0.15, beat ? 0.25 : -0.25, 0);
+    return;
+  }
+  if (h.danceT) {
+    // 춤 끝 — 원래 자세로
+    h.danceT = 0;
+    for (const c of h.root.children) if (c.userData.baseY != null) c.position.y = c.userData.baseY;
+    for (const l of h.legs) l.rotation.set(0, 0, 0);
+    h.body.rotation.z = 0;
+    h.arms[1].rotation.set(0, 0, 0); h.arms[0].rotation.set(0, 0, 0);
+  }
   if (h.gun) {
     // 총 겨누기 — 두 팔을 앞으로
     h.arms[1].rotation.set(-Math.PI / 2 - h.pitchAim * 0.8, -0.1, 0);
@@ -179,6 +202,7 @@ export function animateHumanoid(h, speed, dt, pitch = 0, crouch = false, act = f
     h.arms[1].rotation.x = -Math.sin(t * Math.PI) * 1.4 - (h.zombie ? Math.PI / 2 : 0);
   }
   h.head.rotation.x = pitch;
+  h.head.rotation.y = 0;
   // 웅크리기 — 몸을 앞으로 숙이고 낮춘다
   const c = crouch ? 1 : 0;
   h.body.rotation.x = c * 0.45;
@@ -262,6 +286,18 @@ export function makeMob(type, extra) {
     for (const x of [-2.5, 2.5]) { const t = part(mat, 1, 2, 1, "tusk", s); t.position.set(x * s, -1 * s, -8.5 * s); m.head.add(t); }
     root.add(m.head);
     legs(4, 7, 4, "boar", 3, 5);
+  } else if (type === MOB.WOLF) {
+    const body = part(mat, 6, 6, 12, "wolf", s); body.position.y = 9 * s; root.add(body);
+    const mane = part(mat, 8, 7, 6, "wolf", s); mane.position.set(0, 9.5 * s, -4 * s); root.add(mane);
+    m.head = part(mat, 6, 6, 4, { f: "wolf_face", all: "wolf" }, s, [0, 0, 2]);
+    m.head.position.set(0, 11 * s, -9 * s);
+    const snout = part(mat, 3, 3, 4, { f: "wolf_snout", all: "wolf_snout" }, s); snout.position.set(0, -1.5 * s, -3.5 * s);
+    for (const x of [-2, 2]) { const ear = part(mat, 2, 2, 1, "wolf_dark", s); ear.position.set(x * s, 4 * s, 0); m.head.add(ear); }
+    m.head.add(snout);
+    root.add(m.head);
+    m.tail = part(mat, 2, 2, 8, "wolf", s, [0, 0, -4]); m.tail.position.set(0, 10 * s, 6 * s); m.tail.rotation.x = 0.7;
+    root.add(m.tail);
+    legs(2, 6, 2, "wolf", 2, 4);
   } else if (type === MOB.BOMBER) {
     const body = part(mat, 12, 12, 12, { f: "bomb_face", all: "bomb", t: "bomb_top", u: "bomb" }, s); body.position.y = 10 * s;
     root.add(body);
@@ -280,6 +316,7 @@ export function makeMob(type, extra) {
 export function animateMob(m, speed, dt, extra, time, act = false) {
   if (m.zombie) return animateHumanoid(m, speed, dt, 0, false, act);
   if (m.head) m.head.rotation.x = act ? 0.5 : Math.sin(time * 0.7 + m.root.id) * 0.08;
+  if (m.tail) m.tail.rotation.y = Math.sin(time * (speed > 0.5 ? 12 : 3)) * 0.4;
   m.walk += dt * Math.min(speed, 5) * 3;
   const sw = speed > 0.2 ? Math.sin(m.walk) * 0.6 : 0;
   m.legs.forEach((l, i) => { l.rotation.x = (i === 0 || i === 3 ? sw : -sw); });
@@ -568,5 +605,28 @@ export function nameSprite(text) {
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, fog: false }));
   sp.scale.set((w / 56) * 0.32, 0.32, 1);
   sp.renderOrder = 999;
+  return sp;
+}
+
+/** 말풍선 (춤 대사 등) */
+export function speechSprite(text) {
+  const c = document.createElement("canvas");
+  const ctx = c.getContext("2d");
+  ctx.font = "bold 44px Malgun Gothic, sans-serif";
+  const w = Math.ceil(ctx.measureText(text).width) + 40;
+  c.width = w; c.height = 84;
+  ctx.font = "bold 44px Malgun Gothic, sans-serif";
+  ctx.fillStyle = "#fff";
+  ctx.strokeStyle = "#111";
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.roundRect(2, 2, w - 4, 62, 18); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(w / 2 - 12, 62); ctx.lineTo(w / 2, 82); ctx.lineTo(w / 2 + 12, 62); ctx.fill();
+  ctx.fillStyle = "#111";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 20, 34);
+  const tex = new THREE.CanvasTexture(c);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, fog: false }));
+  sp.scale.set((w / 84) * 0.45, 0.45, 1);
+  sp.renderOrder = 1000;
   return sp;
 }

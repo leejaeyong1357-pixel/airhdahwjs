@@ -407,6 +407,30 @@ ITEM_DRAW.sniper = (px) => {
   ], { s: [30, 30, 34], b: [90, 160, 220], k: [44, 46, 40], o: [86, 96, 58] }, 0, 4);
 };
 
+ITEM_DRAW.grenade = (px) => {
+  clear(px);
+  pattern(px, [
+    "......mm.....", ".....m..m....", ".....mmmmk...", "....kkkkkkk..", "...gggggggg..", "..gglggggggg.", "..glgggdgggg.",
+    "..gggdgggdgg.", "..ggggdggggg.", "..gggggggdgg.", "...gggggggg..", "....gggggg...",
+  ], { m: [170, 170, 176], k: [70, 70, 74], g: [72, 96, 52], l: [120, 150, 90], d: [50, 68, 36] }, 2, 2);
+};
+ITEM_DRAW.wolf_pelt = (px) => {
+  clear(px);
+  const r = rng(40);
+  for (let y = 3; y < 14; y++) for (let x = 2; x < 14; x++) {
+    if ((x === 2 || x === 13) && (y === 3 || y === 13)) continue;
+    px(x, y, r() < 0.3 ? [150, 150, 154] : r() < 0.5 ? [120, 120, 124] : [96, 96, 100]);
+  }
+  px(1, 5, [110, 110, 114]); px(14, 5, [110, 110, 114]); px(1, 11, [110, 110, 114]); px(14, 11, [110, 110, 114]);
+};
+ITEM_DRAW.wolf_coat = (px) => {
+  clear(px);
+  const r = rng(41);
+  pattern(px, ["fff......fff", "ffffffffffff", "fffffffffff.", ".ffffffffff.", ".ffffffffff.", ".ffffffffff.", ".ffffffffff.", ".ffffffffff.", ".ffffffffff."], { f: [120, 120, 124] }, 2, 3);
+  for (let i = 0; i < 25; i++) px(3 + Math.floor(r() * 10), 4 + Math.floor(r() * 9), r() < 0.5 ? [150, 150, 154] : [90, 90, 94]);
+  for (let y = 4; y < 12; y++) px(8, y, [70, 60, 50]);
+};
+
 // 방어구 — 0 투구 1 갑옷 2 바지 3 신발
 const ARMOR_COLOR = { leather: [[160, 100, 55], [110, 66, 34]], iron: [[225, 225, 228], [150, 150, 156]], diamond: [[95, 230, 220], [35, 150, 150]] };
 const ARMOR_PATTERN = [
@@ -755,6 +779,16 @@ sp("arrow", 1, 8, (px) => { fill(px, 1, 8, [120, 90, 50], 0.05, 95); px(0, 0, [1
 // 방어구 덧입기 (색은 재질별로 곱한다)
 sp("armor", 8, 8, (px) => { fill(px, 8, 8, [235, 235, 235], 0.06, 96); for (let x = 0; x < 8; x++) { px(x, 0, [180, 180, 180]); px(x, 7, [180, 180, 180]); } });
 sp("shadow", 16, 16, (px) => { for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const d = Math.hypot(x - 7.5, y - 7.5) / 8; if (d < 1) px(x, y, [0, 0, 0, Math.round((1 - d * d) * 150)]); } });
+
+// 늑대 — 회색 털, 뾰족한 귀, 노란 눈
+const WOLF = [150, 150, 156];
+sp("wolf", 8, 8, (px) => { fill(px, 8, 8, WOLF, 0.12, 100); for (let x = 0; x < 8; x++) px(x, 0, [110, 110, 116]); });
+sp("wolf_face", 6, 6, (px) => {
+  fill(px, 6, 6, WOLF, 0.08, 101);
+  px(1, 2, [230, 200, 60]); px(4, 2, [230, 200, 60]); px(1, 3, [20, 20, 20]); px(4, 3, [20, 20, 20]);
+});
+sp("wolf_snout", 3, 3, (px) => { fill(px, 3, 3, [200, 196, 190], 0.05, 102); px(1, 0, [30, 30, 30]); });
+sp("wolf_dark", 2, 2, (px) => fill(px, 2, 2, [90, 90, 96], 0.05, 103));
 
 /** 몸 그림 아틀라스 — { canvas, uv(name) } */
 export function buildSkins() {

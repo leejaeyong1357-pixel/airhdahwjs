@@ -31,6 +31,7 @@ ARMOR_TIER_LIST.forEach((t) => {
 
 // 모양 상관없는 조합
 const SHAPELESS = [
+  { items: [I.WOLF_PELT, I.WOLF_PELT], out: [I.WOLF_COAT, 1] },
   { items: [B.LOG], out: [B.PLANKS, 4] },
   { items: [B.BIRCH_LOG], out: [B.PLANKS, 4] },
   { items: [B.SPRUCE_LOG], out: [B.PLANKS, 4] },
