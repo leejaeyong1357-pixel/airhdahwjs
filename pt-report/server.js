@@ -211,6 +211,11 @@ const server = createServer(async (req, res) => {
           if (c.file) { try { unlinkSync(join(FILES, c.file.stored)); } catch { /* */ } }
           c.file = f;
           if (url.searchParams.get("label") === "1") c.label = f.name; // 파일 이름을 칸 글자로
+          else {
+            // 칸 글자의 확장자를 올린 파일에 맞춘다 (예: 점검.pptx 칸에 엑셀을 올리면 점검.xlsx)
+            const newExt = extname(f.name), oldExt = extname(c.label);
+            if (newExt && oldExt && newExt.toLowerCase() !== oldExt.toLowerCase()) c.label = c.label.slice(0, -oldExt.length) + newExt;
+          }
           saveSite();
           console.log(`[올림] ${c.title} ← ${f.name} (${fmtSize(f.size)})`);
           send(res, 200, adminSite());

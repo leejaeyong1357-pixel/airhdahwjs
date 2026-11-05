@@ -4,7 +4,14 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 
 /** 파일 종류 아이콘 (P · X · W · PDF · 그 밖) */
 export function fileIcon(ext) {
-  const map = { ppt: ["P", "#d24726"], pptx: ["P", "#d24726"], xls: ["X", "#1d7044"], xlsx: ["X", "#1d7044"], doc: ["W", "#2b579a"], docx: ["W", "#2b579a"], pdf: ["PDF", "#c62828"], hwp: ["H", "#1f86c9"], zip: ["ZIP", "#7a5a2b"] };
+  const map = {
+    ppt: ["P", "#d24726"], pptx: ["P", "#d24726"], pptm: ["P", "#d24726"],
+    xls: ["X", "#1d7044"], xlsx: ["X", "#1d7044"], xlsm: ["X", "#1d7044"], csv: ["CSV", "#1d7044"],
+    doc: ["W", "#2b579a"], docx: ["W", "#2b579a"], pdf: ["PDF", "#c62828"], hwp: ["H", "#1f86c9"], hwpx: ["H", "#1f86c9"],
+    txt: ["TXT", "#5b6475"], zip: ["ZIP", "#7a5a2b"], "7z": ["ZIP", "#7a5a2b"], rar: ["ZIP", "#7a5a2b"],
+    jpg: ["IMG", "#8e44ad"], jpeg: ["IMG", "#8e44ad"], png: ["IMG", "#8e44ad"], gif: ["IMG", "#8e44ad"],
+    mp4: ["VID", "#d35400"], mov: ["VID", "#d35400"], avi: ["VID", "#d35400"], dwg: ["CAD", "#a61d24"],
+  };
   const [t, c] = map[ext] ?? ["F", "#5b6475"];
   return `<svg viewBox="0 0 40 48" class="fi" aria-hidden="true"><path d="M4 2h22l10 10v32a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2z" fill="#fff" stroke="${c}" stroke-width="2.5"/><path d="M26 2v10h10" fill="none" stroke="${c}" stroke-width="2.5"/><rect x="0" y="16" width="${t.length > 1 ? 30 : 22}" height="20" rx="3" fill="${c}"/><text x="${t.length > 1 ? 15 : 11}" y="31" text-anchor="middle" font-size="${t.length > 1 ? 10 : 14}" font-weight="800" fill="#fff" font-family="Arial,sans-serif">${t}</text></svg>`;
 }
