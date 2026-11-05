@@ -127,7 +127,7 @@ function resultsPage(rows) {
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>결과 · ${esc(TITLE)}</title><link rel="icon" href="logo-mark.svg"><link rel="stylesheet" href="style.css"></head>
 <body class="results"><div class="rwrap">
-<div class="rtop"><img src="logo.svg" alt="TECZEN" class="rlogo"><h1>${esc(TITLE)} — 결과 분석</h1>
+<div class="rtop"><img src="teczen-logo.png" alt="TECZEN" class="rlogo"><h1>${esc(TITLE)} — 결과 분석</h1>
 <a class="btn ghost" href="results.csv?key=${encodeURIComponent(ADMIN_KEY)}">엑셀(CSV) 내려받기</a></div>
 <div class="rmeta">등급 환산: 평균 4.5점 이상 S · 3.5 이상 A · 2.5 이상 B · 1.5 이상 C · 그 아래 D &nbsp;|&nbsp; 마지막 응답 ${n ? esc(new Date(rows[n - 1].at).toLocaleString("ko-KR")) : "-"}</div>
 ${cards}${sections}</div>

@@ -27,7 +27,7 @@ button { font: inherit; cursor: pointer; }
   min-height: 300px; padding: 34px 0 90px;
 }
 .hero-in { position: relative; max-width: 1120px; margin: 0 auto; padding: 0 28px; }
-.logo { height: 30px; display: block; margin-bottom: 30px; }
+.logo { height: 32px; display: block; margin-bottom: 30px; }
 .eyebrow { margin: 0 0 6px; font-size: 16px; color: #d6e2ff; font-weight: 600; }
 .hero h1 { margin: 0 0 14px; font-size: 42px; font-weight: 800; letter-spacing: -1px; text-shadow: 0 2px 12px rgba(0, 0, 0, .25); }
 .lead { margin: 0; font-size: 15.5px; line-height: 1.75; color: #e6edff; }
