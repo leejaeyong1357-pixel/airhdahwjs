@@ -9,64 +9,29 @@
 </head>
 <body>
   <header class="hero">
-    <!-- 오른쪽 건물 그림 -->
-    <svg class="building" viewBox="0 0 640 300" preserveAspectRatio="xMaxYMax slice" aria-hidden="true">
-      <defs>
-        <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#b9d3f2" /><stop offset=".45" stop-color="#6f97cf" /><stop offset="1" stop-color="#2d4f8f" />
-        </linearGradient>
-        <linearGradient id="side" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#e9eef6" /><stop offset="1" stop-color="#c3cedf" />
-        </linearGradient>
-        <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#0b1a45" /><stop offset=".55" stop-color="#0b1a45" stop-opacity="0" />
-        </linearGradient>
-        <pattern id="mullion" width="26" height="22" patternUnits="userSpaceOnUse" patternTransform="skewY(-9)">
-          <rect width="26" height="22" fill="none" stroke="#e8f0fb" stroke-opacity=".55" stroke-width="1.6" />
-        </pattern>
-      </defs>
-      <!-- 지붕 테두리 · 흰 벽 · 유리 -->
-      <polygon points="300,96 640,40 640,300 300,300" fill="url(#side)" />
-      <polygon points="318,128 640,76 640,300 318,300" fill="url(#glass)" />
-      <polygon points="318,128 640,76 640,300 318,300" fill="url(#mullion)" />
-      <polygon points="300,96 640,40 640,50 300,106" fill="#ffffff" opacity=".9" />
-      <polygon points="250,132 300,96 300,300 250,300" fill="#9fb0cc" />
-      <polygon points="258,150 296,124 296,300 258,300" fill="#5d7bb0" opacity=".85" />
-      <!-- 간판 -->
-      <g transform="translate(470 78) skewY(-9) scale(.62)">
-        <path fill="#0d1f4f" d="M0 0h30v8h-30z M11 0h8v36h-8z M36 0h8v36h-8z M36 0h28v8h-28z M36 14h23v8h-23z M36 28h28v8h-28z M70 0h8v36h-8z M70 0h28v8h-28z M70 28h28v8h-28z M104 0h28v8h-28z M104 28h28v8h-28z M123 8H132L113 28H104z M138 0h8v36h-8z M138 0h28v8h-28z M138 14h23v8h-23z M138 28h28v8h-28z M172 0h8v36h-8z M194 0h8v36h-8z M172 0H180L202 36H194z" />
-        <rect x="204" y="-4" width="9" height="9" fill="#e60023" />
-      </g>
-      <!-- 나무 -->
-      <circle cx="610" cy="282" r="34" fill="#2f5b3a" /><circle cx="580" cy="292" r="24" fill="#3b6d46" />
-      <rect x="0" y="0" width="640" height="300" fill="url(#fade)" />
-    </svg>
     <div class="hero-in">
       <img class="logo" src="logo-white.svg" alt="TECZEN" />
       <p class="eyebrow">TECZEN 사내 교육 프로그램</p>
       <h1>26년도 교육 만족도 조사</h1>
-      <p class="lead">교육 운영 품질 향상과 교육 효과 분석을 위한 설문입니다.<br />바쁘시더라도 성실한 응답 부탁드립니다. <span class="pill">소요시간 약 5분</span></p>
+      <p class="lead">교육 운영 품질 향상과 교육 효과 분석을 위한 설문입니다.<br />바쁘시더라도 성실한 응답 부탁드립니다. <span class="pill">소요시간 약 1분</span></p>
     </div>
   </header>
 
   <main class="card" id="app">
     <div class="status">
-      <div class="st-time"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg> 예상 소요시간 <b>약 5분</b></div>
+      <div class="st-time"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg> 예상 소요시간 <b>약 1분</b></div>
       <div class="st-prog">
         <span>진행률</span>
         <div class="bar"><i id="barFill"></i></div>
-        <span class="frac"><b id="pageNo">1</b> / 2 (<span id="pct">50</span>%)</span>
+        <span class="frac"><b id="done">0</b> / <span id="total">10</span>문항 (<span id="pct">0</span>%)</span>
       </div>
     </div>
 
     <div id="pages"></div>
 
     <div class="foot" id="foot">
-      <button class="btn ghost" id="saveBtn" type="button"><svg viewBox="0 0 24 24" class="ico"><path d="M5 3h11l3 3v15H5z" /><path d="M8 3v6h8V3M8 21v-7h8v7" /></svg> 임시 저장</button>
-      <div class="nav">
-        <button class="btn soft" id="prevBtn" type="button"><svg viewBox="0 0 24 24" class="ico"><path d="M15 5l-7 7 7 7" /></svg> 이전</button>
-        <button class="btn primary" id="nextBtn" type="button">다음 <svg viewBox="0 0 24 24" class="ico"><path d="M9 5l7 7-7 7" /></svg></button>
-      </div>
+      <span class="foot-note">모든 문항에 답한 뒤 제출해 주세요.</span>
+      <button class="btn primary" id="nextBtn" type="button">제출하기 <svg viewBox="0 0 24 24" class="ico"><path d="M5 12l5 5L20 7" /></svg></button>
     </div>
   </main>
 

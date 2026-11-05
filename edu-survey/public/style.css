@@ -26,7 +26,6 @@ button { font: inherit; cursor: pointer; }
   background: radial-gradient(120% 140% at 0% 0%, #1a3a8f 0%, #0b1a45 55%, #081536 100%);
   min-height: 300px; padding: 34px 0 90px;
 }
-.building { position: absolute; right: 0; bottom: 0; height: 100%; width: min(62%, 760px); }
 .hero-in { position: relative; max-width: 1120px; margin: 0 auto; padding: 0 28px; }
 .logo { height: 30px; display: block; margin-bottom: 30px; }
 .eyebrow { margin: 0 0 6px; font-size: 16px; color: #d6e2ff; font-weight: 600; }
@@ -93,6 +92,7 @@ button { font: inherit; cursor: pointer; }
 .form :focus { outline: 2px solid #9db6f5; border-color: var(--blue); }
 
 /* ── 아래 버튼 ─────────────────────── */
+.foot-note { color: var(--sub); font-size: 14px; }
 .foot { display: flex; justify-content: space-between; align-items: center; padding-top: 18px; border-top: 1px solid var(--line); margin-top: 4px; }
 .nav { display: flex; gap: 12px; }
 .btn { display: inline-flex; align-items: center; gap: 8px; border-radius: 12px; padding: 13px 24px; font-weight: 700; font-size: 16px; border: 1.5px solid transparent; }
@@ -117,7 +117,6 @@ button { font: inherit; cursor: pointer; }
 /* ── 좁은 화면 (휴대폰) ───────────── */
 @media (max-width: 860px) {
   .hero { min-height: 260px; padding: 24px 0 80px; }
-  .building { width: 100%; opacity: .16; }
   .hero h1 { font-size: 30px; }
   .card { margin: -56px 12px 24px; padding: 14px 12px 18px; }
   .status { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 16px; }
@@ -160,3 +159,39 @@ body.results { background: var(--bg); }
 .cnt { color: var(--sub); }
 .op { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
 .op .none { color: var(--sub); list-style: none; margin-left: -18px; }
+
+/* 결과 — 요약 카드 · 정성 분석 · 등급 분포 · 문항별 응답 수준 */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.kc { background: #fff; border-radius: 14px; box-shadow: 0 6px 20px rgba(13, 31, 79, .08); padding: 14px 18px; }
+.kc small { display: block; color: var(--sub); font-size: 13px; margin-bottom: 6px; }
+.kc b { font-size: 30px; font-weight: 800; color: var(--navy2); display: flex; align-items: center; gap: 6px; }
+.kc i { font-style: normal; font-size: 14px; color: var(--sub); font-weight: 500; }
+.kc em { font-style: normal; }
+.rs header { align-items: flex-start; }
+.rs .kpi { margin: 4px 0 0; color: var(--sub); font-size: 13.5px; }
+.rs h3 { font-size: 15px; margin: 22px 0 10px; padding-left: 10px; border-left: 4px solid var(--blue); }
+.rs h3 small { color: var(--sub); font-weight: 500; }
+.story { background: #f4f7fd; border: 1px solid #dbe4f3; border-radius: 10px; padding: 14px 16px; line-height: 1.75; font-size: 14.5px; }
+.copy { margin-top: 8px; font-size: 13px; padding: 8px 14px; }
+.g.sm { width: 26px; height: 26px; font-size: 14px; border-radius: 7px; margin: 0; }
+.gdist { display: grid; gap: 8px; }
+.gb { display: grid; grid-template-columns: 44px 1fr 110px; align-items: center; gap: 10px; }
+.gb .g { margin: 0; width: 34px; height: 34px; font-size: 17px; }
+.gbar { height: 14px; background: #eef2f8; border-radius: 999px; overflow: hidden; }
+.gbar i { display: block; height: 100%; background: linear-gradient(90deg, #1c46c4, #2f6bff); border-radius: 999px; }
+.gb span { font-weight: 700; font-size: 14px; }
+.gb p { grid-column: 2 / -1; margin: -4px 0 4px; color: var(--sub); font-size: 12.5px; }
+.lv { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; background: #fff; }
+.lv summary { cursor: pointer; padding: 10px 14px; font-size: 14px; }
+.lv .qfull { margin: 0 14px 6px; color: var(--sub); font-size: 13px; }
+.lv ul { list-style: none; margin: 0; padding: 0 14px 12px; display: grid; gap: 6px; }
+.lv li { display: grid; grid-template-columns: 40px 1fr 100px 120px; align-items: center; gap: 10px; font-size: 13.5px; }
+.lv .sc { font-weight: 800; color: var(--navy2); }
+.lv .ct { text-align: right; font-weight: 700; }
+.mini { height: 8px; background: #eef2f8; border-radius: 999px; overflow: hidden; }
+.mini i { display: block; height: 100%; background: var(--blue); }
+@media (max-width: 860px) {
+  .rs table { display: block; overflow-x: auto; white-space: nowrap; }
+  .lv li { grid-template-columns: 34px 1fr; } .lv .ct { text-align: left; } .mini { grid-column: 2; }
+  .gb { grid-template-columns: 40px 1fr 90px; }
+}
