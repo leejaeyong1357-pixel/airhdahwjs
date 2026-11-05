@@ -75,7 +75,12 @@ async function start() {
   try { s = await (await fetch("api/site")).json(); }
   catch { document.body.insertAdjacentHTML("afterbegin", '<p style="padding:20px;color:#c00">자료를 불러오지 못했습니다. 잠시 뒤 새로고침해 주세요.</p>'); return; }
   render(s);
-  if (PREVIEW) return;
+  if (PREVIEW) {
+    // 관리자 화면에서 고치는 대로 바로 보여 주기
+    window.addEventListener("message", (e) => { if (e.origin === location.origin && e.data?.type === "pt-preview") render(e.data.site, { preview: true }); });
+    parent.postMessage({ type: "pt-preview-ready" }, location.origin);
+    return;
+  }
   const logVisit = () => fetch(`api/site?log=1&${whoParam()}`).catch(() => {});
   showWho();
   if (s.askName && !WHO?.name) askName(logVisit); else logVisit();
@@ -89,4 +94,4 @@ async function start() {
   });
   $("whoEdit").onclick = () => askName();
 }
-start();
+if ($("grid")) start(); // 관리자 화면이 아이콘만 가져다 쓸 때는 실행 안 함
