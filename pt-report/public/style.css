@@ -79,6 +79,37 @@ button { font: inherit; cursor: pointer; }
   .info-h { border-right: 0; padding-right: 0; }
 }
 
+/* 이름 묻는 창 · 내 이름 표시 */
+.hidden { display: none !important; }
+.modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(10, 22, 50, .55); padding: 16px; }
+.who-box { width: min(420px, 100%); background: #fff; border-radius: 16px; padding: 26px; display: grid; gap: 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, .3); }
+.who-box h3 { margin: 0; font-size: 21px; }
+.who-box p { margin: 0; color: var(--sub); font-size: 14px; line-height: 1.6; }
+.who-box label { display: flex; flex-direction: column; gap: 6px; font-weight: 700; font-size: 14px; }
+.who-box small { color: var(--sub); font-weight: 500; }
+.who-box input { font: inherit; font-weight: 400; font-size: 16px; border: 1px solid #cfd8e8; border-radius: 10px; padding: 11px 12px; }
+.who-box input:focus { outline: 2px solid #9db6f5; border-color: var(--blue); }
+.who-box button { margin-top: 4px; background: var(--navy); color: #fff; border: 0; border-radius: 10px; padding: 12px; font-weight: 800; font-size: 16px; }
+.who-chip { position: fixed; left: 18px; bottom: 16px; display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 7px 8px 7px 16px; font-size: 13.5px; color: #39445a; box-shadow: 0 4px 14px rgba(22, 52, 108, .1); }
+.who-chip button { border: 0; background: #eef2f8; color: var(--blue); border-radius: 999px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; }
+
+/* 관리자 — 접속 · 다운로드 기록 */
+.logbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.logbar input, .logbar select { font: inherit; font-size: 14px; border: 1px solid #cfd8e8; border-radius: 8px; padding: 7px 10px; }
+.logbar input { flex: 1; min-width: 160px; }
+.logsum { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.logsum > div { border: 1px solid #e1e7f1; border-radius: 10px; padding: 10px 12px; max-height: 240px; overflow: auto; }
+.logsum h4 { margin: 0 0 6px; font-size: 14px; }
+.logtbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.logtbl th, .logtbl td { padding: 7px 8px; border-top: 1px solid #e8edf5; text-align: left; vertical-align: top; }
+.logtbl th { position: sticky; top: 0; background: #f4f7fc; color: var(--sub); font-weight: 700; }
+.logwrap { max-height: 520px; overflow: auto; border: 1px solid #e1e7f1; border-radius: 10px; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.tag.download { background: #e3ecff; color: var(--blue); } .tag.visit { background: #eef1f5; color: #5b6475; }
+.tag.admin { background: #e5f5ea; color: #1d7044; } .tag.adminFail { background: #fde8e8; color: #c62828; }
+.muted { color: var(--sub); font-size: 12.5px; }
+@media (max-width: 760px) { .logsum { grid-template-columns: 1fr; } .who-chip { left: 10px; bottom: 10px; font-size: 12.5px; } }
+
 /* ── 관리자 ── */
 body.admin { background: #eef1f6; }
 .ad-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; padding: 12px 24px; background: var(--navy); color: #fff; box-shadow: 0 2px 10px rgba(0, 0, 0, .15); }

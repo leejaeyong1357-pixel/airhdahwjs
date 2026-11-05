@@ -1,4 +1,11 @@
 // 보는 화면 — /api/site 에서 문구 · 칸을 받아 그린다
+// 처음 들어오면 이름(+소속)을 한 번 묻고, 접속 · 다운로드 기록에 남긴다 (이 PC 브라우저에 기억)
+const PREVIEW = new URLSearchParams(location.search).has("preview"); // 관리자 미리보기는 기록 안 함
+const WHO_KEY = "pt-report-viewer";
+function getWho() { try { return JSON.parse(localStorage.getItem(WHO_KEY) ?? "null"); } catch { return null; } }
+function setWho(w) { try { localStorage.setItem(WHO_KEY, JSON.stringify(w)); } catch { /* 저장 안 되는 브라우저 */ } WHO = w; }
+let WHO = getWho();
+const whoParam = () => (WHO?.name ? `who=${encodeURIComponent(JSON.stringify(WHO))}` : "");
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
@@ -33,12 +40,53 @@ export function render(s, { preview = false } = {}) {
       <div class="ct">${fileIcon(c.ext)}<b>${esc(c.title)}</b></div>
       <div class="cl" title="${esc(c.label)}">${esc(c.label)}</div>
       ${c.ready
-        ? `<a class="dl" href="${preview ? "#" : `download/${c.id}/${encodeURIComponent(c.fname)}`}"><svg viewBox="0 0 24 24" class="ico"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>${esc(s.downloadLabel)}</a><small class="sz">${esc(c.size)}</small>`
+        ? `<a class="dl" data-href="download/${c.id}/${encodeURIComponent(c.fname)}" href="${preview ? "#" : `download/${c.id}/${encodeURIComponent(c.fname)}`}"><svg viewBox="0 0 24 24" class="ico"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>${esc(s.downloadLabel)}</a><small class="sz">${esc(c.size)}</small>`
         : `<span class="dl off">${esc(s.emptyLabel)}</span><small class="sz">&nbsp;</small>`}
     </div>`).join("");
   $("info").innerHTML = s.info.map((t) => `<li>${esc(t)}</li>`).join("");
 }
 
-if (!window.PT_PREVIEW) {
-  fetch("api/site").then((r) => r.json()).then((s) => render(s)).catch(() => { document.body.insertAdjacentHTML("afterbegin", '<p style="padding:20px;color:#c00">자료를 불러오지 못했습니다. 잠시 뒤 새로고침해 주세요.</p>'); });
+/** 이름 묻는 창 — 다운로드 기록에 누가 받았는지 남기려고 */
+function askName(then) {
+  const m = $("whoModal");
+  $("whoName").value = WHO?.name ?? "";
+  $("whoDept").value = WHO?.dept ?? "";
+  m.classList.remove("hidden");
+  setTimeout(() => $("whoName").focus(), 30);
+  $("whoForm").onsubmit = (e) => {
+    e.preventDefault();
+    const name = $("whoName").value.trim();
+    if (!name) { $("whoName").focus(); return; }
+    setWho({ name, dept: $("whoDept").value.trim() });
+    m.classList.add("hidden");
+    showWho();
+    then?.();
+  };
 }
+function showWho() {
+  const el = $("whoChip");
+  if (!el) return;
+  el.classList.toggle("hidden", !WHO?.name);
+  if (WHO?.name) $("whoText").textContent = `${WHO.name}${WHO.dept ? ` (${WHO.dept})` : ""} 님`;
+}
+
+async function start() {
+  let s;
+  try { s = await (await fetch("api/site")).json(); }
+  catch { document.body.insertAdjacentHTML("afterbegin", '<p style="padding:20px;color:#c00">자료를 불러오지 못했습니다. 잠시 뒤 새로고침해 주세요.</p>'); return; }
+  render(s);
+  if (PREVIEW) return;
+  const logVisit = () => fetch(`api/site?log=1&${whoParam()}`).catch(() => {});
+  showWho();
+  if (s.askName && !WHO?.name) askName(logVisit); else logVisit();
+  // 다운로드 — 이름을 붙여서 (이름이 없으면 먼저 묻기)
+  $("grid").addEventListener("click", (e) => {
+    const a = e.target.closest("a.dl");
+    if (!a) return;
+    e.preventDefault();
+    const go = () => { location.href = `${a.dataset.href}?${whoParam()}`; };
+    if (s.askName && !WHO?.name) askName(go); else go();
+  });
+  $("whoEdit").onclick = () => askName();
+}
+start();

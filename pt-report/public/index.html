@@ -73,6 +73,16 @@
       <ul id="info"></ul>
     </section>
   </main>
+  <div class="who-chip hidden" id="whoChip"><span id="whoText"></span><button type="button" id="whoEdit">이름 바꾸기</button></div>
+  <div class="modal hidden" id="whoModal">
+    <form class="who-box" id="whoForm">
+      <h3>이름을 입력해 주세요</h3>
+      <p>자료 확인 · 다운로드 기록을 위해 처음 한 번만 묻습니다. 이 PC에서는 다음부터 묻지 않습니다.</p>
+      <label>이름<input id="whoName" maxlength="30" placeholder="예: 홍길동" autocomplete="name" required /></label>
+      <label>소속 · 직책 <small>(선택)</small><input id="whoDept" maxlength="40" placeholder="예: 생산1팀 실장" /></label>
+      <button type="submit">확인</button>
+    </form>
+  </div>
   <a class="gear" href="admin" title="환경설정 (관리자)" aria-label="환경설정"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" /></svg></a>
   <script type="module" src="app.js"></script>
 </body>

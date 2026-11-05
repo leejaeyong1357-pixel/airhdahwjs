@@ -96,8 +96,26 @@ function render() {
     </section>
 
     <section class="panel">
+      <h2>접속 · 다운로드 기록</h2>
+      <p class="d">언제 · 누가(입력한 이름 · 소속) · 어떤 파일을 받았는지, 접속한 PC 의 IP · PC 이름 · 브라우저까지 모두 남습니다. 관리자 로그인 · 비밀번호 틀림도 기록됩니다.</p>
+      <label class="fld" style="flex-direction:row;align-items:center;gap:8px;font-weight:600;margin-bottom:12px"><input type="checkbox" id="askName" ${S.askName !== false ? "checked" : ""} style="width:18px;height:18px"> 처음 들어온 사람에게 이름 · 소속을 물어 기록에 남기기 (끄면 IP · PC 이름만 남음)</label>
+      <div class="logbar">
+        <select id="logType"><option value="">전체</option><option value="download" selected>다운로드만</option><option value="visit">접속만</option><option value="admin">관리자 로그인</option></select>
+        <input id="logQ" placeholder="이름 · 소속 · 파일 · IP 로 찾기">
+        <button class="sm" id="logReload" type="button">새로고침</button>
+        <a class="sm blue" href="/api/admin/logs.csv" style="text-decoration:none">엑셀(CSV)로 내려받기</a>
+      </div>
+      <div class="logsum">
+        <div><h4>사람별</h4><div id="logPeople" class="muted">불러오는 중…</div></div>
+        <div><h4>파일별 다운로드</h4><div id="logFiles" class="muted">불러오는 중…</div></div>
+      </div>
+      <div class="logwrap"><table class="logtbl"><thead><tr><th>시각</th><th>구분</th><th>이름 · 소속</th><th>파일</th><th>IP · PC 이름</th><th>브라우저</th></tr></thead><tbody id="logRows"></tbody></table></div>
+      <p class="muted" id="logCount" style="margin:8px 0 0"></p>
+    </section>
+
+    <section class="panel">
       <h2>미리보기</h2><p class="d">저장하면 바로 바뀝니다.</p>
-      <iframe class="preview" id="preview" src="./"></iframe>
+      <iframe class="preview" id="preview" src="./?preview=1"></iframe>
     </section>
 
     <section class="panel">
@@ -195,6 +213,11 @@ function bind() {
   };
   $("heroFile").onchange = (e) => { const f = e.target.files[0]; if (f) sendFile("/api/admin/hero", f, "heroProg"); };
   $("heroDel").onclick = async () => { try { if (dirty) await save(true); S = await api("/api/admin/hero", { method: "DELETE" }); render(); reloadPreview(); toast("기본 그림으로 돌렸습니다."); } catch (err) { toast(err.message); } };
+  $("askName").onchange = (e) => { S.askName = e.target.checked; setDirty(); };
+  $("logType").onchange = drawLogs;
+  $("logQ").oninput = drawLogs;
+  $("logReload").onclick = loadLogs;
+  loadLogs();
   $("pwBtn").onclick = async () => {
     try { await api("/api/admin/password", { method: "POST", body: { current: $("pwCur").value, next: $("pwNew").value } }); $("pwCur").value = $("pwNew").value = ""; toast("비밀번호를 바꿨습니다."); }
     catch (err) { toast(err.message); }
@@ -205,7 +228,29 @@ function bind() {
   };
 }
 
-function reloadPreview() { const f = $("preview"); if (f) f.src = `./?t=${Date.now()}`; }
+// ── 접속 · 다운로드 기록 ──
+let LOGS = null;
+const TYPE_KO = { visit: "접속", download: "다운로드", admin: "관리자 로그인", adminFail: "비밀번호 틀림" };
+const when = (iso) => new Date(iso).toLocaleString("ko-KR", { year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+async function loadLogs() {
+  try { LOGS = await api("/api/admin/logs"); drawLogs(); } catch (err) { if ($("logRows")) $("logRows").innerHTML = `<tr><td colspan=6>${esc(err.message)}</td></tr>`; }
+}
+function drawLogs() {
+  if (!LOGS || !$("logRows")) return;
+  const type = $("logType").value, q = $("logQ").value.trim().toLowerCase();
+  const rows = LOGS.rows.filter((r) => (!type || (type === "admin" ? r.type.startsWith("admin") : r.type === type))
+    && (!q || [r.name, r.dept, r.file, r.title, r.ip, r.host].some((v) => String(v ?? "").toLowerCase().includes(q))));
+  $("logRows").innerHTML = rows.slice(0, 500).map((r) => `<tr>
+    <td>${when(r.at)}</td><td><span class="tag ${r.type}">${TYPE_KO[r.type] ?? r.type}</span></td>
+    <td>${r.name ? `<b>${esc(r.name)}</b>${r.dept ? `<br><span class="muted">${esc(r.dept)}</span>` : ""}` : '<span class="muted">이름 없음</span>'}</td>
+    <td>${r.file ? `${esc(r.title ?? "")} ${esc(r.file)}` : ""}</td>
+    <td>${esc(r.ip)}${r.host ? `<br><span class="muted">${esc(r.host)}</span>` : ""}</td><td class="muted">${esc(r.ua ?? "")}</td></tr>`).join("") || `<tr><td colspan=6 class="muted">기록이 없습니다.</td></tr>`;
+  $("logCount").textContent = `${rows.length}건${rows.length > 500 ? " (화면에는 최근 500건 — 전체는 엑셀로)" : ""} · 전체 기록 ${LOGS.total}건`;
+  $("logPeople").innerHTML = LOGS.people.length ? `<table class="logtbl"><tr><th>누가</th><th>접속</th><th>다운로드</th><th>마지막</th></tr>${LOGS.people.map((p) => `<tr><td>${esc(p.who)}${p.files.length ? `<br><span class="muted">${esc(p.files.join(", "))}</span>` : ""}</td><td>${p.visits}</td><td>${p.downloads}</td><td class="muted">${when(p.last)}</td></tr>`).join("")}</table>` : "아직 없음";
+  $("logFiles").innerHTML = LOGS.files.length ? `<table class="logtbl"><tr><th>파일</th><th>횟수</th><th>받은 사람</th></tr>${LOGS.files.map((f) => `<tr><td>${esc(f.file)}</td><td>${f.count}</td><td class="muted">${esc(f.people.join(", "))}</td></tr>`).join("")}</table>` : "아직 없음";
+}
+
+function reloadPreview() { const f = $("preview"); if (f) f.src = `./?preview=1&t=${Date.now()}`; }
 
 async function save(quiet = false) {
   try {

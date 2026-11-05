@@ -3,7 +3,8 @@
 //   보는 주소:   http://<이 PC>:2822/
 //   관리자:      http://<이 PC>:2822/admin  (페이지 맨 아래 톱니바퀴) — 처음 비밀번호는 data/admin-password.txt
 import { createServer } from "node:http";
-import { readFileSync, writeFileSync, existsSync, mkdirSync, createReadStream, createWriteStream, renameSync, unlinkSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, createReadStream, createWriteStream, renameSync, unlinkSync, statSync } from "node:fs";
+import { reverse as dnsReverse } from "node:dns/promises";
 import { join, dirname, extname, normalize, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes, scryptSync, timingSafeEqual, randomUUID } from "node:crypto";
@@ -16,6 +17,7 @@ const FILES = join(DATA, "files");
 const SITE = join(DATA, "site.json");
 const PW_FILE = join(DATA, "admin-password.txt");
 const AUTH_FILE = join(DATA, "auth.json");
+const LOG = join(DATA, "access-log.jsonl"); // 접속 · 다운로드 기록 (한 줄에 하나)
 const MAX_UPLOAD = (Number(process.env.MAX_UPLOAD_MB) || 2048) * 1024 * 1024; // 기본 2GB
 mkdirSync(FILES, { recursive: true });
 
@@ -41,6 +43,7 @@ const DEFAULT = {
   info: ["자료명 : 현장밀착점검 보고서 (일일현장안전점검)", "담당자 : PT생산실 김민호 매니저", "문의사항이 있으시면 언제든지 연락 부탁드립니다."],
   downloadLabel: "다운로드",
   emptyLabel: "준비 중",
+  askName: true, // 처음 들어올 때 이름을 물어 기록에 남김
 };
 const TEXT_KEYS = ["tab", "brand", "title", "subtitle", "helmet", "clipboard", "greetPre", "greetName", "greetPost", "notice", "sectionTitle", "sectionHint", "infoTitle", "downloadLabel", "emptyLabel"];
 
@@ -85,6 +88,47 @@ function isAdmin(req) {
   return true;
 }
 
+// ── 접속 · 다운로드 기록 ───────────────────────────────────
+const hostCache = new Map(); // IP → PC 이름 (사내 DNS 가 알려 주면)
+async function hostOf(ip) {
+  if (hostCache.has(ip)) return hostCache.get(ip);
+  let name = "";
+  try { name = (await Promise.race([dnsReverse(ip), new Promise((_, j) => setTimeout(() => j(new Error("timeout")), 800))]))[0] ?? ""; } catch { /* 모름 */ }
+  hostCache.set(ip, name);
+  return name;
+}
+const ipOf = (req) => String(req.socket.remoteAddress ?? "").replace(/^::ffff:/, "").replace(/^::1$/, "127.0.0.1");
+/** 브라우저 · 운영체제 짧게 */
+function uaOf(ua = "") {
+  const b = /Edg\//.test(ua) ? "Edge" : /Whale\//.test(ua) ? "Whale" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : /Trident|MSIE/.test(ua) ? "IE" : "기타";
+  const o = /Windows/.test(ua) ? "Windows" : /Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iOS" : /Mac OS/.test(ua) ? "Mac" : /Linux/.test(ua) ? "Linux" : "";
+  return `${b}${o ? ` · ${o}` : ""}${/Mobile/.test(ua) ? " (휴대폰)" : ""}`;
+}
+/** 보는 사람이 적은 이름 (주소의 ?who=) */
+function whoOf(url) {
+  try { const w = JSON.parse(url.searchParams.get("who") ?? "null"); return { name: String(w?.name ?? "").slice(0, 30), dept: String(w?.dept ?? "").slice(0, 40) }; }
+  catch { return { name: "", dept: "" }; }
+}
+async function logEvent(req, url, type, extra = {}) {
+  const ip = ipOf(req);
+  const who = whoOf(url);
+  const row = { at: new Date().toISOString(), type, ...who, ip, host: await hostOf(ip), ua: uaOf(req.headers["user-agent"]), ...extra };
+  appendFileSync(LOG, JSON.stringify(row) + "\n");
+  const label = { visit: "접속", download: "다운로드", admin: "관리자 로그인", adminFail: "관리자 비밀번호 틀림" }[type] ?? type;
+  console.log(`[${new Date(row.at).toLocaleString("ko-KR")}] ${label} — ${row.name || "이름 없음"}${row.dept ? `(${row.dept})` : ""} · ${ip}${row.host ? ` (${row.host})` : ""}${row.file ? ` · ${row.title ?? ""} ${row.file}` : ""}`);
+}
+function readLog() {
+  if (!existsSync(LOG)) return [];
+  return readFileSync(LOG, "utf8").split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+}
+const TYPE_KO = { visit: "접속", download: "다운로드", admin: "관리자 로그인", adminFail: "관리자 비밀번호 틀림" };
+function logCsv(rows) {
+  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = [["시각", "구분", "이름", "소속", "파일", "IP", "PC 이름", "브라우저"].map(q).join(",")];
+  for (const r of rows) lines.push([new Date(r.at).toLocaleString("ko-KR"), TYPE_KO[r.type] ?? r.type, r.name, r.dept, r.file ? `${r.title ?? ""} ${r.file}`.trim() : "", r.ip, r.host, r.ua].map(q).join(","));
+  return "\uFEFF" + lines.join("\r\n");
+}
+
 // ── 응답 도우미 ─────────────────────────────────────────
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".ico": "image/x-icon" };
 const send = (res, code, body, type = "application/json; charset=utf-8", extra = {}) => {
@@ -105,7 +149,7 @@ const fmtSize = (n) => (n >= 1 << 30 ? `${(n / (1 << 30)).toFixed(1)}GB` : n >= 
 function publicSite() {
   return {
     ...Object.fromEntries(TEXT_KEYS.map((k) => [k, site[k]])),
-    columns: site.columns, info: site.info, heroImage: site.heroImage ? `/media/${site.heroImage}` : null,
+    columns: site.columns, askName: site.askName !== false, info: site.info, heroImage: site.heroImage ? `/media/${site.heroImage}` : null,
     cards: site.cards.map((c) => ({ id: c.id, title: c.title, label: c.label, ready: !!c.file, fname: c.file ? `${c.title} ${c.file.name}`.trim() : null, size: c.file ? fmtSize(c.file.size) : null, ext: c.file ? extname(c.file.name).slice(1).toLowerCase() : extname(c.label).slice(1).toLowerCase() })),
   };
 }
@@ -119,6 +163,7 @@ function applyEdit(body) {
   if (Array.isArray(body.info)) site.info = body.info.map((s) => String(s).slice(0, 300)).filter((s) => s.trim()).slice(0, 20);
   const cols = Number(body.columns);
   if (Number.isInteger(cols) && cols >= 1 && cols <= 8) site.columns = cols;
+  if (typeof body.askName === "boolean") site.askName = body.askName;
   if (Array.isArray(body.cards)) {
     const byId = new Map(site.cards.map((c) => [c.id, c]));
     const next = [];
@@ -166,7 +211,10 @@ const server = createServer(async (req, res) => {
   const ip = req.socket.remoteAddress ?? "";
   try {
     // ── 보는 사람 ──
-    if (path === "/api/site" && req.method === "GET") return send(res, 200, publicSite());
+    if (path === "/api/site" && req.method === "GET") {
+      if (url.searchParams.get("log") === "1") logEvent(req, url, "visit").catch(() => {});
+      return send(res, 200, publicSite());
+    }
     const dl = /^\/download\/([a-f0-9-]+)(?:\/.*)?$/.exec(path); // 주소 끝에 파일 이름을 붙여도 됨
     if (dl) {
       const c = site.cards.find((x) => x.id === dl[1]);
@@ -174,6 +222,7 @@ const server = createServer(async (req, res) => {
       const file = join(FILES, c.file.stored);
       if (!existsSync(file)) return send(res, 404, "파일을 찾을 수 없습니다.", "text/plain; charset=utf-8");
       c.downloads = (c.downloads ?? 0) + 1;
+      logEvent(req, url, "download", { title: c.title, file: c.file.name }).catch(() => {});
       saveSite();
       const fname = `${c.title} ${c.file.name}`.trim();
       res.writeHead(200, {
@@ -189,7 +238,8 @@ const server = createServer(async (req, res) => {
       const list = (tries.get(ip) ?? []).filter((t) => Date.now() - t < 10 * 60_000);
       if (list.length >= 10) return send(res, 429, { error: "잠시 뒤 다시 시도하세요. (10분에 10번까지)" });
       const { password } = await readJson(req);
-      if (!verify(password, auth.hash)) { list.push(Date.now()); tries.set(ip, list); return send(res, 401, { error: "비밀번호가 맞지 않습니다." }); }
+      if (!verify(password, auth.hash)) { list.push(Date.now()); tries.set(ip, list); logEvent(req, url, "adminFail").catch(() => {}); return send(res, 401, { error: "비밀번호가 맞지 않습니다." }); }
+      logEvent(req, url, "admin").catch(() => {});
       const t = randomBytes(24).toString("hex");
       sessions.set(t, Date.now() + SESSION_MS);
       return send(res, 200, { ok: true }, undefined, { "Set-Cookie": `pt_admin=${t}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_MS / 1000}` });
@@ -201,6 +251,26 @@ const server = createServer(async (req, res) => {
     if (path.startsWith("/api/admin")) {
       if (!isAdmin(req)) return send(res, 401, { error: "로그인이 필요합니다." });
       if (path === "/api/admin/site" && req.method === "GET") return send(res, 200, adminSite());
+      if (path === "/api/admin/logs" && req.method === "GET") {
+        const all = readLog().reverse(); // 최근 것부터
+        const people = new Map(), files = new Map();
+        for (const r of all) {
+          const key = r.name ? `${r.name}${r.dept ? ` (${r.dept})` : ""}` : `이름 없음 · ${r.ip}`;
+          const p = people.get(key) ?? { who: key, visits: 0, downloads: 0, last: r.at, files: new Set() };
+          if (r.type === "visit") p.visits++;
+          if (r.type === "download") { p.downloads++; p.files.add(r.title ?? r.file); const f = files.get(r.title ?? r.file) ?? { file: `${r.title ?? ""} ${r.file}`.trim(), count: 0, people: new Set() }; f.count++; f.people.add(key); files.set(r.title ?? r.file, f); }
+          if (r.type === "visit" || r.type === "download") people.set(key, p);
+        }
+        return send(res, 200, {
+          total: all.length, rows: all.slice(0, 2000),
+          people: [...people.values()].map((p) => ({ ...p, files: [...p.files] })),
+          files: [...files.values()].map((f) => ({ ...f, people: [...f.people] })),
+        });
+      }
+      if (path === "/api/admin/logs.csv" && req.method === "GET") {
+        res.writeHead(200, { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent("접속·다운로드_기록.csv")}` });
+        return res.end(logCsv(readLog()));
+      }
       if (path === "/api/admin/site" && req.method === "POST") { applyEdit(await readJson(req)); return send(res, 200, adminSite()); }
       if (path === "/api/admin/reset-texts" && req.method === "POST") { for (const k of TEXT_KEYS) site[k] = DEFAULT[k]; site.info = [...DEFAULT.info]; saveSite(); return send(res, 200, adminSite()); }
       const up = /^\/api\/admin\/upload\/([a-f0-9-]+)$/.exec(path);
