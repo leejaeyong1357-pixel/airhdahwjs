@@ -47,11 +47,14 @@ function renderStats(s) {
   $("statsText").innerHTML = richText(s.statsText);
   const sum = [1, 2, 3].map((k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0));
   const h = s.statsHead ?? ["월", "평일 수", "공휴일(미작성)", "취합 완료"];
+  // 취합률 = 취합 완료 ÷ (평일 수 − 공휴일 미작성) — 공휴일은 작성 대상이 아니므로 뺀다
+  const need = Math.max(0, sum[0] - sum[1]);
+  const rate = need ? Math.round(Math.min(1, sum[2] / need) * 1000) / 10 : 0;
   $("statsSum").innerHTML = rows.length ? `
     <div class="sv"><small>${esc(h[1])} 합계</small><b>${sum[0]}<i>일</i></b></div>
     <div class="sv"><small>${esc(h[2])}</small><b>${sum[1]}<i>개</i></b></div>
     <div class="sv on"><small>${esc(h[3])}</small><b>${sum[2]}<i>개</i></b></div>
-    <div class="sv"><small>취합률</small><b>${sum[0] ? Math.round((sum[2] / sum[0]) * 1000) / 10 : 0}<i>%</i></b></div>` : "";
+    <div class="sv"><small>취합률 (공휴일 미작성 제외)</small><b>${rate}<i>% · ${sum[2]} / ${need}</i></b></div>` : "";
   $("statsTable").innerHTML = rows.length ? `
     <thead><tr>${h.map((t) => `<th>${esc(t)}</th>`).join("")}</tr></thead>
     <tbody>${rows.map((r) => `<tr><td>${esc(r[0])}</td><td>${r[1]}</td><td class="${r[2] ? "warn" : ""}">${r[2]}</td><td class="done">${r[3]}</td></tr>`).join("")}</tbody>
