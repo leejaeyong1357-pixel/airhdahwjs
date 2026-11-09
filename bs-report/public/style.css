@@ -99,7 +99,11 @@ button { font: inherit; cursor: pointer; }
 .stats-h { display: flex; gap: 18px; align-items: center; margin-bottom: 16px; }
 .chart { width: 54px; height: 54px; flex: none; }
 .stats-h h2 { margin: 0 0 4px; font-size: 26px; font-weight: 800; letter-spacing: -.4px; }
-.stats-h p { margin: 0; font-size: 18px; line-height: 1.6; white-space: pre-line; color: #2c3546; }
+.stats-h .stxt { margin: 0; font-size: 18px; line-height: 1.6; color: #2c3546; }
+.stats-h .stxt ul { margin: 2px 0 0; padding-left: 22px; display: grid; gap: 4px; }
+.stats-h .stxt li::marker { color: var(--blue); }
+.stats-h .stxt b { color: var(--navy); font-weight: 800; }
+.stats-h { align-items: flex-start; } .stats-h .chart { margin-top: 2px; }
 .stats-sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
 .sv { background: #f4f7fc; border: 1px solid #dfe6f2; border-radius: 12px; padding: 12px 16px; }
 .sv small { display: block; color: var(--sub); font-size: 13.5px; font-weight: 600; }
@@ -117,7 +121,7 @@ button { font: inherit; cursor: pointer; }
 .stats tbody tr:hover td { background: #f7faff; }
 .stats tfoot td { background: #f4f7fc; font-weight: 800; border-top: 2px solid #c7d3e8; border-bottom: 2px solid var(--navy); font-size: 18px; }
 @media (max-width: 760px) {
-  .stats { padding: 16px; } .stats-h h2 { font-size: 20px; } .stats-h p { font-size: 15px; } .chart { width: 40px; height: 40px; }
+  .stats { padding: 16px; } .stats-h h2 { font-size: 20px; } .stats-h .stxt { font-size: 15px; } .chart { width: 40px; height: 40px; }
   .stats-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sv b { font-size: 22px; }
   .stats table { font-size: 14.5px; } .stats th, .stats td { padding: 9px 4px; }
 }

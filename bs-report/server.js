@@ -47,7 +47,7 @@ const DEFAULT = {
   // 취합 현황 (인사말 아래 표)
   statsShow: true,
   statsTitle: "일일점검일지 취합 현황",
-  statsText: "2026년 4월 1일 ~ 10월 30일 기준 153일\n공휴일 미작성 14개, 총 일일점검일지 파일 139개 취합완료",
+  statsText: "- 2026년 4월 1일 ~ 10월 30일 기준 총 일일점검일지 파일 작성 **153개**, 공휴일 미작성 **14개**, 총 **139개** 작성 및 취합완료\n- 이 중 개인작성 **128개**, 연차·반차·출장 등 기타사유 **11개**는 미작성(취합 완료)\n- 기타사유로 인한 미취합 시를 대비하여, Teams 업로드를 통한 취합 완료", // 줄 앞 "- " = 글머리표, **굵게**
   statsHead: ["월", "평일 수", "공휴일(미작성)", "취합 완료"],
   statsRows: [["4월", 22, 0, 22], ["5월", 21, 3, 18], ["6월", 22, 1, 21], ["7월", 23, 0, 23], ["8월", 21, 5, 16], ["9월", 22, 3, 19], ["10월", 22, 2, 20]],
 };
@@ -57,6 +57,8 @@ function loadSite() {
   try { return { ...DEFAULT, ...JSON.parse(readFileSync(SITE, "utf8")) }; } catch { return structuredClone(DEFAULT); }
 }
 let site = loadSite();
+// 예전 기본 문구를 쓰고 있으면 새 문구로 (김소진 매니저 요청 문구)
+if (site.statsText === "2026년 4월 1일 ~ 10월 30일 기준 153일\n공휴일 미작성 14개, 총 일일점검일지 파일 139개 취합완료") site.statsText = DEFAULT.statsText;
 function saveSite() {
   const tmp = `${SITE}.tmp`;
   writeFileSync(tmp, JSON.stringify(site, null, 2));

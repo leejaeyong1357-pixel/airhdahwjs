@@ -272,7 +272,7 @@ function drawTexts(m) {
       <details class="grp" open><summary>③-1 취합 현황 (인사말 아래 표)</summary><div class="body">
         <label class="switch"><input type="checkbox" id="statsShow" ${S.statsShow !== false ? "checked" : ""}><div><b>보는 화면에 보이기</b><small>끄면 이 칸이 숨겨집니다</small></div></label>
         ${fld("statsTitle", "제목")}
-        ${fld("statsText", "안내 문구 (줄 바꿈 그대로 보임)", true)}
+        ${fld("statsText", "안내 문구 — 줄 앞에 “- ” 를 쓰면 글머리표(•), **숫자** 처럼 감싸면 굵게", true)}
         <div class="f"><span>표 머리 (4칸)</span><div class="row4" id="statsHead"></div></div>
         <div class="f"><span>월별 숫자 — 평일 수 · 공휴일을 고치면 취합 완료가 자동으로 계산됩니다 (직접 고쳐도 됨). 합계 · 취합률은 자동</span>
           <div class="srows" id="statsRows"></div></div>

@@ -23,6 +23,20 @@ export function fileIcon(ext) {
   return `<svg viewBox="0 0 40 48" class="fi" aria-hidden="true"><path d="M4 2h22l10 10v32a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2z" fill="#fff" stroke="${c}" stroke-width="2.5"/><path d="M26 2v10h10" fill="none" stroke="${c}" stroke-width="2.5"/><rect x="0" y="16" width="${t.length > 1 ? 30 : 22}" height="20" rx="3" fill="${c}"/><text x="${t.length > 1 ? 15 : 11}" y="31" text-anchor="middle" font-size="${t.length > 1 ? 10 : 14}" font-weight="800" fill="#fff" font-family="Arial,sans-serif">${t}</text></svg>`;
 }
 
+/** 간단한 꾸밈 — 줄 앞 "- " 또는 "• " 는 글머리표, **글자** 는 굵게 */
+function richText(t) {
+  const bold = (x) => esc(x).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+  const lines = String(t ?? "").split("\n");
+  let html = "", inList = false;
+  for (const ln of lines) {
+    const m = /^\s*[-•·]\s+(.*)$/.exec(ln);
+    if (m) { if (!inList) { html += "<ul>"; inList = true; } html += `<li>${bold(m[1])}</li>`; continue; }
+    if (inList) { html += "</ul>"; inList = false; }
+    if (ln.trim()) html += `<div>${bold(ln)}</div>`;
+  }
+  return html + (inList ? "</ul>" : "");
+}
+
 /** 취합 현황 — 안내 문구 + 요약 + 월별 표 (합계는 자동) */
 function renderStats(s) {
   const box = $("stats");
@@ -30,7 +44,7 @@ function renderStats(s) {
   const rows = s.statsRows ?? [];
   box.classList.toggle("hidden", !s.statsShow || (!rows.length && !String(s.statsText ?? "").trim()));
   $("statsTitle").textContent = s.statsTitle ?? "";
-  $("statsText").textContent = s.statsText ?? "";
+  $("statsText").innerHTML = richText(s.statsText);
   const sum = [1, 2, 3].map((k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0));
   const h = s.statsHead ?? ["월", "평일 수", "공휴일(미작성)", "취합 완료"];
   $("statsSum").innerHTML = rows.length ? `
