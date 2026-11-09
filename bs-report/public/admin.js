@@ -25,7 +25,7 @@ const ico = (k, cls = "ico") => `<svg viewBox="0 0 24 24" class="${cls}">${I[k]}
 
 let S = null, saved = "", LOGS = null, view = location.hash.slice(1) || "dash";
 const logFilter = { type: "download", period: "all", q: "" };
-const TEXT_KEYS = ["tab", "brand", "title", "subtitle", "helmet", "clipboard", "greetPre", "greetName", "greetPost", "notice", "sectionTitle", "sectionHint", "infoTitle", "downloadLabel", "emptyLabel"];
+const TEXT_KEYS = ["tab", "brand", "title", "subtitle", "helmet", "clipboard", "greetPre", "greetName", "greetPost", "notice", "sectionTitle", "sectionHint", "infoTitle", "downloadLabel", "emptyLabel", "statsTitle", "statsText"];
 
 // ── 도우미 ──
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("on"), 2400); }
@@ -36,7 +36,7 @@ async function api(path, opt = {}) {
   if (!r.ok) throw new Error(j.error ?? "실패했습니다.");
   return j;
 }
-const snap = () => JSON.stringify({ ...Object.fromEntries(TEXT_KEYS.map((k) => [k, S[k]])), info: S.info, columns: S.columns, askName: S.askName, cards: S.cards.map((c) => [c.id, c.title, c.label]) });
+const snap = () => JSON.stringify({ ...Object.fromEntries(TEXT_KEYS.map((k) => [k, S[k]])), info: S.info, columns: S.columns, askName: S.askName, statsShow: S.statsShow, statsHead: S.statsHead, statsRows: S.statsRows, cards: S.cards.map((c) => [c.id, c.title, c.label]) });
 const isDirty = () => S && snap() !== saved;
 function markSaved() { saved = snap(); updateSavebar(); }
 function updateSavebar() { const b = $("savebar"); if (b) b.classList.toggle("on", isDirty()); }
@@ -241,6 +241,7 @@ const fld = (k, label, area = false) => `<label class="f"><span>${label}</span>$
 function toPublic() {
   return {
     ...Object.fromEntries(TEXT_KEYS.map((k) => [k, S[k]])), columns: S.columns, askName: S.askName !== false, info: S.info.filter((t) => t.trim()),
+    statsShow: S.statsShow !== false, statsHead: S.statsHead, statsRows: S.statsRows,
     heroImage: S.heroImage ? `/media/${S.heroImage}` : null,
     cards: S.cards.map((c) => ({ id: c.id, title: c.title, label: c.label, ready: !!c.file, size: c.file?.sizeText ?? null, ext: extOf(c.file ? c.file.name : c.label), fname: "" })),
   };
@@ -268,6 +269,15 @@ function drawTexts(m) {
         <div class="row2">${fld("downloadLabel", "버튼 글자")}${fld("emptyLabel", "파일 없을 때 버튼")}</div>
         <p style="margin:0;color:var(--sub);font-size:13px">칸 이름 · 순서 · 파일은 [파일 관리]에서 바꿉니다.</p>
       </div></details>
+      <details class="grp" open><summary>③-1 취합 현황 (인사말 아래 표)</summary><div class="body">
+        <label class="switch"><input type="checkbox" id="statsShow" ${S.statsShow !== false ? "checked" : ""}><div><b>보는 화면에 보이기</b><small>끄면 이 칸이 숨겨집니다</small></div></label>
+        ${fld("statsTitle", "제목")}
+        ${fld("statsText", "안내 문구 (줄 바꿈 그대로 보임)", true)}
+        <div class="f"><span>표 머리 (4칸)</span><div class="row4" id="statsHead"></div></div>
+        <div class="f"><span>월별 숫자 — 평일 수 · 공휴일을 고치면 취합 완료가 자동으로 계산됩니다 (직접 고쳐도 됨). 합계 · 취합률은 자동</span>
+          <div class="srows" id="statsRows"></div></div>
+        <div><button class="btn sm" id="addStat" type="button">${ico("plus")}줄 추가</button></div>
+      </div></details>
       <details class="grp" open><summary>④ 아래 안내</summary><div class="body">
         ${fld("infoTitle", "왼쪽 제목")}
         <div class="f"><span>안내 줄</span><div class="lines" id="lines"></div></div>
@@ -277,9 +287,17 @@ function drawTexts(m) {
     <div class="pv"><div class="bar"><div class="dots"><i></i><i></i><i></i></div><b>미리보기</b> · 저장 전 모습</div><div class="frame"><iframe id="pvFrame" src="./?preview=1" title="미리보기"></iframe></div></div>
   </div>`;
   drawLines();
+  drawStats();
   m.querySelector(".form").oninput = (e) => {
     const t = e.target;
-    if (t.dataset.k) S[t.dataset.k] = t.value;
+    if (t.dataset.sh != null) S.statsHead[t.dataset.sh] = t.value;
+    else if (t.dataset.sr != null) {
+      const r = S.statsRows[t.dataset.sr], c = +t.dataset.sc;
+      r[c] = c === 0 ? t.value : Math.max(0, Math.round(Number(t.value) || 0));
+      if (c === 1 || c === 2) { r[3] = Math.max(0, r[1] - r[2]); const d = m.querySelector(`[data-sr="${t.dataset.sr}"][data-sc="3"]`); if (d) d.value = r[3]; }
+      drawStatsSum();
+    }
+    else if (t.dataset.k) S[t.dataset.k] = t.value;
     else if (t.dataset.ln != null) S.info[t.dataset.ln] = t.value;
     else return;
     updateSavebar(); pushPreview();
@@ -293,8 +311,22 @@ function drawTexts(m) {
     if (b.dataset.a === "del") S.info.splice(i, 1);
     drawLines(); updateSavebar(); pushPreview();
   };
+  $("statsShow").onchange = (e) => { S.statsShow = e.target.checked; updateSavebar(); pushPreview(); };
+  $("addStat").onclick = () => { const last = S.statsRows.at(-1); const n = parseInt(last?.[0], 10); S.statsRows.push([Number.isFinite(n) ? `${(n % 12) + 1}월` : "", 0, 0, 0]); drawStats(); updateSavebar(); pushPreview(); };
+  $("statsRows").onclick = (e) => { const b = e.target.closest("button[data-sdel]"); if (!b) return; S.statsRows.splice(+b.dataset.sdel, 1); drawStats(); updateSavebar(); pushPreview(); };
   $("pvFrame").onload = () => { fitPreview(); pushPreview(); };
   fitPreview();
+}
+function drawStats() {
+  $("statsHead").innerHTML = S.statsHead.map((t, i) => `<input data-sh="${i}" value="${esc(t)}">`).join("");
+  $("statsRows").innerHTML = `<div class="sr hd"><span>월</span><span>평일 수</span><span>공휴일(미작성)</span><span>취합 완료</span><span></span></div>` +
+    S.statsRows.map((r, i) => `<div class="sr">${[0, 1, 2, 3].map((c) => `<input data-sr="${i}" data-sc="${c}" ${c ? 'type="number" min="0"' : ""} value="${esc(r[c])}">`).join("")}<button class="iconbtn del" data-sdel="${i}" type="button" title="줄 지우기">${ico("x")}</button></div>`).join("") +
+    `<div class="sr tot" id="statsTot"></div>`;
+  drawStatsSum();
+}
+function drawStatsSum() {
+  const s = [1, 2, 3].map((k) => S.statsRows.reduce((a, r) => a + (Number(r[k]) || 0), 0));
+  const el = $("statsTot"); if (el) el.innerHTML = `<span>합계</span><span>${s[0]}</span><span>${s[1]}</span><span>${s[2]}</span><span></span>`;
 }
 function drawLines() {
   $("lines").innerHTML = S.info.map((t, i) => `<div class="ln"><input data-ln="${i}" value="${esc(t)}" placeholder="안내 문장">

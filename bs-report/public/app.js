@@ -23,6 +23,27 @@ export function fileIcon(ext) {
   return `<svg viewBox="0 0 40 48" class="fi" aria-hidden="true"><path d="M4 2h22l10 10v32a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2z" fill="#fff" stroke="${c}" stroke-width="2.5"/><path d="M26 2v10h10" fill="none" stroke="${c}" stroke-width="2.5"/><rect x="0" y="16" width="${t.length > 1 ? 30 : 22}" height="20" rx="3" fill="${c}"/><text x="${t.length > 1 ? 15 : 11}" y="31" text-anchor="middle" font-size="${t.length > 1 ? 10 : 14}" font-weight="800" fill="#fff" font-family="Arial,sans-serif">${t}</text></svg>`;
 }
 
+/** 취합 현황 — 안내 문구 + 요약 + 월별 표 (합계는 자동) */
+function renderStats(s) {
+  const box = $("stats");
+  if (!box) return;
+  const rows = s.statsRows ?? [];
+  box.classList.toggle("hidden", !s.statsShow || (!rows.length && !String(s.statsText ?? "").trim()));
+  $("statsTitle").textContent = s.statsTitle ?? "";
+  $("statsText").textContent = s.statsText ?? "";
+  const sum = [1, 2, 3].map((k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0));
+  const h = s.statsHead ?? ["월", "평일 수", "공휴일(미작성)", "취합 완료"];
+  $("statsSum").innerHTML = rows.length ? `
+    <div class="sv"><small>${esc(h[1])} 합계</small><b>${sum[0]}<i>일</i></b></div>
+    <div class="sv"><small>${esc(h[2])}</small><b>${sum[1]}<i>개</i></b></div>
+    <div class="sv on"><small>${esc(h[3])}</small><b>${sum[2]}<i>개</i></b></div>
+    <div class="sv"><small>취합률</small><b>${sum[0] ? Math.round((sum[2] / sum[0]) * 1000) / 10 : 0}<i>%</i></b></div>` : "";
+  $("statsTable").innerHTML = rows.length ? `
+    <thead><tr>${h.map((t) => `<th>${esc(t)}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map((r) => `<tr><td>${esc(r[0])}</td><td>${r[1]}</td><td class="${r[2] ? "warn" : ""}">${r[2]}</td><td class="done">${r[3]}</td></tr>`).join("")}</tbody>
+    <tfoot><tr><td>합계</td><td>${sum[0]}</td><td>${sum[1]}</td><td>${sum[2]}</td></tr></tfoot>` : "";
+}
+
 export function render(s, { preview = false } = {}) {
   document.title = s.tab;
   for (const k of ["brand", "title", "subtitle", "greetPre", "greetName", "greetPost", "notice", "sectionTitle", "sectionHint", "infoTitle"]) if ($(k)) $(k).textContent = s[k];
@@ -44,6 +65,7 @@ export function render(s, { preview = false } = {}) {
         : `<span class="dl off">${esc(s.emptyLabel)}</span><small class="sz">&nbsp;</small>`}
     </div>`).join("");
   $("info").innerHTML = s.info.map((t) => `<li>${esc(t)}</li>`).join("");
+  renderStats(s);
 }
 
 /** 이름 묻는 창 — 다운로드 기록에 누가 받았는지 남기려고 */

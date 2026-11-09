@@ -93,3 +93,31 @@ button { font: inherit; cursor: pointer; }
 .who-chip { position: fixed; left: 18px; bottom: 16px; display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 7px 8px 7px 16px; font-size: 13.5px; color: #39445a; box-shadow: 0 4px 14px rgba(22, 52, 108, .1); }
 .who-chip button { border: 0; background: #eef2f8; color: var(--blue); border-radius: 999px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; }
 @media (max-width: 760px) { .who-chip { left: 10px; bottom: 10px; font-size: 12.5px; } }
+
+/* 취합 현황 */
+.stats { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 22px 30px 24px; box-shadow: 0 6px 22px rgba(22, 52, 108, .06); }
+.stats-h { display: flex; gap: 18px; align-items: center; margin-bottom: 16px; }
+.chart { width: 54px; height: 54px; flex: none; }
+.stats-h h2 { margin: 0 0 4px; font-size: 26px; font-weight: 800; letter-spacing: -.4px; }
+.stats-h p { margin: 0; font-size: 18px; line-height: 1.6; white-space: pre-line; color: #2c3546; }
+.stats-sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.sv { background: #f4f7fc; border: 1px solid #dfe6f2; border-radius: 12px; padding: 12px 16px; }
+.sv small { display: block; color: var(--sub); font-size: 13.5px; font-weight: 600; }
+.sv b { font-size: 28px; font-weight: 800; letter-spacing: -.5px; color: var(--navy); }
+.sv b i { font-style: normal; font-size: 15px; color: var(--sub); margin-left: 2px; font-weight: 600; }
+.sv.on { background: linear-gradient(180deg, #2c62db, #1b47b8); border-color: #1b47b8; }
+.sv.on small, .sv.on b, .sv.on b i { color: #fff; }
+.stats-tbl { overflow-x: auto; }
+.stats table { width: 100%; border-collapse: collapse; font-size: 17px; text-align: center; }
+.stats th { background: #eef3fb; color: #1b2b4a; font-weight: 800; padding: 12px 10px; border-top: 2px solid var(--navy); border-bottom: 1px solid #cfdaee; }
+.stats td { padding: 11px 10px; border-bottom: 1px solid #e6ebf3; }
+.stats td:first-child { font-weight: 700; }
+.stats td.warn { color: #c2410c; font-weight: 700; }
+.stats td.done { color: var(--blue); font-weight: 800; }
+.stats tbody tr:hover td { background: #f7faff; }
+.stats tfoot td { background: #f4f7fc; font-weight: 800; border-top: 2px solid #c7d3e8; border-bottom: 2px solid var(--navy); font-size: 18px; }
+@media (max-width: 760px) {
+  .stats { padding: 16px; } .stats-h h2 { font-size: 20px; } .stats-h p { font-size: 15px; } .chart { width: 40px; height: 40px; }
+  .stats-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sv b { font-size: 22px; }
+  .stats table { font-size: 14.5px; } .stats th, .stats td { padding: 9px 4px; }
+}

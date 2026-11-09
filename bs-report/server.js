@@ -44,8 +44,14 @@ const DEFAULT = {
   downloadLabel: "다운로드",
   emptyLabel: "준비 중",
   askName: true, // 처음 들어올 때 이름을 물어 기록에 남김
+  // 취합 현황 (인사말 아래 표)
+  statsShow: true,
+  statsTitle: "일일점검일지 취합 현황",
+  statsText: "2026년 4월 1일 ~ 10월 30일 기준 153일\n공휴일 미작성 14개, 총 일일점검일지 파일 139개 취합완료",
+  statsHead: ["월", "평일 수", "공휴일(미작성)", "취합 완료"],
+  statsRows: [["4월", 22, 0, 22], ["5월", 21, 3, 18], ["6월", 22, 1, 21], ["7월", 23, 0, 23], ["8월", 21, 5, 16], ["9월", 22, 3, 19], ["10월", 22, 2, 20]],
 };
-const TEXT_KEYS = ["tab", "brand", "title", "subtitle", "helmet", "clipboard", "greetPre", "greetName", "greetPost", "notice", "sectionTitle", "sectionHint", "infoTitle", "downloadLabel", "emptyLabel"];
+const TEXT_KEYS = ["tab", "brand", "title", "subtitle", "helmet", "clipboard", "greetPre", "greetName", "greetPost", "notice", "sectionTitle", "sectionHint", "infoTitle", "downloadLabel", "emptyLabel", "statsTitle", "statsText"];
 
 function loadSite() {
   try { return { ...DEFAULT, ...JSON.parse(readFileSync(SITE, "utf8")) }; } catch { return structuredClone(DEFAULT); }
@@ -149,7 +155,8 @@ const fmtSize = (n) => (n >= 1 << 30 ? `${(n / (1 << 30)).toFixed(1)}GB` : n >= 
 function publicSite() {
   return {
     ...Object.fromEntries(TEXT_KEYS.map((k) => [k, site[k]])),
-    columns: site.columns, askName: site.askName !== false, info: site.info, heroImage: site.heroImage ? `/media/${site.heroImage}` : null,
+    columns: site.columns, askName: site.askName !== false, info: site.info,
+    statsShow: site.statsShow !== false, statsHead: site.statsHead, statsRows: site.statsRows, heroImage: site.heroImage ? `/media/${site.heroImage}` : null,
     cards: site.cards.map((c) => ({ id: c.id, title: c.title, label: c.label, ready: !!c.file, fname: c.file ? `${c.title} ${c.file.name}`.trim() : null, size: c.file ? fmtSize(c.file.size) : null, ext: c.file ? extname(c.file.name).slice(1).toLowerCase() : extname(c.label).slice(1).toLowerCase() })),
   };
 }
@@ -164,6 +171,12 @@ function applyEdit(body) {
   const cols = Number(body.columns);
   if (Number.isInteger(cols) && cols >= 1 && cols <= 8) site.columns = cols;
   if (typeof body.askName === "boolean") site.askName = body.askName;
+  if (typeof body.statsShow === "boolean") site.statsShow = body.statsShow;
+  if (Array.isArray(body.statsHead) && body.statsHead.length === 4) site.statsHead = body.statsHead.map((s) => String(s ?? "").slice(0, 30));
+  if (Array.isArray(body.statsRows)) {
+    const num = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0; };
+    site.statsRows = body.statsRows.slice(0, 36).filter((r) => Array.isArray(r)).map((r) => [String(r[0] ?? "").slice(0, 20), num(r[1]), num(r[2]), num(r[3])]);
+  }
   if (Array.isArray(body.cards)) {
     const byId = new Map(site.cards.map((c) => [c.id, c]));
     const next = [];
@@ -272,7 +285,7 @@ const server = createServer(async (req, res) => {
         return res.end(logCsv(readLog()));
       }
       if (path === "/api/admin/site" && req.method === "POST") { applyEdit(await readJson(req)); return send(res, 200, adminSite()); }
-      if (path === "/api/admin/reset-texts" && req.method === "POST") { for (const k of TEXT_KEYS) site[k] = DEFAULT[k]; site.info = [...DEFAULT.info]; saveSite(); return send(res, 200, adminSite()); }
+      if (path === "/api/admin/reset-texts" && req.method === "POST") { for (const k of TEXT_KEYS) site[k] = DEFAULT[k]; site.info = [...DEFAULT.info]; site.statsShow = DEFAULT.statsShow; site.statsHead = [...DEFAULT.statsHead]; site.statsRows = DEFAULT.statsRows.map((r) => [...r]); saveSite(); return send(res, 200, adminSite()); }
       const up = /^\/api\/admin\/upload\/([a-f0-9-]+)$/.exec(path);
       if (up && req.method === "PUT") {
         const c = site.cards.find((x) => x.id === up[1]);

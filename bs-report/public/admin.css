@@ -211,3 +211,13 @@ a { color: inherit; }
 .fc .tt { width: 0; }
 .fbox .fn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fbox .acts .btn { min-width: 0; }
+
+/* 취합 현황 표 편집 */
+.row4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.row4 input, .sr input { border: 1px solid #d0d8e6; border-radius: 8px; padding: 7px 8px; background: #fff; min-width: 0; width: 100%; font-size: 14px; }
+.srows { display: grid; gap: 5px; }
+.sr { display: grid; grid-template-columns: 1fr 1fr 1.2fr 1fr 34px; gap: 6px; align-items: center; }
+.sr.hd span { font-size: 12px; color: var(--sub); font-weight: 700; padding-left: 4px; }
+.sr.tot { border-top: 1px solid var(--line); padding-top: 6px; font-weight: 800; }
+.sr.tot span { padding-left: 9px; }
+.sr input:focus, .row4 input:focus { outline: 2px solid #c9d8ff; border-color: var(--blue); }
