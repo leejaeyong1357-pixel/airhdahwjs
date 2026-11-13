@@ -1,0 +1,7 @@
+{
+  "name": "teczen-edu-survey",
+  "private": true,
+  "type": "module",
+  "description": "26년도 교육 만족도 조사 — 설문 페이지 (포트 2821)",
+  "scripts": { "start": "node server.js" }
+}

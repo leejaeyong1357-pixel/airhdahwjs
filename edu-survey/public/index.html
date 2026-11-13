@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>26년도 교육 만족도 조사 · TECZEN</title>
+  <link rel="icon" href="logo-mark.svg" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-in">
+      <img class="logo" src="teczen-logo-white.png" alt="TECZEN" />
+      <p class="eyebrow">TECZEN 사내 교육 프로그램</p>
+      <h1>26년도 교육 만족도 조사</h1>
+      <p class="lead">교육 운영 품질 향상과 교육 효과 분석을 위한 설문입니다.<br />바쁘시더라도 성실한 응답 부탁드립니다. <span class="pill">소요시간 약 1분</span></p>
+    </div>
+  </header>
+
+  <main class="card" id="app">
+    <div class="status">
+      <div class="st-time"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg> 예상 소요시간 <b>약 1분</b></div>
+      <div class="st-prog">
+        <span>진행률</span>
+        <div class="bar"><i id="barFill"></i></div>
+        <span class="frac"><b id="done">0</b> / <span id="total">10</span>문항 (<span id="pct">0</span>%)</span>
+      </div>
+    </div>
+
+    <div id="pages"></div>
+
+    <div class="foot" id="foot">
+      <span class="foot-note">모든 문항에 답한 뒤 제출해 주세요.</span>
+      <button class="btn primary" id="nextBtn" type="button">제출하기 <svg viewBox="0 0 24 24" class="ico"><path d="M5 12l5 5L20 7" /></svg></button>
+    </div>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
