@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'" />
+  <title>AX 버디</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 말풍선 (알림 · 변환 선택 · 진행 막대) -->
+  <div id="bubble" class="solid hidden">
+    <button id="bubbleX" class="bx" title="닫기">✕</button>
+    <div id="bubbleText"></div>
+    <div id="bar" class="hidden"><div class="track"><i id="barFill"></i></div><b id="barPct">0%</b></div>
+    <div id="bubbleBtns"></div>
+  </div>
+
+  <!-- 대화 · 일정 · 설정 창 -->
+  <div id="panel" class="solid hidden">
+    <div class="ph">
+      <div class="tabs"><button data-tab="chat" class="on">대화</button><button data-tab="schedule">일정</button><button data-tab="settings">설정</button></div>
+      <button id="panelX" class="bx" title="닫기">✕</button>
+    </div>
+    <div class="tab" id="tab-chat">
+      <div id="msgs"></div>
+      <form id="chatForm"><input id="chatIn" placeholder="예: 오늘 11시에 회의" autocomplete="off" maxlength="2000" /><button type="submit">보내기</button></form>
+    </div>
+    <div class="tab hidden" id="tab-schedule"><div id="evList"></div><p class="tip">대화창에 “내일 오후 2시 반 주간회의”처럼 말하면 등록돼요. 10분 전에 알려드려요.</p></div>
+    <div class="tab hidden" id="tab-settings"></div>
+  </div>
+
+  <!-- 캐릭터 -->
+  <div id="charBox" class="solid" data-mood="idle" title="눌러서 대화 · 끌어서 이동 · 파일을 끌어다 주면 먹어요">
+    <svg id="bot" viewBox="0 0 200 212" aria-label="AX 버디">
+      <defs>
+        <linearGradient id="hd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" /><stop offset="1" stop-color="#d5deec" /></linearGradient>
+        <linearGradient id="jk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#24378a" /><stop offset="1" stop-color="#16225c" /></linearGradient>
+        <radialGradient id="gl"><stop offset="0" stop-color="#c8fbff" /><stop offset="1" stop-color="#4fd8f0" /></radialGradient>
+      </defs>
+      <ellipse class="shadow" cx="100" cy="203" rx="54" ry="7" />
+      <g class="all">
+        <line x1="100" y1="32" x2="100" y2="13" stroke="#aebbd2" stroke-width="4" stroke-linecap="round" />
+        <circle class="ant" cx="100" cy="10" r="7" fill="url(#gl)" />
+        <g class="arm l"><ellipse cx="40" cy="142" rx="12" ry="21" fill="url(#jk)" /><circle cx="38" cy="163" r="9" fill="#eef2f8" /></g>
+        <g class="arm r"><ellipse cx="160" cy="142" rx="12" ry="21" fill="url(#jk)" /><circle cx="162" cy="163" r="9" fill="#eef2f8" /></g>
+        <ellipse cx="80" cy="196" rx="17" ry="9" fill="#cdd6e6" /><ellipse cx="120" cy="196" rx="17" ry="9" fill="#cdd6e6" />
+        <path d="M54 120 Q100 104 146 120 L151 178 Q100 197 49 178 Z" fill="url(#jk)" />
+        <path d="M70 116 Q100 132 130 116" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" />
+        <line x1="100" y1="126" x2="100" y2="186" stroke="#c9d2e6" stroke-width="2.5" />
+        <rect x="110" y="140" width="26" height="13" rx="3" fill="#fff" opacity=".95" /><text x="123" y="150.5" text-anchor="middle" font-size="10" font-weight="800" fill="#1b2a6b" font-family="Arial,sans-serif">AX</text>
+        <g class="head">
+          <rect x="38" y="28" width="124" height="98" rx="40" fill="url(#hd)" stroke="#c3cee0" stroke-width="1.5" />
+          <rect x="52" y="43" width="96" height="66" rx="26" fill="#101c42" />
+          <!-- 눈 -->
+          <g class="e e-normal"><ellipse class="eye" cx="80" cy="68" rx="7" ry="9.5" fill="url(#gl)" /><ellipse class="eye" cx="120" cy="68" rx="7" ry="9.5" fill="url(#gl)" /></g>
+          <g class="e e-happy" fill="none" stroke="#7af0ff" stroke-width="4.5" stroke-linecap="round"><path d="M72 71 Q80 60 88 71" /><path d="M112 71 Q120 60 128 71" /></g>
+          <g class="e e-worry"><ellipse cx="80" cy="69" rx="6" ry="7" fill="url(#gl)" /><ellipse cx="120" cy="69" rx="6" ry="7" fill="url(#gl)" /><path d="M71 61 L88 56 M129 61 L112 56" stroke="#7af0ff" stroke-width="3" stroke-linecap="round" /></g>
+          <g class="e e-sleep" fill="none" stroke="#7af0ff" stroke-width="4" stroke-linecap="round"><path d="M73 69 H88 M112 69 H127" /></g>
+          <g class="e e-wide"><circle cx="80" cy="67" r="9" fill="url(#gl)" /><circle cx="120" cy="67" r="9" fill="url(#gl)" /><circle cx="82" cy="65" r="3" fill="#fff" /><circle cx="122" cy="65" r="3" fill="#fff" /></g>
+          <!-- 입 -->
+          <path class="m m-smile" d="M90 87 Q100 96 110 87" fill="none" stroke="#7af0ff" stroke-width="4" stroke-linecap="round" />
+          <ellipse class="m m-talk" cx="100" cy="90" rx="7" ry="5" fill="#7af0ff" />
+          <g class="m m-open"><ellipse cx="100" cy="91" rx="19" ry="14" fill="#ff8fa3" stroke="#7af0ff" stroke-width="3" /><ellipse cx="100" cy="97" rx="10" ry="5" fill="#ff5d78" /></g>
+          <g class="m m-chew"><ellipse class="jaw" cx="100" cy="90" rx="15" ry="7" fill="#7af0ff" /><circle class="cheek" cx="70" cy="90" r="7" fill="#7af0ff" opacity=".35" /><circle class="cheek" cx="130" cy="90" r="7" fill="#7af0ff" opacity=".35" /></g>
+          <circle class="m m-spit" cx="100" cy="90" r="9" fill="#ff8fa3" stroke="#7af0ff" stroke-width="3" />
+          <path class="m m-flat" d="M92 92 Q100 86 108 92" fill="none" stroke="#7af0ff" stroke-width="4" stroke-linecap="round" />
+          <ellipse cx="60" cy="100" rx="8" ry="5" fill="#ffb3c1" opacity=".7" /><ellipse cx="140" cy="100" rx="8" ry="5" fill="#ffb3c1" opacity=".7" />
+        </g>
+        <path class="sweat" d="M166 44 q7 11 0 16 q-7 -5 0 -16z" fill="#7fd6ff" />
+        <text class="zzz" x="150" y="30" font-size="18" font-weight="800" fill="#8fb4ff" font-family="Arial,sans-serif">z<tspan dx="2" dy="-9" font-size="13">z</tspan></text>
+      </g>
+    </svg>
+  </div>
+  <div id="tools" class="solid">
+    <button data-open="chat" title="대화">💬</button>
+    <button data-open="schedule" title="일정">📅</button>
+    <button data-open="settings" title="설정">⚙</button>
+    <button id="hideBtn" title="숨기기 (작업 표시줄 오른쪽 아이콘으로 다시 열기)">➖</button>
+  </div>
+
+  <!-- 처음 실행 -->
+  <div id="setup" class="solid hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>
