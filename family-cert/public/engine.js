@@ -1,7 +1,8 @@
 // 파일 읽기 엔진: PDF/그림 → (글자 그대로 꺼내기 | 스캔 글자 인식) → 사람 줄
 // 모든 처리는 이 브라우저 안에서만 한다. 어디로도 보내지 않는다.
 import * as pdfjs from "/vendor/pdfjs/build/pdf.min.mjs";
-import { RELS, tokensToLines, parseTextPage, pageInfo, normRel, parseBirth, parseRrn, parseSex, parseNameCell, parseLine, rrnChecksumOk, voteName } from "./parse.js";
+import { RELS, tokensToLines, parseTextPage, pageInfo, normRel, parseBirth, parseRrn, parseSex, parseNameCell, parseLine, voteName, pickNumbers } from "./parse.js";
+import { ppRead } from "./pprec.js";
 import { toGray, binarize, lineMasks, estimateSkew, findRows, eraseLines, inkRatio, inkBox, looksMasked, tableSpan } from "./image.js";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/build/pdf.worker.min.mjs";
@@ -85,6 +86,12 @@ function tiled(c, n = 3) {
   for (let i = 0; i < n; i++) x.drawImage(c, i * c.width, 0);
   return t;
 }
+// 쪽 전체 그림 (H Chat에 보내거나 검수 화면에 보여 줄 것). 긴 변 2000점 이하 JPEG
+function pageUrl(src, maxLong = 2000) {
+  const k = Math.min(1, maxLong / Math.max(src.width, src.height)), c = newCanvas(src.width * k, src.height * k), x = c.getContext("2d");
+  x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.imageSmoothingQuality = "high"; x.drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.9);
+}
 function cropUrl(src, x0, y0, x1, y1, maxW = 1000) {
   x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(src.width, Math.ceil(x1)); y1 = Math.min(src.height, Math.ceil(y1));
   const w = x1 - x0, h = y1 - y0; if (w < 4 || h < 4) return "";
@@ -101,10 +108,6 @@ async function analyze(canvas) {
   const { hm, vm } = lineMasks(bin, w, h, Math.round(w * 0.04), Math.round(w * 0.036));
   return { canvas, w, h, gray, bin, hm, vm };
 }
-
-// 생년월일과 주민번호가 서로 맞물리는지 (앞 6자리 일치 + 검증번호). 맞물리면 둘 다 제대로 읽은 것으로 본다.
-const checkable = (birth, rrn) => /^\d{6}-\d{7}$/.test(rrn || "") && "1234".includes(rrn[7]) && (birth || "") < "2020-10-01"; // 검증번호로 확인되는 번호인가
-const consistent = (birth, rrn) => !!birth && /^\d{6}-[\d*]{7}$/.test(rrn || "") && birth.slice(2).replace(/-/g, "") === rrn.slice(0, 6) && (!checkable(birth, rrn) || rrnChecksumOk(rrn) === true);
 
 // 크기 맞추기: 그림 안에서 표를 찾아, 표 너비가 A4 300dpi 원본(약 2080점)과 같아지도록 그 둘레만 잘라 키운다.
 // 화면 캡처처럼 표가 그림의 일부이고 글자가 작은 경우를 위한 것. 표를 못 찾으면 null.
@@ -200,8 +203,15 @@ async function ocrPage(srcCanvas) {
       if (it.box[0] && !it.rel) { it.rel = normRel(lastText); it.relWarn = true; }
     }
     const rows = items.filter(it => it.rel !== "구분" && (it.box[1] || it.box[2] || it.box[3]));
+    // 숫자 칸은 세 가지로 읽는다: 기존 엔진(흑백 그림) · 기존 엔진(회색 그림) · 두 번째 엔진(PaddleOCR 인식 모델)
+    const G = b => grayCanvas(gray, bin, clean, w, b, 16, 1);
+    const P = async b => { const r = await ppRead(G(b)); return r ? r.text : ""; };
     for (const it of rows) if (it.box[2]) it.t.birthA = (await ocr(wk, A(it.box[2]), 7, "0123456789년월일")).text;
+    for (const it of rows) if (it.box[2]) it.t.birthB = (await ocr(wk, B(it.box[2]), 7, "0123456789년월일")).text;
     for (const it of rows) if (it.box[3]) it.t.rrnA = (await ocr(wk, A(it.box[3]), 7, "0123456789-*")).text;
+    for (const it of rows) if (it.box[3]) it.t.rrnB = (await ocr(wk, B(it.box[3]), 7, "0123456789-*")).text;
+    for (const it of rows) { it.t.birthP = it.box[2] ? await P(it.box[2]) : ""; it.t.rrnP = it.box[3] ? await P(it.box[3]) : ""; }
+    if (window.__fcDebug) for (const it of rows) window.__fcDebug.push({ nums: { ...it.t } });
     for (const it of rows) { it.t.sex = it.box[4] ? await short(it.box[4], "남여", t => { const k = String(t || "").replace(/[^남여]/g, ""); return k && new Set(k).size === 1 ? k[0] : ""; }) : ""; it.sexWarn = !!it.box[4] && !it.t.sex; }
     for (const it of rows) {
       it.names = [];
@@ -211,32 +221,22 @@ async function ocrPage(srcCanvas) {
     const out = [];
     for (const it of rows) {
       const warn = [];
-      const masked = it.box[3] ? looksMasked(clean, w, it.box[3]) : false;
-      let birth = parseBirth(it.t.birthA, true), rr = parseRrn(it.t.rrnA, masked), rrn = rr.value;
-      // 숫자 다시 읽기: 생년월일↔주민번호가 서로 안 맞거나, 대조할 짝이 없을 때
-      if ((it.box[2] || it.box[3]) && !consistent(birth, rrn)) {
-        const birthB = it.box[2] ? parseBirth((await ocr(wk, B(it.box[2]), 7, "0123456789년월일")).text, true) : "";
-        const rrB = it.box[3] ? parseRrn((await ocr(wk, B(it.box[3]), 7, "0123456789-*")).text, masked) : { value: "", odd: false };
-        const pick = [[birth, rrn], [birthB, rrn], [birth, rrB.value], [birthB, rrB.value]].find(([b, r]) => consistent(b, r));
-        if (pick) { [birth, rrn] = pick; if (rrn === rrB.value) rr = rrB; }
-        else {
-          if (it.box[2] && birthB !== birth) { warn.push("생년월일을 두 번 읽은 값이 다름"); birth = birth || birthB; }
-          if (it.box[3] && rrB.value !== rrn) { warn.push("주민번호를 두 번 읽은 값이 다름"); if (!rrn || (rr.odd && !rrB.odd)) { rrn = rrB.value; rr = rrB; } }
-        }
-      }
-      // 검증번호로 확인할 수 없는 번호(가려진 번호·2020.10 이후 출생·외국인)는 뒷자리를 한 번 더 읽어 견준다
-      if (it.box[3] && /^\d{6}-[\d*]{7}$/.test(rrn) && !checkable(birth, rrn) && !warn.length) {
-        const again = parseRrn((await ocr(wk, B(it.box[3]), 7, "0123456789-*")).text, masked).value;
-        if (again !== rrn) warn.push("주민번호 뒷자리를 두 번 읽은 값이 다름"); // (숫자는 비고에 적지 않는다 — 가리기 옵션과 무관하게 새지 않도록)
-      }
+      const stars = (String(it.t.rrnP || "").match(/[*＊]/g) || []).length;
+      const masked = it.box[3] ? looksMasked(clean, w, it.box[3]) || stars >= 3 : false;
+      const pBirth = t => { const d = String(t || "").replace(/\D/g, ""); return d.length === 8 ? parseBirth(`${d.slice(0, 4)}년 ${d.slice(4, 6)}월 ${d.slice(6)}일`) : ""; };
+      const pk = pickNumbers(
+        [parseBirth(it.t.birthA, true), pBirth(it.t.birthP), parseBirth(it.t.birthB, true)],
+        [it.t.rrnA, String(it.t.rrnP || "").replace(/[^\d*＊xX×\-–—~]/g, ""), it.t.rrnB].map(t => parseRrn(t, masked).value),
+        ["기존 엔진", "두 번째 엔진", "기존 엔진"]);
+      const birth = pk.birth, rrn = pk.rrn;
+      warn.push(...pk.warn); // (숫자 자체는 경고 문구에 적지 않는다 — 가리기 옵션과 무관하게 새지 않도록)
+      if (it.box[3] && !rrn) warn.push("주민번호를 읽지 못함");
+      else if (rrn && !pk.sure && !birth && it.box[2]) warn.push("출생일 칸을 못 읽어 주민번호를 대조하지 못함");
       // 뒷자리 첫 숫자가 5~8(외국인)인데 본(本) 칸에 글자가 있으면 1~4를 잘못 읽었을 수 있다
       if (/^\d{6}-[5-8]/.test(rrn) && it.box[5]) warn.push("외국인 번호(뒷자리 첫 숫자)인데 본이 있음");
       if (it.band.est) warn.push("표 선이 흐려 줄 위치를 추정함");
       if (it.relWarn) warn.push("구분 글자가 흐림");
       if (it.sexWarn) warn.push("성별을 읽지 못함");
-      if (it.box[2] && !birth) warn.push("생년월일을 읽지 못함");
-      if (it.box[3] && !rrn) warn.push("주민번호를 읽지 못함");
-      if (rr.odd) warn.push("주민번호 자릿수");
       const v = voteName(it.names);
       if (it.box[1] && v.agree !== "all") warn.push(`이름을 읽을 때마다 다름(${v.seen.join(" / ")})`);
       if (v.deadSplit) warn.push("사망 표시 확인");
@@ -302,7 +302,7 @@ async function renderPage(page, scale) {
   return { canvas: c, vp };
 }
 
-async function readPdfPage(page, mode) {
+async function readPdfPage(page, mode, keepImg) {
   const base = page.getViewport({ scale: 1 });
   if (mode !== "ocr") {
     const tc = await page.getTextContent();
@@ -336,13 +336,14 @@ async function readPdfPage(page, mode) {
       else canvas = fitToTable(canvas, sp);
     } else if (f < 0.8) canvas = fitToTable(canvas, sp);
   }
-  return { ...(await ocrPage(canvas)), src: "ocr" };
+  return { ...(await ocrPage(canvas)), src: "ocr", img: keepImg ? pageUrl(canvas) : "" };
 }
 
 // ───────── 바깥에서 부르는 함수
 // file → { pages: [{ file, page, src, kind, rows, pageWarn }], total, skipped, error }
-export async function readFile(file, mode, onProgress = () => {}) {
-  const name = file.name, out = { pages: [], total: 0, skipped: 0, error: "" };
+// keepImg: 스캔 방식으로 읽은 쪽의 그림도 돌려준다 (H Chat 판독용). others = 이 PC에서는 증명서를 못 찾은 스캔 쪽들
+export async function readFile(file, mode, onProgress = () => {}, keepImg = false) {
+  const name = file.name, out = { pages: [], others: [], total: 0, skipped: 0, error: "" };
   const isPdf = /\.pdf$/i.test(name) || file.type === "application/pdf";
   try {
     if (!isPdf) {
@@ -358,8 +359,9 @@ export async function readFile(file, mode, onProgress = () => {}) {
         x.imageSmoothingQuality = "high"; x.drawImage(raw, 0, 0, c.width, c.height);
       }
       out.total = 1; onProgress(0, 1);
-      const r = await ocrPage(c);
-      if (r.isCert) out.pages.push({ file: name, page: 1, src: "ocr", kind: r.kind, rows: r.rows, pageWarn: r.pageWarn || "" }); else out.skipped++;
+      const r = await ocrPage(c), img = keepImg ? pageUrl(c) : "";
+      if (r.isCert) out.pages.push({ file: name, page: 1, src: "ocr", kind: r.kind, rows: r.rows, pageWarn: r.pageWarn || "", img });
+      else { out.skipped++; if (img) out.others.push({ file: name, page: 1, img }); }
       onProgress(1, 1);
       return out;
     }
@@ -380,7 +382,7 @@ export async function readFile(file, mode, onProgress = () => {}) {
         const n = next++;
         try {
           const page = await doc.getPage(n);
-          results[n - 1] = await readPdfPage(page, mode);
+          results[n - 1] = await readPdfPage(page, mode, keepImg);
           page.cleanup();
         } catch (e) { console.error(e); results[n - 1] = { isCert: false, rows: [], failed: true }; }
         onProgress(++done, out.total);
@@ -388,8 +390,8 @@ export async function readFile(file, mode, onProgress = () => {}) {
     };
     await Promise.all(Array.from({ length: Math.min(getPool().max, doc.numPages) }, runner));
     results.forEach((r, i) => {
-      if (r?.isCert && r.rows.length) out.pages.push({ file: name, page: i + 1, src: r.src, kind: r.kind, rows: r.rows, pageWarn: r.pageWarn || "" });
-      else out.skipped++;
+      if (r?.isCert && r.rows.length) out.pages.push({ file: name, page: i + 1, src: r.src, kind: r.kind, rows: r.rows, pageWarn: r.pageWarn || "", img: r.img || "" });
+      else { out.skipped++; if (r?.src === "ocr" && r.img) out.others.push({ file: name, page: i + 1, img: r.img }); }
       if (r?.failed) out.failedPages = (out.failedPages || 0) + 1;
     });
     await doc.destroy();

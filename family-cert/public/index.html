@@ -48,28 +48,35 @@
           <label><input type="checkbox" class="rel" value="모" checked /> 모</label>
           <label><input type="checkbox" class="rel" value="배우자" checked /> 배우자</label>
           <label><input type="checkbox" class="rel" value="자녀" checked /> 자녀</label>
-          <label class="sep"><input type="checkbox" id="hanja" /> 한자·본 칸 <small>글자 PDF만 채워짐</small></label>
+          <label class="sep"><input type="checkbox" id="birthCol" /> 생년월일 칸</label>
+          <label><input type="checkbox" id="hanja" /> 한자·본 칸 <small>글자 PDF·H Chat만 채워짐</small></label>
         </fieldset>
       </div>
 
       <details id="hc" class="hc">
-        <summary><b>H Chat 보조 판독</b> <span id="hcState" class="hcstate off">꺼짐</span> <small>스캔·캡처 그림에서 흐린 줄을 사내 AI가 한 번 더 읽어 줍니다 (선택 · 토큰 사용)</small></summary>
+        <summary><b>H Chat으로 읽기</b> <span id="hcState" class="hcstate off">꺼짐</span> <small>스캔·캡처 그림을 사내 AI가 표 그대로 옮겨 적습니다 (선택 · 토큰 사용)</small></summary>
         <div class="hcbody">
-          <p class="hcwarn">켜면 <b>다시 읽을 줄의 그림(이름·주민등록번호 포함)이 사내 H Chat으로 전송</b>됩니다. 글자 PDF로 읽은 줄은 보내지 않습니다. 회사 개인정보 처리 기준에 맞는지 먼저 확인하세요.</p>
+          <p class="hcwarn">켜면 <b>스캔·캡처 쪽의 그림(이름·주민등록번호 포함)이 사내 H Chat으로 전송</b>됩니다. 글자가 들어 있는 PDF는 보내지 않습니다. 회사 개인정보 처리 기준에 맞는지 먼저 확인하세요.</p>
           <div class="hcrow">
-            <label>사용 <select id="hcMode"><option value="off">사용 안 함</option><option value="warn">확인 필요한 줄만</option><option value="all">스캔으로 읽은 모든 줄</option></select></label>
+            <label>사용 <select id="hcMode"><option value="off">사용 안 함</option><option value="on">H Chat으로 읽기</option></select></label>
+            <label>주 판독 모델 <input id="hcModel" list="hcModels" spellcheck="false" autocomplete="off" /></label>
+            <label>교차 확인 모델 <small>(비우면 안 씀)</small><input id="hcVerify" list="hcModels" spellcheck="false" autocomplete="off" placeholder="없음" /></label>
             <label class="grow">주소 (Base URL) <input id="hcUrl" spellcheck="false" autocomplete="off" /></label>
-            <label>호출 형식 <select id="hcFormat"><option value="azure">Azure 형식</option><option value="openai">OpenAI 형식</option></select></label>
-            <label>모델 <input id="hcModel" spellcheck="false" autocomplete="off" /></label>
+            <datalist id="hcModels"></datalist>
           </div>
           <div class="hcrow">
             <label class="grow">API 키 <input id="hcKey" type="password" autocomplete="off" placeholder="키를 붙여 넣으세요" /></label>
+            <label>Project ID <small>(프로젝트 키일 때만)</small><input id="hcProject" spellcheck="false" autocomplete="off" placeholder="개인 키면 비움" /></label>
+            <label>호출 형식 <select id="hcApi"><option value="auto">자동으로 찾기</option><option value="chat">OpenAI Chat</option><option value="messages">Claude Messages</option><option value="responses">OpenAI Responses</option><option value="gemini">Gemini</option></select></label>
+          </div>
+          <div class="hcrow">
+            <label class="chk"><input type="checkbox" id="hcInsecure" /> 인증서 검증 건너뛰기 <small>(안내서의 curl -k)</small></label>
             <label class="chk"><input type="checkbox" id="hcSave" /> 이 PC에 키 저장</label>
+            <span class="grow"></span>
             <button id="hcApply" class="btn ghost sm" type="button">설정 적용</button>
             <button id="hcTest" class="btn ghost sm" type="button">연결 테스트</button>
-            <button id="hcRun" class="btn ghost sm" type="button">지금 다시 읽기</button>
           </div>
-          <p id="hcMsg" class="hcmsg"></p>
+          <div id="hcMsg" class="hcmsg"></div>
         </div>
       </details>
 
@@ -97,6 +104,7 @@
 
   <script src="/vendor/tesseract/tesseract.min.js"></script>
   <script src="/vendor/exceljs/exceljs.min.js"></script>
+  <script src="/vendor/ort/ort.wasm.min.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>

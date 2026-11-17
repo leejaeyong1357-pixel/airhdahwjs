@@ -9,8 +9,10 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
+    "@gutenye/ocr-models": "1.4.2",
     "@tesseract.js-data/kor": "1.0.0",
     "exceljs": "4.4.0",
+    "onnxruntime-web": "1.22.0",
     "pdfjs-dist": "4.10.38",
     "tesseract.js": "6.0.1"
   }

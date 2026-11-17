@@ -4,7 +4,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULTS, readRow, ping } from "./hchat.js";
+import { DEFAULTS, MODELS, readPage, ask, health } from "./hchat.js";
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 2824);
@@ -17,13 +17,15 @@ const ROOTS = [
   ["/vendor/tesseract-core/", path.join(NM, "tesseract.js-core")],
   ["/vendor/tessdata/", path.join(NM, "@tesseract.js-data", "kor", "4.0.0_best_int")],
   ["/vendor/exceljs/", path.join(NM, "exceljs", "dist")],
+  ["/vendor/ort/", path.join(NM, "onnxruntime-web", "dist")],
+  ["/vendor/ppocr/", path.join(NM, "@gutenye", "ocr-models", "assets")],
   ["/sample/", path.join(DIR, "sample")],
   ["/", path.join(DIR, "public")],
 ];
 const TYPES = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png",
-  ".wasm": "application/wasm", ".gz": "application/gzip", ".pdf": "application/pdf", ".map": "application/json",
+  ".wasm": "application/wasm", ".gz": "application/gzip", ".pdf": "application/pdf", ".map": "application/json", ".txt": "text/plain; charset=utf-8", ".onnx": "application/octet-stream",
 };
 // 화면이 인터넷 어디로도 자료를 보낼 수 없게 막는 규칙
 const CSP = [
@@ -31,17 +33,19 @@ const CSP = [
   "script-src 'self' 'wasm-unsafe-eval'", "style-src 'self' 'unsafe-inline'", "object-src 'none'", "base-uri 'none'", "form-action 'none'",
 ].join("; ");
 
-// ───────── H Chat 보조 판독 (선택 기능)
+// ───────── H Chat 판독 (선택 기능)
 // 켰을 때만 쓰인다. 키는 기본으로 메모리에만 두고, "이 PC에 저장"을 고르면 data/hchat.json 에 둔다(깃허브에 올라가지 않는 폴더).
+// 안내서대로 환경 변수(H_CHAT_API_KEY · H_CHAT_API_PROJECT_ID · H_CHAT_API_MODEL)를 잡아 두었으면 그 값을 처음 값으로 쓴다.
 const HC_FILE = path.join(DIR, "data", "hchat.json");
-let hc = { ...DEFAULTS, key: "", saved: false };
+let hc = { ...DEFAULTS, key: process.env.H_CHAT_API_KEY || "", projectId: process.env.H_CHAT_API_PROJECT_ID || "", saved: false };
+if (process.env.H_CHAT_API_MODEL) hc.model = process.env.H_CHAT_API_MODEL;
 try { hc = { ...hc, ...JSON.parse(fs.readFileSync(HC_FILE, "utf8")), saved: true }; } catch { /* 저장된 설정 없음 */ }
-const hcPublic = () => ({ baseUrl: hc.baseUrl, format: hc.format, model: hc.model, hasKey: !!hc.key, saved: hc.saved });
+const hcPublic = () => ({ baseUrl: hc.baseUrl, model: hc.model, verifyModel: hc.verifyModel, projectId: hc.projectId, api: hc.api, insecure: !!hc.insecure, hasKey: !!hc.key, saved: hc.saved, models: MODELS });
 const json = (res, code, obj) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(obj));
-function readBody(req, limit = 4 << 20) {
+function readBody(req, limit = 12 << 20) {
   return new Promise((ok, bad) => {
     const chunks = []; let n = 0;
-    req.on("data", c => { n += c.length; if (n > limit) { bad(new Error("too large")); req.destroy(); } else chunks.push(c); });
+    req.on("data", c => { n += c.length; if (n > limit) { bad(new Error("그림이 너무 커요")); req.destroy(); } else chunks.push(c); });
     req.on("end", () => { try { ok(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}")); } catch (e) { bad(e); } });
     req.on("error", bad);
   });
@@ -59,16 +63,35 @@ async function api(req, res, p) {
     if (p === "/api/hchat" && req.method === "POST") {
       const b = await readBody(req, 20000);
       const baseUrl = String(b.baseUrl || "").trim();
-      if (!/^https?:\/\/[^\s]+$/.test(baseUrl)) return json(res, 400, { ok: false, error: "주소는 http(s):// 로 시작해야 해요." });
-      hc = { ...hc, baseUrl, format: b.format === "openai" ? "openai" : "azure", model: String(b.model || "").trim() || DEFAULTS.model };
+      if (!/^https?:\/\/[^\s]+$/.test(baseUrl)) return json(res, 200, { ok: false, error: "주소는 http(s):// 로 시작해야 해요." });
+      hc = { ...hc, baseUrl, model: String(b.model || "").trim() || DEFAULTS.model, verifyModel: String(b.verifyModel || "").trim(), projectId: String(b.projectId || "").trim(),
+        api: ["auto", "chat", "messages", "responses", "gemini"].includes(b.api) ? b.api : "auto", insecure: !!b.insecure };
+      if (hc.verifyModel === hc.model) hc.verifyModel = "";
       if (typeof b.key === "string" && b.key.trim()) hc.key = b.key.trim();
-      if (b.save) { fs.mkdirSync(path.dirname(HC_FILE), { recursive: true }); fs.writeFileSync(HC_FILE, JSON.stringify({ baseUrl: hc.baseUrl, format: hc.format, model: hc.model, key: hc.key }), { mode: 0o600 }); hc.saved = true; }
+      if (b.save) { fs.mkdirSync(path.dirname(HC_FILE), { recursive: true }); const { saved, ...keep } = hc; fs.writeFileSync(HC_FILE, JSON.stringify(keep), { mode: 0o600 }); hc.saved = true; }
       else { fs.rmSync(HC_FILE, { force: true }); hc.saved = false; }
       return json(res, 200, { ok: true, ...hcPublic() });
     }
     if (p === "/api/hchat" && req.method === "DELETE") { fs.rmSync(HC_FILE, { force: true }); hc = { ...hc, key: "", saved: false }; return json(res, 200, { ok: true, ...hcPublic() }); }
-    if (p === "/api/hchat/test" && req.method === "POST") { const t = await ping(hc); return json(res, 200, { ok: true, message: t.slice(0, 60) }); }
-    if (p === "/api/hchat/read" && req.method === "POST") { const b = await readBody(req); const r = await readRow(hc, b.image); return json(res, 200, { ok: true, ...r }); }
+    // 연결 테스트: ① 통신 확인 ② 각 모델이 시험 그림(숫자가 적힌 작은 그림)을 읽는지
+    if (p === "/api/hchat/test" && req.method === "POST") {
+      const b = await readBody(req), steps = [];
+      const h = await health(hc); steps.push({ name: "통신 확인 (/v1/are-you-okay)", ...h });
+      for (const m of [hc.model, hc.verifyModel].filter(Boolean)) {
+        try {
+          const r = await ask(hc, m, "그림에 적힌 글자를 그대로만 답하세요. 다른 말은 쓰지 마세요.", b.image, 300);
+          const hit = b.expect && r.text.replace(/\s+/g, "").includes(String(b.expect).replace(/\s+/g, ""));
+          steps.push({ name: `모델 ${m}`, ok: !!hit, detail: hit ? `그림을 읽었어요 (형식: ${r.recipe}, 답: ${r.text.slice(0, 40)})` : `답은 왔지만 그림 속 글자와 달라요 (형식: ${r.recipe}, 답: ${r.text.slice(0, 60)})` });
+        } catch (e) { steps.push({ name: `모델 ${m}`, ok: false, detail: String(e?.message || e) }); }
+      }
+      return json(res, 200, { ok: steps.slice(1).length > 0 && steps.slice(1)[0].ok, steps });
+    }
+    // 한 쪽 읽기: 주 모델 (+ 교차 확인 모델)
+    if (p === "/api/hchat/page" && req.method === "POST") {
+      const b = await readBody(req);
+      const [a, v] = await Promise.all([readPage(hc, hc.model, b.image), hc.verifyModel ? readPage(hc, hc.verifyModel, b.image).catch(e => ({ error: String(e?.message || e), model: hc.verifyModel })) : null]);
+      return json(res, 200, { ok: true, primary: a, verify: v, tokens: (a.tokens || 0) + (v?.tokens || 0) });
+    }
     return json(res, 404, { ok: false, error: "없는 주소" });
   } catch (e) { return json(res, 200, { ok: false, error: String(e?.message || e) }); }
 }

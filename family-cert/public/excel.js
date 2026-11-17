@@ -1,5 +1,5 @@
 // 사람 묶음 → 엑셀 파일 (ExcelJS, 브라우저 안에서 만듦)
-import { checkRow, maskRrn } from "./parse.js";
+import { checkRow, maskRrn, birthFromRrn } from "./parse.js";
 
 export function remarkOf(row) {
   const { notes, warn } = checkRow(row);
@@ -9,7 +9,7 @@ export function remarkOf(row) {
   return parts.join(", ");
 }
 
-// opt: { maskRrn, hanja, rels: Set }
+// opt: { maskRrn, hanja, birthCol, rels: Set }
 export async function buildWorkbook(people, opt) {
   const wb = new ExcelJS.Workbook();
   wb.creator = "가족관계증명서 정리 도구"; wb.created = new Date();
@@ -18,7 +18,7 @@ export async function buildWorkbook(people, opt) {
     { h: "구분", w: 9, v: r => r.rel },
     { h: "성명", w: 16, v: r => r.name },
     ...(opt.hanja ? [{ h: "한자", w: 12, v: r => r.hanja || "" }] : []),
-    { h: "생년월일", w: 13, v: r => r.birth || "" },
+    ...(opt.birthCol ? [{ h: "생년월일", w: 13, v: r => r.birth || birthFromRrn(r.rrn) }] : []),
     { h: "주민등록번호", w: 18, v: r => (opt.maskRrn ? maskRrn(r.rrn) : r.rrn || "") },
     { h: "성별", w: 6, v: r => r.sex || "" },
     ...(opt.hanja ? [{ h: "본", w: 8, v: r => r.bon || "" }] : []),

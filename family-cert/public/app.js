@@ -1,5 +1,5 @@
 import { readFile } from "./engine.js";
-import { buildPeople, checkRow, RELS, mergeAi } from "./parse.js";
+import { buildPeople, checkRow, RELS, mergeSources } from "./parse.js";
 import { buildWorkbook } from "./excel.js";
 
 const $ = s => document.querySelector(s);
@@ -10,6 +10,7 @@ const opt = () => ({
   mode: document.querySelector('input[name="mode"]:checked').value,
   maskRrn: document.querySelector('input[name="rrn"]:checked').value === "mask",
   hanja: $("#hanja").checked,
+  birthCol: $("#birthCol").checked,
   rels: new Set([...document.querySelectorAll(".rel:checked")].map(i => i.value)),
 });
 const FAMILY = ["부", "모", "양부", "양모", "배우자", "자녀"];
@@ -49,19 +50,24 @@ async function run() {
   for (;;) {
     const it = state.items.find(i => i.status === "wait");
     if (!it) break;
+    const useAi = hc.mode === "on" && hc.hasKey;
     it.status = "work"; it.t0 = performance.now(); renderFiles();
-    const res = await readFile(it.file, opt().mode, (d, t) => { it.done = d; it.total = t; renderFiles(); });
+    const res = await readFile(it.file, opt().mode, (d, t) => { it.done = d; it.total = t; renderFiles(); }, useAi);
+    if (useAi && !res.error) { it.status = "ai"; await aiPages(it, res); }
     it.res = res; it.status = res.error ? "error" : "done"; it.sec = (performance.now() - it.t0) / 1000;
     const people = buildPeople(res.pages);
     for (const p of people) {
       p.id = ++state.seq; p.itemId = it.id;
-      p.pageWarn = (res.pages.find(x => x.page === p.page) || {}).pageWarn || "";
+      const page = res.pages.find(x => x.page === p.page) || {};
+      p.pageWarn = page.pageWarn || ""; p.models = page.models || [];
+      p.img = p.rows.some(r => !r.crop) ? page.img || "" : ""; // 줄 그림이 없는 묶음은 쪽 그림을 보여 준다
       for (const r of p.rows) { r.id = ++state.seq; r.memo = ""; r.confirmed = false; }
     }
+    for (const pg of res.pages) delete pg.img;
+    res.others = [];
     it.count = people.length;
     state.people.push(...people);
     renderFiles(); renderPeople();
-    if (hc.mode !== "off" && hc.hasKey) await aiPass(people.flatMap(p => p.rows));
   }
   state.running = false;
 }
@@ -74,88 +80,107 @@ function renderFiles() {
     let msg = "";
     if (it.status === "wait") msg = "기다리는 중";
     else if (it.status === "work") msg = it.total ? `읽는 중… ${it.done} / ${it.total}쪽` : "여는 중…";
+    else if (it.status === "ai") msg = `H Chat으로 읽는 중… ${it.aiDone || 0} / ${it.aiTotal || 0}쪽`;
     else if (it.status === "error") msg = it.res.error;
     else {
-      const pages = it.res.pages, t = pages.filter(p => p.src === "text").length, o = pages.length - t;
+      const pages = it.res.pages, t = pages.filter(p => p.src === "text").length, a = pages.filter(p => p.src === "ai").length, o = pages.length - t - a;
       msg = it.count ? `${it.count}명 찾음` : "가족관계증명서를 찾지 못했어요";
-      const how = [t && `글자 그대로 ${t}쪽`, o && `스캔 인식 ${o}쪽`, it.res.skipped && `다른 쪽 ${it.res.skipped}쪽 건너뜀`].filter(Boolean).join(" · ");
+      const how = [t && `글자 그대로 ${t}쪽`, a && `H Chat 판독 ${a}쪽`, o && `스캔 인식 ${o}쪽`, it.res.skipped && `다른 쪽 ${it.res.skipped}쪽 건너뜀`].filter(Boolean).join(" · ");
       if (how) msg += ` (${how})`;
       msg += ` · ${it.sec.toFixed(1)}초`;
       if (!it.count) li.classList.add("none");
     }
     li.append(el("span", "fmsg", msg));
-    if (it.status === "work") { const bar = el("span", "fbar"), i = el("i"); i.style.width = (it.total ? Math.round(it.done / it.total * 100) : 5) + "%"; bar.append(i); li.append(bar); }
+    if (it.status === "work" || it.status === "ai") { const bar = el("span", "fbar"), i = el("i"), d = it.status === "ai" ? it.aiDone || 0 : it.done, tt = it.status === "ai" ? it.aiTotal : it.total; i.style.width = (tt ? Math.round(d / tt * 100) : 5) + "%"; bar.append(i); li.append(bar); li.classList.add("work"); }
+    if (it.aiError) { const e = el("span", "ferr", "H Chat 오류로 이 PC 판독만 표시: " + it.aiError); li.append(e); }
     ul.append(li);
   }
 }
 
-// ───────── H Chat 보조 판독 (선택)
-const hc = { mode: "off", hasKey: false, busy: false, tokens: 0, calls: 0 };
-const hcMsg = (text, cls = "") => { const m = $("#hcMsg"); m.textContent = text; m.className = "hcmsg " + cls; };
+// ───────── H Chat으로 읽기 (선택)
+const hc = { mode: "off", hasKey: false, tokens: 0, calls: 0 };
+function hcMsg(lines, cls = "") {
+  const m = $("#hcMsg"); m.textContent = ""; m.className = "hcmsg " + cls;
+  for (const l of [].concat(lines)) { const d = el("div", typeof l === "object" ? (l.ok ? "ok" : "err") : "", typeof l === "object" ? `${l.ok ? "✔" : "✘"} ${l.name} — ${l.detail}` : l); m.append(d); }
+}
 async function hcApi(pathname, method = "GET", body) {
   const r = await fetch(pathname, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
   return r.json();
 }
 function hcPaint() {
-  const on = hc.mode !== "off" && hc.hasKey;
-  const st = $("#hcState"); st.textContent = on ? (hc.mode === "all" ? "켜짐 · 스캔 줄 전부" : "켜짐 · 확인 필요한 줄만") : hc.mode !== "off" ? "키 필요" : "꺼짐"; st.className = "hcstate " + (on ? "on" : "off");
+  const on = hc.mode === "on" && hc.hasKey;
+  const st = $("#hcState"); st.textContent = on ? "켜짐" : hc.mode === "on" ? "키 필요" : "꺼짐"; st.className = "hcstate " + (on ? "on" : "off");
   $("#bPc").innerHTML = on ? "글자 PDF·검수는 <b>이 PC 안에서</b>" : "<b>이 PC 안에서만</b> 처리";
-  $("#bNet").innerHTML = on ? "스캔 줄 그림 → <b>사내 H Chat 전송</b>" : "인터넷 전송 <b>없음</b>"; $("#bNet").classList.toggle("live", on);
+  $("#bNet").innerHTML = on ? "스캔·캡처 그림 → <b>사내 H Chat 전송</b>" : "인터넷 전송 <b>없음</b>"; $("#bNet").classList.toggle("live", on);
   $("#bAi").innerHTML = on ? "AI 토큰 <b>사용</b>" : "AI 토큰 사용 <b>없음</b>"; $("#bAi").classList.toggle("live", on);
 }
+const keyHint = () => { $("#hcKey").placeholder = hc.hasKey ? "입력된 키 사용 중 (바꾸려면 새로 붙여 넣기)" : "키를 붙여 넣으세요"; };
 async function hcLoad() {
   try {
     const c = await hcApi("/api/hchat");
-    $("#hcUrl").value = c.baseUrl; $("#hcFormat").value = c.format; $("#hcModel").value = c.model; $("#hcSave").checked = !!c.saved;
-    hc.hasKey = !!c.hasKey; if (c.hasKey) $("#hcKey").placeholder = "입력된 키 사용 중 (바꾸려면 새로 붙여 넣기)";
-    hc.mode = c.hasKey ? (localStorage.getItem("fc-hc-mode") || "off") : "off"; $("#hcMode").value = hc.mode;
+    $("#hcUrl").value = c.baseUrl; $("#hcModel").value = c.model; $("#hcVerify").value = c.verifyModel || ""; $("#hcProject").value = c.projectId || "";
+    $("#hcApi").value = c.api || "auto"; $("#hcInsecure").checked = !!c.insecure; $("#hcSave").checked = !!c.saved;
+    const dl = $("#hcModels"); dl.textContent = ""; for (const m of c.models || []) { const o = el("option"); o.value = m; dl.append(o); }
+    hc.hasKey = !!c.hasKey; keyHint();
+    hc.mode = c.hasKey && localStorage.getItem("fc-hc-mode") === "on" ? "on" : "off"; $("#hcMode").value = hc.mode;
   } catch { /* 설정 주소가 없으면 기능을 끈 채로 둔다 */ }
   hcPaint();
 }
 async function hcApply() {
-  const r = await hcApi("/api/hchat", "POST", { baseUrl: $("#hcUrl").value, format: $("#hcFormat").value, model: $("#hcModel").value, key: $("#hcKey").value, save: $("#hcSave").checked });
+  const r = await hcApi("/api/hchat", "POST", { baseUrl: $("#hcUrl").value, model: $("#hcModel").value, verifyModel: $("#hcVerify").value, projectId: $("#hcProject").value, api: $("#hcApi").value, insecure: $("#hcInsecure").checked, key: $("#hcKey").value, save: $("#hcSave").checked });
   if (!r.ok) { hcMsg(r.error || "설정을 적용하지 못했어요.", "err"); return false; }
-  hc.hasKey = !!r.hasKey; $("#hcKey").value = ""; if (r.hasKey) $("#hcKey").placeholder = "입력된 키 사용 중 (바꾸려면 새로 붙여 넣기)";
-  hcPaint();
+  hc.hasKey = !!r.hasKey; $("#hcKey").value = ""; $("#hcVerify").value = r.verifyModel || ""; keyHint(); hcPaint();
   return true;
 }
-$("#hcMode").addEventListener("change", () => { hc.mode = $("#hcMode").value; localStorage.setItem("fc-hc-mode", hc.mode); hcPaint(); if (hc.mode !== "off" && !hc.hasKey) hcMsg("API 키를 넣고 '설정 적용'을 눌러 주세요.", "err"); });
+$("#hcMode").addEventListener("change", () => { hc.mode = $("#hcMode").value; localStorage.setItem("fc-hc-mode", hc.mode); hcPaint(); if (hc.mode === "on" && !hc.hasKey) hcMsg("API 키를 넣고 '연결 테스트'를 눌러 주세요.", "err"); });
 $("#hcApply").addEventListener("click", async () => { if (await hcApply()) hcMsg(hc.hasKey ? "설정을 적용했어요." + ($("#hcSave").checked ? " 키는 이 PC의 data 폴더에 저장했어요." : " 키는 프로그램을 끄면 지워져요.") : "키가 비어 있어요.", hc.hasKey ? "ok" : "err"); });
+// 연결 테스트: 숫자가 적힌 작은 그림을 만들어 보내고, 모델이 그 숫자를 읽어 오는지 본다
 $("#hcTest").addEventListener("click", async () => {
   if (!(await hcApply())) return;
-  hcMsg("연결 확인 중…");
-  const r = await hcApi("/api/hchat/test", "POST", {});
-  hcMsg(r.ok ? `연결됐어요. (H Chat 답: ${r.message})` : r.error, r.ok ? "ok" : "err");
+  if (!hc.hasKey) { hcMsg("API 키를 먼저 넣어 주세요.", "err"); return; }
+  const code = String(Math.floor(100000 + Math.random() * 899999)), c = document.createElement("canvas"); c.width = 420; c.height = 110;
+  const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, 420, 110); x.fillStyle = "#111"; x.font = "bold 44px serif"; x.textBaseline = "middle"; x.fillText("시험 " + code, 30, 56);
+  hcMsg("연결 확인 중… (모델에 따라 수십 초 걸릴 수 있어요)");
+  const btn = $("#hcTest"); btn.disabled = true;
+  try {
+    const r = await hcApi("/api/hchat/test", "POST", { image: c.toDataURL("image/png"), expect: code });
+    hcMsg(r.steps || [r.error || "테스트에 실패했어요."], r.ok ? "" : "err");
+    if (r.ok && hc.mode !== "on") { hc.mode = "on"; $("#hcMode").value = "on"; localStorage.setItem("fc-hc-mode", "on"); hcPaint(); }
+  } catch (e) { hcMsg("테스트 요청에 실패했어요: " + (e?.message || e), "err"); }
+  btn.disabled = false;
 });
-$("#hcRun").addEventListener("click", async () => {
-  if (!hc.hasKey) { hcMsg("API 키를 넣고 '설정 적용'을 눌러 주세요.", "err"); return; }
-  if (hc.mode === "off") { hcMsg("'사용'에서 범위를 먼저 골라 주세요.", "err"); return; }
-  if (state.running) { toast("파일을 읽는 중이에요. 끝난 뒤에 눌러 주세요."); return; }
-  await aiPass(state.people.flatMap(p => p.rows));
-});
-// 대상 줄의 그림을 H Chat에 보내 다시 읽고, 로컬 판독과 대조해 합친다
-async function aiPass(rows) {
-  if (hc.busy) return;
-  const targets = rows.filter(r => r.src === "ocr" && r.crop && !r.ai && !r.edited && (hc.mode === "all" || checkRow(r).warn.length));
-  if (!targets.length) { hcMsg("H Chat으로 다시 읽을 줄이 없어요."); return; }
-  hc.busy = true;
-  let done = 0, fail = "";
+// 스캔·캡처 쪽 그림을 H Chat에 보내 표를 옮겨 적게 하고, (교차 확인 모델 · 이 PC 글자 인식)과 줄 단위로 대조한다
+async function aiPages(it, res) {
+  const jobs = [
+    ...res.pages.filter(p => p.src === "ocr" && p.img).map(p => ({ p, found: true })),
+    ...res.others.map(o => ({ p: { file: o.file, page: o.page, src: "ocr", kind: "", rows: [], pageWarn: "", img: o.img }, found: false })),
+  ];
+  it.aiTotal = jobs.length; it.aiDone = 0; renderFiles();
+  let fail = "";
   const next = async () => {
-    while (targets.length && !fail) {
-      const r = targets.shift();
+    while (jobs.length && !fail) {
+      const { p, found } = jobs.shift();
       try {
-        const res = await hcApi("/api/hchat/read", "POST", { image: r.crop });
-        if (!res.ok) { fail = res.error || "H Chat 오류"; break; }
-        Object.assign(r, mergeAi(r, res.row)); hc.tokens += res.tokens || 0; hc.calls++;
+        const r = await hcApi("/api/hchat/page", "POST", { image: p.img });
+        if (!r.ok) { fail = r.error || "H Chat 오류"; break; }
+        hc.tokens += r.tokens || 0; hc.calls++;
+        const a = r.primary, v = r.verify && !r.verify.error ? r.verify : null;
+        if (a.cert) {
+          const srcs = [{ tag: a.model, rows: a.rows }];
+          if (v && v.cert) srcs.push({ tag: v.model, rows: v.rows });
+          if (p.rows.length) srcs.push({ tag: "이 PC 글자 인식", rows: p.rows, local: true });
+          p.rows = mergeSources(srcs); p.src = "ai"; p.kind = a.kind || p.kind; p.models = srcs.filter(x => !x.local).map(x => x.tag);
+          p.pageWarn = r.verify?.error ? "교차 확인 모델이 답하지 못함" : v && !v.cert ? `${v.model}은 가족관계증명서가 아니라고 답함` : "";
+          if (!found) { res.pages.push(p); res.skipped = Math.max(0, res.skipped - 1); }
+        } else if (found) p.pageWarn = `${a.model}은 가족관계증명서가 아니라고 답함 (이 PC 판독만 표시)`;
       } catch (e) { fail = "H Chat 요청에 실패했어요: " + (e?.message || e); break; }
-      hcMsg(`H Chat으로 읽는 중… ${++done}줄`);
+      it.aiDone++; renderFiles();
     }
   };
-  await Promise.all([next(), next(), next()]);
-  hc.busy = false;
-  renderPeople();
-  if (fail) { $("#hc").open = true; hcMsg(`${done}줄 읽고 멈췄어요: ${fail}`, "err"); }
-  else hcMsg(`H Chat으로 ${done}줄을 다시 읽어 대조했어요. (누적 ${hc.calls}줄${hc.tokens ? ` · 약 ${hc.tokens.toLocaleString()} 토큰` : ""})`, "ok");
+  await Promise.all([next(), next()]);
+  res.pages.sort((p, q) => p.page - q.page);
+  if (fail) { it.aiError = fail; $("#hc").open = true; hcMsg("H Chat 판독을 멈췄어요: " + fail, "err"); }
+  else hcMsg(`H Chat으로 ${it.aiDone}쪽을 읽었어요. (누적 ${hc.calls}쪽${hc.tokens ? ` · 약 ${hc.tokens.toLocaleString()} 토큰` : ""})`, "ok");
 }
 hcLoad();
 
@@ -191,10 +216,11 @@ function renderPeople() {
     const self = p.rows.find(r => r.rel === "본인");
     head.append(el("span", "pno", String(idx + 1)), el("b", "pname", self ? self.name : "(본인 줄 없음)"));
     head.append(el("span", "pfile", `${p.file}${p.page > 1 ? ` · ${p.page}쪽` : ""}`));
-    head.append(el("span", "psrc " + p.src, p.src === "text" ? "글자 그대로 읽음" : "스캔 글자 인식"));
+    head.append(el("span", "psrc " + p.src, p.src === "text" ? "글자 그대로 읽음" : p.src === "ai" ? "H Chat 판독" + (p.models?.length ? ` (${p.models.join(" + ")})` : "") : "스캔 글자 인식"));
     if (p.noSelf) head.append(el("span", "pwarn", "본인 줄을 찾지 못했어요"));
     if (p.pageWarn) head.append(el("span", "pwarn", p.pageWarn));
     card.append(head);
+    if (p.img) { const d = el("details", "pageimg"); d.open = true; d.append(el("summary", "", "원본 그림 (줄별 그림을 만들지 못해 쪽 전체를 보여 드려요)")); const im = el("img"); im.src = p.img; im.alt = "원본 쪽"; d.append(im); card.append(d); }
     for (const r of rows) card.append(rowView(p, r));
     box.append(card);
   });
@@ -210,7 +236,7 @@ function rowView(p, r) {
   const inp = (v, ph) => { const i = el("input"); i.value = v || ""; i.placeholder = ph || ""; i.spellcheck = false; i.autocomplete = "off"; return i; };
   const rel = field("구분", sel(["", ...RELS], r.rel || ""), "w-rel");
   const name = field("성명", inp(r.name), "w-name");
-  const birth = field("생년월일", inp(r.birth, "없음"), "w-birth");
+  const birth = field("생년월일", inp(r.birth, "없음"), "w-birth" + (opt().birthCol ? "" : " hidden")); // 생년월일은 주민번호 대조용 — 칸은 옵션을 켰을 때만 보인다
   const rrn = field("주민등록번호", inp(r.rrn, "없음"), "w-rrn");
   const sex = field("성별", sel(["", "남", "여"], r.sex || ""), "w-sex");
   const dead = el("input"); dead.type = "checkbox"; dead.checked = !!r.dead;
@@ -225,7 +251,7 @@ function rowView(p, r) {
     const { notes, warn } = checkRow(r);
     meta.textContent = "";
     for (const n of notes) meta.append(el("span", "note", n));
-    if (r.ai) meta.append(el("span", "note " + (r.ai.used.length ? "aiused" : "ai"), r.ai.used.length ? "H Chat 값 반영: " + r.ai.used.join("·") : r.ai.diff.length ? "H Chat 대조함" : "H Chat 판독과 일치"));
+    if (r.readers) meta.append(el("span", "note " + (r.readers.length > 1 ? "ai" : "aiused"), r.readers.length > 1 ? `${r.readers.length}가지 판독 대조` : "H Chat 한 번 판독"));
     if (warn.length) {
       const w = el("span", "warn" + (r.confirmed ? " ok" : ""), (r.confirmed ? "확인함: " : "확인 필요: ") + warn.join(" / "));
       const cb = el("input"); cb.type = "checkbox"; cb.checked = r.confirmed;
@@ -238,7 +264,8 @@ function rowView(p, r) {
   };
   const bind = (node, key, conv = v => v.trim()) => node.addEventListener(node.tagName === "SELECT" || node.type === "checkbox" ? "change" : "input", () => {
     r[key] = node.type === "checkbox" ? node.checked : conv(node.value);
-    if (key !== "memo") { r.ocrWarn = []; r.edited = true; } // 사람이 손본 줄은 인식 경고를 내리고, 형식 검증만 다시 한다
+    if (key !== "memo") { r.ocrWarn = []; r.edited = true; }
+    if (key === "rrn" && !opt().birthCol) r.birth = ""; // 사람이 주민번호를 직접 고쳤으면, 화면에 없는 출생일 값과의 대조는 그만둔다(검증번호 검사는 계속) // 사람이 손본 줄은 인식 경고를 내리고, 형식 검증만 다시 한다
     refresh(); renderSummary();
     if (key === "name" && r.rel === "본인") row.closest(".person").querySelector(".pname").textContent = r.name;
   });
@@ -248,7 +275,7 @@ function rowView(p, r) {
   return row;
 }
 
-document.querySelectorAll(".rel, #hanja, input[name='rrn']").forEach(i => i.addEventListener("change", renderPeople));
+document.querySelectorAll(".rel, #hanja, #birthCol, input[name='rrn']").forEach(i => i.addEventListener("change", renderPeople));
 $("#onlyWarn").addEventListener("change", renderPeople);
 
 // ───────── 엑셀 받기

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseLine, parseRrn, parseBirth, parseNameCell, voteName, checkRow, buildPeople, tokensToLines, parseTextPage, rrnChecksumOk, nameDoubt, maskRrn, normRel } from "../public/parse.js";
+import { parseLine, parseRrn, parseBirth, parseNameCell, voteName, checkRow, buildPeople, tokensToLines, parseTextPage, rrnChecksumOk, nameDoubt, maskRrn, normRel, pickNumbers } from "../public/parse.js";
 import { lineMasks, findRows, looksMasked, binarize, estimateSkew } from "../public/image.js";
 
 // 검증번호가 맞는 견본 번호 만들기 (실존 번호 아님)
@@ -48,13 +48,13 @@ test("검증과 비고", () => {
   const ok = { rel: "본인", name: "홍길동", birth: "1980-03-15", rrn: rrn("800315", "123456"), sex: "남" };
   assert.deepEqual(checkRow(ok), { notes: [], warn: [] });
   assert.equal(rrnChecksumOk(ok.rrn), true);
-  assert.ok(checkRow({ ...ok, birth: "1980-08-15" }).warn.includes("생년월일과 주민번호 앞자리가 다름"));
+  assert.ok(checkRow({ ...ok, birth: "1980-08-15" }).warn.includes("주민번호 앞자리가 문서의 출생일과 다름"));
   assert.ok(checkRow({ ...ok, sex: "여" }).warn.includes("성별과 주민번호가 안 맞음"));
   const bad = ok.rrn.slice(0, 13) + ((+ok.rrn[13] + 1) % 10);
   assert.ok(checkRow({ ...ok, rrn: bad }).warn.includes("주민번호 검증번호 불일치"));
   assert.deepEqual(checkRow({ rel: "자녀", name: "박하늘", birth: "2021-05-03", rrn: "210503-4123494", sex: "여" }).warn, [], "2020.10 이후 출생은 검증번호 대상 아님");
   assert.deepEqual(checkRow({ rel: "부", name: "홍판서", birth: "1950-02-10", rrn: "500210-1******", sex: "남", dead: true }).notes, ["사망", "뒷자리 가려짐"]);
-  assert.deepEqual(checkRow({ rel: "모", name: "곽은숙", sex: "여" }).notes, ["생년월일·주민번호 없음"]);
+  assert.deepEqual(checkRow({ rel: "모", name: "곽은숙", sex: "여" }).notes, ["주민번호 없음"]);
   assert.deepEqual(checkRow({ rel: "배우자", name: "응우옌티란", birth: "1990-03-05", rrn: "900305-6123451", sex: "여" }).notes, ["외국인"]);
   assert.ok(checkRow({ ...ok, name: "흥길동", src: "ocr" }).warn.some(w => w.includes("성 '흥'")));
   assert.deepEqual(checkRow({ ...ok, name: "흥길동", src: "ocr", edited: true }).warn, [], "사람이 고친 줄은 이름 의심을 내린다");
@@ -134,4 +134,25 @@ test("가려진 주민번호(별표) 그림 판별 · 옅은 무늬 제외", () 
   for (let y = 38; y < 42; y++) for (let xx = 30; xx < 70; xx++) g[y * 100 + xx] = 40;
   const bw = binarize(g, 100, 100);
   assert.equal(bw[40 * 100 + 50], 1); assert.equal(bw[25 * 100 + 50], 0);
+});
+
+test("여러 엔진이 읽은 숫자 고르기", () => {
+  const good = rrn("880505", "123460"), b = "1988-05-05", bad = good.slice(0, 13) + ((+good[13] + 1) % 10);
+  // 한 엔진만 맞게 읽어도 검증번호를 통과하는 값을 고른다
+  assert.deepEqual(pickNumbers([b, b, b], [bad, good, "880505-12346"]), { birth: b, rrn: good, warn: [], sure: true });
+  // 주민번호 앞자리를 모두 틀렸어도 출생일로 바로잡아 검증번호 통과
+  assert.equal(pickNumbers([b, b, ""], ["880506-" + good.slice(7), "860505-" + good.slice(7)]).rrn, good);
+  // 출생일 칸을 못 읽었어도, 두 엔진이 같은 값을 읽고 검증번호 통과 → 경고 없음
+  assert.deepEqual(pickNumbers(["", "", ""], [good, good, bad]), { birth: b, rrn: good, warn: [], sure: true });
+  // 가려진 번호: 첫 숫자를 못 읽은 후보는 빼고, 두 엔진이 같으면 통과
+  assert.deepEqual(pickNumbers([b, b], ["880505-1******", "880505-*******", "880505-1******"]), { birth: b, rrn: "880505-1******", warn: [], sure: false });
+  // 같은 엔진의 두 변형이 같은 값이어도 "두 판독 일치"로 치지 않는다 (groups)
+  assert.ok(pickNumbers([b, b, b], ["880505-5******", "880505-1******", "880505-5******"], ["t", "p", "t"]).warn.includes("주민번호 뒷자리 판독이 서로 다름"));
+  assert.deepEqual(pickNumbers([b, b, b], ["880505-1******", "880505-1******", "880505-5******"], ["t", "p", "t"]).warn, []);
+  assert.ok(pickNumbers([b, b], ["880505-1******", "880505-5******"]).warn.includes("주민번호 뒷자리 판독이 서로 다름"));
+  // 아무것도 안 맞으면 경고와 함께 가장 많이 나온 값
+  const r = pickNumbers([b, b], [bad, bad, good.slice(0, 13) + ((+good[13] + 2) % 10)]);
+  assert.equal(r.rrn, bad); assert.ok(r.warn.includes("주민번호 판독이 서로 다름"));
+  assert.ok(checkRow({ rel: "본인", name: "박문수", birth: r.birth, rrn: r.rrn, sex: "남" }).warn.includes("주민번호 검증번호 불일치"));
+  assert.ok(pickNumbers([b], ["880505-12346", "880505-1234"]).warn.includes("주민번호 자릿수"));
 });
