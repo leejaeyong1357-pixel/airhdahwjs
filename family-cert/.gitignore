@@ -6,3 +6,7 @@ node_modules/
 *.jpeg
 *.png
 !sample/견본_*.pdf
+!public/teczen-logo.png
+# 배포용 묶음(만들 때마다 새로 생김)
+portable/
+node.exe

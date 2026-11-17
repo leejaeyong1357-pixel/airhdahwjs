@@ -126,6 +126,6 @@ if (!fs.existsSync(path.join(NM, "pdfjs-dist"))) {
   process.exit(1);
 }
 server.listen(PORT, HOST, () => {
-  console.log(`가족관계증명서 → 엑셀 정리: http://localhost:${PORT}`);
+  console.log(`PDF OCR · 가족관계증명서 엑셀 정리: http://localhost:${PORT}`);
   console.log("증명서 파일은 이 PC 밖으로 나가지 않습니다. 끄려면 이 창을 닫으세요.");
 });
