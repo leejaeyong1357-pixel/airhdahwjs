@@ -2,7 +2,7 @@
 // 모든 처리는 이 브라우저 안에서만 한다. 어디로도 보내지 않는다.
 import * as pdfjs from "/vendor/pdfjs/build/pdf.min.mjs";
 import { RELS, tokensToLines, parseTextPage, pageInfo, normRel, parseBirth, parseRrn, parseSex, parseNameCell, parseLine, rrnChecksumOk, voteName } from "./parse.js";
-import { toGray, binarize, lineMasks, estimateSkew, findRows, eraseLines, inkRatio, inkBox, looksMasked } from "./image.js";
+import { toGray, binarize, lineMasks, estimateSkew, findRows, eraseLines, inkRatio, inkBox, looksMasked, tableSpan } from "./image.js";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/build/pdf.worker.min.mjs";
 const OCR_LONG = 3508; // A4 300dpi 긴 변
@@ -105,6 +105,38 @@ async function analyze(canvas) {
 // 생년월일과 주민번호가 서로 맞물리는지 (앞 6자리 일치 + 검증번호). 맞물리면 둘 다 제대로 읽은 것으로 본다.
 const checkable = (birth, rrn) => /^\d{6}-\d{7}$/.test(rrn || "") && "1234".includes(rrn[7]) && (birth || "") < "2020-10-01"; // 검증번호로 확인되는 번호인가
 const consistent = (birth, rrn) => !!birth && /^\d{6}-[\d*]{7}$/.test(rrn || "") && birth.slice(2).replace(/-/g, "") === rrn.slice(0, 6) && (!checkable(birth, rrn) || rrnChecksumOk(rrn) === true);
+
+// 크기 맞추기: 그림 안에서 표를 찾아, 표 너비가 A4 300dpi 원본(약 2080점)과 같아지도록 그 둘레만 잘라 키운다.
+// 화면 캡처처럼 표가 그림의 일부이고 글자가 작은 경우를 위한 것. 표를 못 찾으면 null.
+const TABLE_W = 2080;
+function grayBin(canvas) {
+  const w = canvas.width, h = canvas.height;
+  const gray = toGray(canvas.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, w, h).data, w, h);
+  return { w, h, bin: binarize(gray, w, h) };
+}
+// 기울기 바로잡기 (표 자리를 찾기 전에 먼저 해야 가로선 길이가 제대로 잡힌다)
+function straighten(canvas) {
+  const { w, h, bin } = grayBin(canvas);
+  const skew = estimateSkew(lineMasks(bin, w, h, Math.max(60, Math.round(w * 0.04)), h + 1).hm, w, h);
+  return Math.abs(skew) >= 0.12 ? rotated(canvas, -skew) : canvas;
+}
+function probe(canvas) {
+  const { w, h, bin } = grayBin(canvas);
+  const sp = tableSpan(lineMasks(bin, w, h, Math.max(80, Math.round(w * 0.1)), h + 1).hm, w, h);
+  return sp && sp.x1 - sp.x0 > 120 ? sp : null;
+}
+function fitToTable(canvas, sp) {
+  const tw = sp.x1 - sp.x0;
+  let f = TABLE_W / tw;
+  const x0 = Math.max(0, Math.round(sp.x0 - tw * 0.06)), x1 = Math.min(canvas.width, Math.round(sp.x1 + tw * 0.06));
+  const y0 = Math.max(0, Math.round(sp.y0 - tw * 0.3)), y1 = Math.min(canvas.height, Math.round(sp.y1 + tw * 0.35));
+  f = Math.min(f, 6, Math.sqrt(20e6 / ((x1 - x0) * (y1 - y0))));
+  if (Math.abs(f - 1) < 0.1 && tw / canvas.width > 0.74) return canvas; // 이미 원본 크기
+  const c = newCanvas((x1 - x0) * f, (y1 - y0) * f), x = c.getContext("2d", { willReadFrequently: true });
+  x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high";
+  x.drawImage(canvas, x0, y0, x1 - x0, y1 - y0, 0, 0, c.width, c.height);
+  return c;
+}
 
 async function ocrPage(srcCanvas) {
   let a = await analyze(srcCanvas);
@@ -213,7 +245,7 @@ async function ocrPage(srcCanvas) {
       const band = it.band;
       out.push({
         rel: it.rel, name: nm.name, hanja: "", dead: nA.dead || nB.dead, birth, rrn, sex: it.t.sex, bon: "",
-        ocrWarn: warn, crop: cropUrl(a.canvas, band.cells[0].x0 - 8, band.y0 - 6, band.cells[5].x1 + 8, band.y1 + 6),
+        ocrWarn: warn, crop: cropUrl(a.canvas, band.cells[0].x0 - 8, band.y0 - 6, band.cells[5].x1 + 8, band.y1 + 6, 1400),
       });
     }
     const pageWarn = info.title ? "" : "제목을 읽지 못함";
@@ -294,7 +326,16 @@ async function readPdfPage(page, mode) {
     }
   }
   const scale = Math.min(5, OCR_LONG / Math.max(base.width, base.height));
-  const { canvas } = await renderPage(page, scale);
+  let canvas = straighten((await renderPage(page, scale)).canvas);
+  const sp = probe(canvas);
+  if (sp) {
+    const tw = sp.x1 - sp.x0, f = TABLE_W / tw;
+    if (f > 1.25) { // 표가 작다(축소 인쇄·여백 큰 스캔) → 가능한 만큼 더 선명하게 다시 그린 뒤 맞춘다
+      const up = Math.min(f, 6500 / Math.max(canvas.width, canvas.height));
+      if (up > 1.15) { canvas = straighten((await renderPage(page, scale * up)).canvas); const sp2 = probe(canvas); if (sp2) canvas = fitToTable(canvas, sp2); }
+      else canvas = fitToTable(canvas, sp);
+    } else if (f < 0.8) canvas = fitToTable(canvas, sp);
+  }
   return { ...(await ocrPage(canvas)), src: "ocr" };
 }
 
@@ -305,9 +346,17 @@ export async function readFile(file, mode, onProgress = () => {}) {
   const isPdf = /\.pdf$/i.test(name) || file.type === "application/pdf";
   try {
     if (!isPdf) {
-      const bmp = await createImageBitmap(file), s = OCR_LONG / Math.max(bmp.width, bmp.height) * (bmp.width > bmp.height ? 0.72 : 1);
-      const c = newCanvas(bmp.width * s, bmp.height * s), x = c.getContext("2d", { willReadFrequently: true });
-      x.imageSmoothingQuality = "high"; x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(bmp, 0, 0, c.width, c.height);
+      const bmp = await createImageBitmap(file), cap = Math.min(1, 5000 / Math.max(bmp.width, bmp.height));
+      const raw = newCanvas(bmp.width * cap, bmp.height * cap), rx = raw.getContext("2d", { willReadFrequently: true });
+      rx.imageSmoothingQuality = "high"; rx.fillStyle = "#fff"; rx.fillRect(0, 0, raw.width, raw.height); rx.drawImage(bmp, 0, 0, raw.width, raw.height);
+      const flat = straighten(raw), sp = probe(flat);
+      let c;
+      if (sp) c = fitToTable(flat, sp);
+      else { // 표를 못 찾음 → 종이 한 장을 찍은 것으로 보고 크기만 맞춘다
+        const s = OCR_LONG / Math.max(raw.width, raw.height) * (raw.width > raw.height ? 0.72 : 1);
+        c = newCanvas(raw.width * s, raw.height * s); const x = c.getContext("2d", { willReadFrequently: true });
+        x.imageSmoothingQuality = "high"; x.drawImage(raw, 0, 0, c.width, c.height);
+      }
       out.total = 1; onProgress(0, 1);
       const r = await ocrPage(c);
       if (r.isCert) out.pages.push({ file: name, page: 1, src: "ocr", kind: r.kind, rows: r.rows, pageWarn: r.pageWarn || "" }); else out.skipped++;

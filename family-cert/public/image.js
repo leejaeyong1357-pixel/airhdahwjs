@@ -128,6 +128,28 @@ function segments(mask, w, h, horizontal) {
   return done.map(s => horizontal ? { x0: s.b0, x1: s.b1, y0: s.a0, y1: s.a1 } : { x0: s.a0, x1: s.a1, y0: s.b0, y1: s.b1 });
 }
 
+// 그림 안에서 증명서 표가 차지하는 자리를 찾는다 (화면 캡처·축소 스캔처럼 표가 그림의 일부일 때 크기를 맞추려고).
+// 증명서의 표들은 가로선 길이와 좌우 끝이 모두 같다 → 좌우 끝이 같은 가는 가로선이 가장 많이 모인 묶음이 표.
+// 결과: { x0, x1, y0, y1, n } 또는 null
+export function tableSpan(hm, w, h) {
+  const thick = Math.max(6, Math.round(w * 0.004)), tol = Math.max(5, w * 0.008);
+  // 두꺼운 덩어리(어두운 바탕·창 테두리)는 뺀다: 위아래로 thick만큼 떨어진 곳도 켜져 있으면 선이 아니다
+  const thin = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (hm[i] && !((y >= thick && hm[i - thick * w]) && (y + thick < h && hm[i + thick * w]))) thin[i] = 1;
+  }
+  const H = segments(thin, w, h, true).filter(s => s.y1 - s.y0 + 1 <= thick * 3 && s.x1 - s.x0 > 100);
+  let best = null;
+  for (const a of H) {
+    const g = H.filter(b => Math.abs(b.x0 - a.x0) <= tol && Math.abs(b.x1 - a.x1) <= tol);
+    if (g.length >= 4 && (!best || g.length > best.length)) best = g;
+  }
+  if (!best) return null;
+  const med = arr => arr.sort((p, q) => p - q)[arr.length >> 1];
+  return { x0: med(best.map(b => b.x0)), x1: med(best.map(b => b.x1)), y0: Math.min(...best.map(b => b.y0)), y1: Math.max(...best.map(b => b.y1)), n: best.length };
+}
+
 // 6칸짜리 표 줄(구분·성명·출생연월일·주민등록번호·성별·본)을 찾는다.
 // 결과: [{ y0, y1, cells: [{x0,x1} × 6], est?: true }] (위→아래)
 //  ① 세로선 기준: 같은 높이로 뻗은 세로선 7개 = 표 하나. 그 안을 가로선으로 나눠 줄을 얻는다.
