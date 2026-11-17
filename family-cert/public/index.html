@@ -26,17 +26,12 @@
       <div id="drop" class="drop" tabindex="0" role="button" aria-label="파일 넣기">
         <svg viewBox="0 0 24 24" class="ico big"><path d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3" /></svg>
         <p class="d1">여기에 파일을 끌어다 놓거나 <u>눌러서 고르기</u></p>
-        <p class="d2">PDF · JPG · PNG, 여러 개 한꺼번에 가능 (다른 서류가 섞인 PDF도 가족관계증명서 쪽만 골라 읽습니다)</p>
+        <p class="d2">PDF · JPG · PNG, 여러 개 한꺼번에 가능. 파일을 넣은 뒤 아래 <b>읽기 시작</b>을 누르세요.</p>
         <input id="pick" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple hidden />
       </div>
       <p class="demo">처음이라면 <button id="demo" type="button">가짜 견본 파일로 먼저 해보기</button> <small>(글자 PDF 1개 + 스캔 PDF 1개, 실제 사람 아님)</small></p>
 
       <div class="opts">
-        <fieldset>
-          <legend>읽는 방식</legend>
-          <label><input type="radio" name="mode" value="auto" checked /> 자동 <small>글자가 들어 있으면 그대로, 스캔본이면 글자 인식</small></label>
-          <label><input type="radio" name="mode" value="ocr" /> 전부 스캔 방식 <small>모든 쪽을 그림으로 보고 글자 인식</small></label>
-        </fieldset>
         <fieldset>
           <legend>주민등록번호</legend>
           <label><input type="radio" name="rrn" value="asis" checked /> 문서 그대로</label>
@@ -66,13 +61,7 @@
           </div>
           <div class="hcrow">
             <label class="grow">API 키 <input id="hcKey" type="password" autocomplete="off" placeholder="키를 붙여 넣으세요" /></label>
-            <label>Project ID <small>(프로젝트 키일 때만)</small><input id="hcProject" spellcheck="false" autocomplete="off" placeholder="개인 키면 비움" /></label>
-            <label>호출 형식 <select id="hcApi"><option value="auto">자동으로 찾기</option><option value="chat">OpenAI Chat</option><option value="messages">Claude Messages</option><option value="responses">OpenAI Responses</option><option value="gemini">Gemini</option></select></label>
-          </div>
-          <div class="hcrow">
-            <label class="chk"><input type="checkbox" id="hcInsecure" /> 인증서 검증 건너뛰기 <small>(안내서의 curl -k)</small></label>
             <label class="chk"><input type="checkbox" id="hcSave" /> 이 PC에 키 저장</label>
-            <span class="grow"></span>
             <button id="hcApply" class="btn ghost sm" type="button">설정 적용</button>
             <button id="hcTest" class="btn ghost sm" type="button">연결 테스트</button>
           </div>
@@ -81,6 +70,10 @@
       </details>
 
       <ul id="files" class="files"></ul>
+      <div id="startRow" class="startrow hidden">
+        <span id="startNote"></span>
+        <button id="start" class="btn primary" type="button">읽기 시작</button>
+      </div>
     </section>
 
     <section id="result" class="hidden">

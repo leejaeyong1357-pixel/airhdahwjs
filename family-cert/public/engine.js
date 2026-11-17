@@ -141,7 +141,8 @@ function fitToTable(canvas, sp) {
   return c;
 }
 
-async function ocrPage(srcCanvas) {
+// light: H Chat이 읽을 쪽 — 여기서는 표 줄만 찾아 줄 그림(검수용)을 만들고, 글자 인식은 구분 칸만 한다(머리글 줄을 가려내려고). 훨씬 빠르다.
+async function ocrPage(srcCanvas, light = false) {
   let a = await analyze(srcCanvas);
   const skew = estimateSkew(a.hm, a.w, a.h);
   if (Math.abs(skew) >= 0.12) a = await analyze(rotated(srcCanvas, -skew));
@@ -151,7 +152,7 @@ async function ocrPage(srcCanvas) {
   if (window.__fcDebug) window.__fcDebug.push({ skew, bands: bands.map(b => [b.y0, b.y1, b.est]) });
   const P = getPool();
 
-  if (!bands.length) return P.use(wk => ocrPageLoose(wk, a, clean));
+  if (!bands.length) return light ? { light: true, rows: [] } : P.use(wk => ocrPageLoose(wk, a, clean));
 
   return P.use(async wk => {
     // 1) 제목 확인 (표 위쪽 띠, 안 되면 아래쪽 띠)
@@ -161,14 +162,17 @@ async function ocrPage(srcCanvas) {
       const d = await ocr(wk, binCanvas(clean, w, { x0: 0, y0, x1: w - 1, y1 }, 0), 6);
       return d.text || "";
     };
-    const top = await stripText(bands[0].y0 - h * 0.3, bands[0].y0 - 4);
-    let info = pageInfo(top.split("\n").map(t => ({ text: t })));
-    if (!info.title) {
-      const bot = await stripText(bands[bands.length - 1].y1 + 4, bands[bands.length - 1].y1 + h * 0.2);
-      const i2 = pageInfo((top + "\n" + bot).split("\n").map(t => ({ text: t })));
-      info = { ...i2, kind: i2.kind || info.kind };
+    let info = { title: true, other: false, kind: "" };
+    if (!light) {
+      const top = await stripText(bands[0].y0 - h * 0.3, bands[0].y0 - 4);
+      info = pageInfo(top.split("\n").map(t => ({ text: t })));
+      if (!info.title) {
+        const bot = await stripText(bands[bands.length - 1].y1 + 4, bands[bands.length - 1].y1 + h * 0.2);
+        const i2 = pageInfo((top + "\n" + bot).split("\n").map(t => ({ text: t })));
+        info = { ...i2, kind: i2.kind || info.kind };
+      }
+      if (!info.title && info.other) return { isCert: false, rows: [], skipped: "다른 증명서" };
     }
-    if (!info.title && info.other) return { isCert: false, rows: [], skipped: "다른 증명서" };
 
     // 2) 칸별로 읽기
     const cellBox = (band, k) => {
@@ -203,6 +207,7 @@ async function ocrPage(srcCanvas) {
       if (it.box[0] && !it.rel) { it.rel = normRel(lastText); it.relWarn = true; }
     }
     const rows = items.filter(it => it.rel !== "구분" && (it.box[1] || it.box[2] || it.box[3]));
+    if (light) return { light: true, rows: rows.map(it => ({ rel: it.rel, crop: cropUrl(a.canvas, it.band.cells[0].x0 - 8, it.band.y0 - 6, it.band.cells[5].x1 + 8, it.band.y1 + 6, 1400) })) };
     // 숫자 칸은 세 가지로 읽는다: 기존 엔진(흑백 그림) · 기존 엔진(회색 그림) · 두 번째 엔진(PaddleOCR 인식 모델)
     const G = b => grayCanvas(gray, bin, clean, w, b, 16, 1);
     const P = async b => { const r = await ppRead(G(b)); return r ? r.text : ""; };
@@ -302,9 +307,9 @@ async function renderPage(page, scale) {
   return { canvas: c, vp };
 }
 
-async function readPdfPage(page, mode, keepImg) {
+async function readPdfPage(page, light) {
   const base = page.getViewport({ scale: 1 });
-  if (mode !== "ocr") {
+  {
     const tc = await page.getTextContent();
     const hangul = tc.items.reduce((n, it) => n + (it.str.match(/[가-힣]/g) || []).length, 0);
     if (hangul >= 20 && !(await hasFullPageImage(page))) {
@@ -336,14 +341,15 @@ async function readPdfPage(page, mode, keepImg) {
       else canvas = fitToTable(canvas, sp);
     } else if (f < 0.8) canvas = fitToTable(canvas, sp);
   }
-  return { ...(await ocrPage(canvas)), src: "ocr", img: keepImg ? pageUrl(canvas) : "" };
+  return { ...(await ocrPage(canvas, light)), src: "ocr", img: light ? pageUrl(canvas) : "" };
 }
 
 // ───────── 바깥에서 부르는 함수
 // file → { pages: [{ file, page, src, kind, rows, pageWarn }], total, skipped, error }
-// keepImg: 스캔 방식으로 읽은 쪽의 그림도 돌려준다 (H Chat 판독용). others = 이 PC에서는 증명서를 못 찾은 스캔 쪽들
-export async function readFile(file, mode, onProgress = () => {}, keepImg = false) {
-  const name = file.name, out = { pages: [], others: [], total: 0, skipped: 0, error: "" };
+// 글자가 들어 있는 PDF 쪽은 글자를 그대로 꺼내고, 그렇지 않은 쪽(스캔·그림)만 그림으로 읽는다.
+// onScanPage 를 주면(H Chat 사용) 스캔 쪽은 여기서 읽지 않고, 쪽 그림과 줄 그림만 만들어 곧바로 넘긴다: onScanPage({ file, page, img, rows })
+export async function readFile(file, onProgress = () => {}, onScanPage = null) {
+  const name = file.name, out = { pages: [], total: 0, skipped: 0, error: "" }, light = !!onScanPage;
   const isPdf = /\.pdf$/i.test(name) || file.type === "application/pdf";
   try {
     if (!isPdf) {
@@ -359,9 +365,10 @@ export async function readFile(file, mode, onProgress = () => {}, keepImg = fals
         x.imageSmoothingQuality = "high"; x.drawImage(raw, 0, 0, c.width, c.height);
       }
       out.total = 1; onProgress(0, 1);
-      const r = await ocrPage(c), img = keepImg ? pageUrl(c) : "";
-      if (r.isCert) out.pages.push({ file: name, page: 1, src: "ocr", kind: r.kind, rows: r.rows, pageWarn: r.pageWarn || "", img });
-      else { out.skipped++; if (img) out.others.push({ file: name, page: 1, img }); }
+      const r = await ocrPage(c, light);
+      if (light) onScanPage({ file: name, page: 1, img: pageUrl(c), rows: r.rows });
+      else if (r.isCert) out.pages.push({ file: name, page: 1, src: "ocr", kind: r.kind, rows: r.rows, pageWarn: r.pageWarn || "" });
+      else out.skipped++;
       onProgress(1, 1);
       return out;
     }
@@ -382,16 +389,18 @@ export async function readFile(file, mode, onProgress = () => {}, keepImg = fals
         const n = next++;
         try {
           const page = await doc.getPage(n);
-          results[n - 1] = await readPdfPage(page, mode, keepImg);
+          const r = results[n - 1] = await readPdfPage(page, light);
           page.cleanup();
+          if (r.light) { onScanPage({ file: name, page: n, img: r.img, rows: r.rows }); r.img = ""; }
         } catch (e) { console.error(e); results[n - 1] = { isCert: false, rows: [], failed: true }; }
         onProgress(++done, out.total);
       }
     };
     await Promise.all(Array.from({ length: Math.min(getPool().max, doc.numPages) }, runner));
     results.forEach((r, i) => {
-      if (r?.isCert && r.rows.length) out.pages.push({ file: name, page: i + 1, src: r.src, kind: r.kind, rows: r.rows, pageWarn: r.pageWarn || "", img: r.img || "" });
-      else { out.skipped++; if (r?.src === "ocr" && r.img) out.others.push({ file: name, page: i + 1, img: r.img }); }
+      if (r?.light) return; // H Chat 쪽으로 넘긴 쪽
+      if (r?.isCert && r.rows.length) out.pages.push({ file: name, page: i + 1, src: r.src, kind: r.kind, rows: r.rows, pageWarn: r.pageWarn || "" });
+      else out.skipped++;
       if (r?.failed) out.failedPages = (out.failedPages || 0) + 1;
     });
     await doc.destroy();

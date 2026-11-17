@@ -35,9 +35,21 @@ export function request(url, { method = "POST", headers = {}, body, insecure = f
 }
 export function netError(e) {
   const code = String(e?.code || e?.cause?.code || e?.message || e);
-  if (/CERT|SELF_SIGNED|UNABLE_TO_VERIFY|ISSUER/.test(code)) return `사내 인증서를 확인하지 못했어요 (${code}). '인증서 검증 건너뛰기'를 켜고 다시 해 보세요. (안내서의 curl -k 와 같은 뜻)`;
+  if (/CERT|SELF_SIGNED|UNABLE_TO_VERIFY|ISSUER/.test(code)) return `사내 인증서 문제로 연결하지 못했어요 (${code}).`;
   if (/ETIMEDOUT|timeout/.test(code)) return "응답이 너무 오래 걸려 멈췄어요. 잠시 뒤 다시 해 보세요.";
   return `H Chat 서버에 연결하지 못했어요. 사내망(또는 VPN) 연결을 확인해 주세요. (${code})`;
+}
+
+// 사내 인증서를 이 PC가 믿지 못해 연결이 막히면, 검증 없이 한 번 더 시도하고 그 뒤로는 그렇게 쓴다 (안내서가 권하는 curl -k 와 같음).
+const isCertError = e => /CERT|SELF_SIGNED|UNABLE_TO_VERIFY|ISSUER/.test(String(e?.code || e?.cause?.code || e?.message || ""));
+async function send(cfg, url, opts) {
+  try { return await request(url, { ...opts, insecure: !!cfg.insecure }); }
+  catch (e) {
+    if (cfg.insecure || !isCertError(e)) throw e;
+    const r = await request(url, { ...opts, insecure: true });
+    cfg.insecure = true; cfg.insecureAuto = true;
+    return r;
+  }
 }
 
 // ───────── 호출 형식들
@@ -45,8 +57,8 @@ const split = dataUrl => { const m = /^data:(image\/(?:jpeg|png));base64,([A-Za-
 // variants: 400(요청 거절)일 때 차례로 바꿔 볼 요청 모양
 const RECIPES = {
   responses: {
-    path: () => "/v3/openai/responses", variants: [{}, { noMax: true }],
-    body: (model, prompt, img, v) => ({ model, ...(v.noMax ? {} : { max_output_tokens: v.maxTokens * 2 }), input: [{ role: "user", content: img ? [{ type: "input_text", text: prompt }, { type: "input_image", image_url: img }] : [{ type: "input_text", text: prompt }] }] }),
+    path: () => "/v3/openai/responses", variants: [{ effort: "low" }, {}, { noMax: true }], // 글자 옮겨 적기는 긴 추론이 필요 없다 → 추론을 낮춰 빠르게
+    body: (model, prompt, img, v) => ({ model, ...(v.effort ? { reasoning: { effort: v.effort } } : {}), ...(v.noMax ? {} : { max_output_tokens: v.maxTokens * 2 }), input: [{ role: "user", content: img ? [{ type: "input_text", text: prompt }, { type: "input_image", image_url: img }] : [{ type: "input_text", text: prompt }] }] }),
     text: j => (typeof j.output_text === "string" && j.output_text) || (Array.isArray(j.output) ? j.output.flatMap(o => o.content || []).map(p => p.text || "").join("") || undefined : undefined),
     tokens: j => j.usage?.total_tokens,
   },
@@ -97,7 +109,7 @@ export async function ask(cfg, model, prompt, image, maxTokens = 4000) {
     for (let k = 0; k < R.variants.length; k++) {
       const vi = (start + k) % R.variants.length;
       let res;
-      try { res = await request(base + R.path(model), { headers: headersFor(cfg), body: JSON.stringify(R.body(model, prompt, image, { maxTokens, ...R.variants[vi] })), insecure: cfg.insecure }); }
+      try { res = await send(cfg, base + R.path(model), { headers: headersFor(cfg), body: JSON.stringify(R.body(model, prompt, image, { maxTokens, ...R.variants[vi] })) }); }
       catch (e) { throw new Error(netError(e)); }
       if (res.status >= 200 && res.status < 300) {
         let j; try { j = JSON.parse(res.text); } catch { tried.push(`${name}: 답이 JSON이 아님 ${brief(res.text)}`); break; }
@@ -117,8 +129,8 @@ export async function ask(cfg, model, prompt, image, maxTokens = 4000) {
 
 export async function health(cfg) {
   try {
-    const r = await request(cfg.baseUrl.replace(/\/+$/, "") + "/v1/are-you-okay", { method: "GET", insecure: cfg.insecure, timeout: 15000 });
-    return { ok: r.status >= 200 && r.status < 300, detail: `[${r.status}] ${brief(r.text)}` };
+    const r = await send(cfg, cfg.baseUrl.replace(/\/+$/, "") + "/v1/are-you-okay", { method: "GET", timeout: 15000 });
+    return { ok: r.status >= 200 && r.status < 300, detail: `[${r.status}] ${brief(r.text)}` + (cfg.insecureAuto ? " (사내 인증서를 확인하지 못해 검증 없이 연결했어요)" : "") };
   } catch (e) { return { ok: false, detail: netError(e) }; }
 }
 
@@ -156,8 +168,8 @@ export function parsePageJson(text) {
 }
 
 export async function readPage(cfg, model, image) {
-  const r = await ask(cfg, model, PAGE_PROMPT, image, 4000);
+  const t0 = Date.now(), r = await ask(cfg, model, PAGE_PROMPT, image, 4000);
   const page = parsePageJson(r.text);
   if (!page) throw new Error(`'${model}' 답이 정해진 모양이 아니에요: ${brief(r.text)}`);
-  return { ...page, tokens: r.tokens, model, recipe: r.recipe };
+  return { ...page, tokens: r.tokens, model, recipe: r.recipe, ms: Date.now() - t0 };
 }

@@ -7,7 +7,6 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 const state = { items: [], people: [], running: false, seq: 0 };
 
 const opt = () => ({
-  mode: document.querySelector('input[name="mode"]:checked').value,
   maskRrn: document.querySelector('input[name="rrn"]:checked').value === "mask",
   hanja: $("#hanja").checked,
   birthCol: $("#birthCol").checked,
@@ -32,28 +31,50 @@ window.addEventListener("drop", e => e.preventDefault());
 $("#demo").addEventListener("click", async () => {
   try {
     const names = ["견본_글자_1명.pdf", "견본_스캔_3명.pdf"];
-    addFiles(await Promise.all(names.map(async n => new File([await (await fetch("/sample/" + encodeURIComponent(n))).blob()], n, { type: "application/pdf" }))));
+    addFiles(await Promise.all(names.map(async n => new File([await (await fetch("/sample/" + encodeURIComponent(n))).blob()], n, { type: "application/pdf" }))), true);
   } catch { toast("견본 파일을 불러오지 못했어요."); }
 });
 
-function addFiles(list) {
+function addFiles(list, startNow = false) {
   const ok = [...list].filter(f => /\.(pdf|jpe?g|png)$/i.test(f.name));
   if (ok.length < list.length) toast("PDF · JPG · PNG 파일만 읽을 수 있어요.");
   for (const f of ok) state.items.push({ id: ++state.seq, file: f, status: "wait", done: 0, total: 0 });
   renderFiles();
-  run();
+  if (startNow) run();
 }
+$("#start").addEventListener("click", () => run());
+
+// 한꺼번에 n개까지만 돌리는 줄 세우기
+function limiter(n) {
+  let active = 0; const q = [];
+  const pump = () => { while (active < n && q.length) { active++; const j = q.shift(); j.fn().then(j.ok, j.bad).finally(() => { active--; pump(); }); } };
+  return fn => new Promise((ok, bad) => { q.push({ fn, ok, bad }); pump(); });
+}
+const aiLimit = limiter(4);
 
 async function run() {
   if (state.running) return;
-  state.running = true;
+  state.running = true; renderFiles();
   for (;;) {
     const it = state.items.find(i => i.status === "wait");
     if (!it) break;
     const useAi = hc.mode === "on" && hc.hasKey;
-    it.status = "work"; it.t0 = performance.now(); renderFiles();
-    const res = await readFile(it.file, opt().mode, (d, t) => { it.done = d; it.total = t; renderFiles(); }, useAi);
-    if (useAi && !res.error) { it.status = "ai"; await aiPages(it, res); }
+    Object.assign(it, { status: "work", t0: performance.now(), aiTotal: 0, aiDone: 0, aiPages: [], aiSkipped: 0, aiError: "" });
+    renderFiles();
+    const progress = (d, t) => { it.done = d; it.total = t; renderFiles(); };
+    // H Chat을 쓰면: 스캔·그림 쪽은 그림이 준비되는 대로 곧바로 H Chat에 보낸다 (이 PC에서는 줄 그림만 만든다)
+    const jobs = [];
+    let res = await readFile(it.file, progress, useAi ? p => { it.aiTotal++; renderFiles(); jobs.push(aiLimit(() => aiPage(it, p))); } : null);
+    if (jobs.length) { it.status = "ai"; renderFiles(); await Promise.all(jobs); }
+    if (it.aiError && !res.error) { // H Chat이 안 되면 이 PC의 글자 인식으로 다시 읽는다
+      it.status = "work"; it.done = 0; renderFiles();
+      res = await readFile(it.file, progress, null);
+      $("#hc").open = true; hcMsg("H Chat 판독을 멈추고 이 PC 글자 인식으로 읽었어요: " + it.aiError, "err");
+    } else if (jobs.length) {
+      res.pages.push(...it.aiPages); res.pages.sort((p, q) => p.page - q.page); res.skipped += it.aiSkipped;
+      hcSummary();
+    }
+    it.aiPages = [];
     it.res = res; it.status = res.error ? "error" : "done"; it.sec = (performance.now() - it.t0) / 1000;
     const people = buildPeople(res.pages);
     for (const p of people) {
@@ -64,12 +85,11 @@ async function run() {
       for (const r of p.rows) { r.id = ++state.seq; r.memo = ""; r.confirmed = false; }
     }
     for (const pg of res.pages) delete pg.img;
-    res.others = [];
     it.count = people.length;
     state.people.push(...people);
     renderFiles(); renderPeople();
   }
-  state.running = false;
+  state.running = false; renderFiles();
 }
 
 function renderFiles() {
@@ -78,8 +98,8 @@ function renderFiles() {
     const li = el("li", "file " + it.status);
     li.append(el("span", "fname", it.file.name));
     let msg = "";
-    if (it.status === "wait") msg = "기다리는 중";
-    else if (it.status === "work") msg = it.total ? `읽는 중… ${it.done} / ${it.total}쪽` : "여는 중…";
+    if (it.status === "wait") msg = state.running ? "차례를 기다리는 중" : "넣었어요 — '읽기 시작'을 누르세요";
+    else if (it.status === "work") msg = (it.total ? `읽는 중… ${it.done} / ${it.total}쪽` : "여는 중…") + (it.aiTotal ? ` · H Chat ${it.aiDone} / ${it.aiTotal}쪽` : "");
     else if (it.status === "ai") msg = `H Chat으로 읽는 중… ${it.aiDone || 0} / ${it.aiTotal || 0}쪽`;
     else if (it.status === "error") msg = it.res.error;
     else {
@@ -92,13 +112,18 @@ function renderFiles() {
     }
     li.append(el("span", "fmsg", msg));
     if (it.status === "work" || it.status === "ai") { const bar = el("span", "fbar"), i = el("i"), d = it.status === "ai" ? it.aiDone || 0 : it.done, tt = it.status === "ai" ? it.aiTotal : it.total; i.style.width = (tt ? Math.round(d / tt * 100) : 5) + "%"; bar.append(i); li.append(bar); li.classList.add("work"); }
-    if (it.aiError) { const e = el("span", "ferr", "H Chat 오류로 이 PC 판독만 표시: " + it.aiError); li.append(e); }
+    if (it.aiError) { const e = el("span", "ferr", "H Chat 오류로 이 PC 글자 인식으로 읽음: " + it.aiError); li.append(e); }
+    if (it.status === "wait" && !state.running) { const x = el("button", "frm", "빼기"); x.type = "button"; x.addEventListener("click", () => { state.items.splice(state.items.indexOf(it), 1); renderFiles(); }); li.querySelector(".fmsg").append(x); }
     ul.append(li);
   }
+  const waiting = state.items.filter(i => i.status === "wait").length;
+  $("#startRow").classList.toggle("hidden", !waiting && !state.running);
+  const btn = $("#start"); btn.disabled = state.running; btn.textContent = state.running ? "읽는 중…" : `읽기 시작 (${waiting}개)`;
+  $("#startNote").textContent = state.running ? "" : hc.mode === "on" && hc.hasKey ? "스캔·그림 쪽은 H Chat으로 읽습니다." : "이 PC 안에서만 읽습니다.";
 }
 
 // ───────── H Chat으로 읽기 (선택)
-const hc = { mode: "off", hasKey: false, tokens: 0, calls: 0 };
+const hc = { mode: "off", hasKey: false, tokens: 0, calls: 0, time: {} };
 function hcMsg(lines, cls = "") {
   const m = $("#hcMsg"); m.textContent = ""; m.className = "hcmsg " + cls;
   for (const l of [].concat(lines)) { const d = el("div", typeof l === "object" ? (l.ok ? "ok" : "err") : "", typeof l === "object" ? `${l.ok ? "✔" : "✘"} ${l.name} — ${l.detail}` : l); m.append(d); }
@@ -118,8 +143,7 @@ const keyHint = () => { $("#hcKey").placeholder = hc.hasKey ? "입력된 키 사
 async function hcLoad() {
   try {
     const c = await hcApi("/api/hchat");
-    $("#hcUrl").value = c.baseUrl; $("#hcModel").value = c.model; $("#hcVerify").value = c.verifyModel || ""; $("#hcProject").value = c.projectId || "";
-    $("#hcApi").value = c.api || "auto"; $("#hcInsecure").checked = !!c.insecure; $("#hcSave").checked = !!c.saved;
+    $("#hcUrl").value = c.baseUrl; $("#hcModel").value = c.model; $("#hcVerify").value = c.verifyModel || ""; $("#hcSave").checked = !!c.saved;
     const dl = $("#hcModels"); dl.textContent = ""; for (const m of c.models || []) { const o = el("option"); o.value = m; dl.append(o); }
     hc.hasKey = !!c.hasKey; keyHint();
     hc.mode = c.hasKey && localStorage.getItem("fc-hc-mode") === "on" ? "on" : "off"; $("#hcMode").value = hc.mode;
@@ -127,7 +151,7 @@ async function hcLoad() {
   hcPaint();
 }
 async function hcApply() {
-  const r = await hcApi("/api/hchat", "POST", { baseUrl: $("#hcUrl").value, model: $("#hcModel").value, verifyModel: $("#hcVerify").value, projectId: $("#hcProject").value, api: $("#hcApi").value, insecure: $("#hcInsecure").checked, key: $("#hcKey").value, save: $("#hcSave").checked });
+  const r = await hcApi("/api/hchat", "POST", { baseUrl: $("#hcUrl").value, model: $("#hcModel").value, verifyModel: $("#hcVerify").value, key: $("#hcKey").value, save: $("#hcSave").checked });
   if (!r.ok) { hcMsg(r.error || "설정을 적용하지 못했어요.", "err"); return false; }
   hc.hasKey = !!r.hasKey; $("#hcKey").value = ""; $("#hcVerify").value = r.verifyModel || ""; keyHint(); hcPaint();
   return true;
@@ -149,38 +173,26 @@ $("#hcTest").addEventListener("click", async () => {
   } catch (e) { hcMsg("테스트 요청에 실패했어요: " + (e?.message || e), "err"); }
   btn.disabled = false;
 });
-// 스캔·캡처 쪽 그림을 H Chat에 보내 표를 옮겨 적게 하고, (교차 확인 모델 · 이 PC 글자 인식)과 줄 단위로 대조한다
-async function aiPages(it, res) {
-  const jobs = [
-    ...res.pages.filter(p => p.src === "ocr" && p.img).map(p => ({ p, found: true })),
-    ...res.others.map(o => ({ p: { file: o.file, page: o.page, src: "ocr", kind: "", rows: [], pageWarn: "", img: o.img }, found: false })),
-  ];
-  it.aiTotal = jobs.length; it.aiDone = 0; renderFiles();
-  let fail = "";
-  const next = async () => {
-    while (jobs.length && !fail) {
-      const { p, found } = jobs.shift();
-      try {
-        const r = await hcApi("/api/hchat/page", "POST", { image: p.img });
-        if (!r.ok) { fail = r.error || "H Chat 오류"; break; }
-        hc.tokens += r.tokens || 0; hc.calls++;
-        const a = r.primary, v = r.verify && !r.verify.error ? r.verify : null;
-        if (a.cert) {
-          const srcs = [{ tag: a.model, rows: a.rows }];
-          if (v && v.cert) srcs.push({ tag: v.model, rows: v.rows });
-          if (p.rows.length) srcs.push({ tag: "이 PC 글자 인식", rows: p.rows, local: true });
-          p.rows = mergeSources(srcs); p.src = "ai"; p.kind = a.kind || p.kind; p.models = srcs.filter(x => !x.local).map(x => x.tag);
-          p.pageWarn = r.verify?.error ? "교차 확인 모델이 답하지 못함" : v && !v.cert ? `${v.model}은 가족관계증명서가 아니라고 답함` : "";
-          if (!found) { res.pages.push(p); res.skipped = Math.max(0, res.skipped - 1); }
-        } else if (found) p.pageWarn = `${a.model}은 가족관계증명서가 아니라고 답함 (이 PC 판독만 표시)`;
-      } catch (e) { fail = "H Chat 요청에 실패했어요: " + (e?.message || e); break; }
-      it.aiDone++; renderFiles();
-    }
-  };
-  await Promise.all([next(), next()]);
-  res.pages.sort((p, q) => p.page - q.page);
-  if (fail) { it.aiError = fail; $("#hc").open = true; hcMsg("H Chat 판독을 멈췄어요: " + fail, "err"); }
-  else hcMsg(`H Chat으로 ${it.aiDone}쪽을 읽었어요. (누적 ${hc.calls}쪽${hc.tokens ? ` · 약 ${hc.tokens.toLocaleString()} 토큰` : ""})`, "ok");
+// 스캔·그림 한 쪽을 H Chat에 보내 표를 옮겨 적게 하고, 주 모델과 교차 확인 모델의 답을 줄 단위로 대조한다
+async function aiPage(it, p) {
+  try {
+    if (it.aiError) return;
+    const r = await hcApi("/api/hchat/page", "POST", { image: p.img });
+    if (!r.ok) { it.aiError = r.error || "H Chat 오류"; return; }
+    hc.tokens += r.tokens || 0; hc.calls++;
+    for (const m of [r.primary, r.verify]) if (m && m.ms) { const t = hc.time[m.model] || (hc.time[m.model] = { n: 0, ms: 0 }); t.n++; t.ms += m.ms; }
+    const v = r.verify && !r.verify.error ? r.verify : null, readers = [r.primary, v].filter(x => x && x.cert);
+    if (!readers.length) { it.aiSkipped++; return; }
+    const rows = mergeSources(readers.map(x => ({ tag: x.model, rows: x.rows })));
+    if (p.rows.length === rows.length) rows.forEach((row, i) => { row.crop = p.rows[i].crop; }); // 이 PC가 찾은 줄 수와 같을 때만 줄 그림을 붙인다
+    const pageWarn = !r.primary.cert ? `${r.primary.model}은 가족관계증명서가 아니라고 답함` : r.verify?.error ? "교차 확인 모델이 답하지 못함" : v && !v.cert ? `${v.model}은 가족관계증명서가 아니라고 답함` : "";
+    it.aiPages.push({ file: p.file, page: p.page, src: "ai", kind: readers[0].kind, rows, models: readers.map(x => x.model), pageWarn, img: rows.some(x => !x.crop) ? p.img : "" });
+  } catch (e) { it.aiError = "H Chat 요청에 실패했어요: " + (e?.message || e); }
+  finally { it.aiDone++; renderFiles(); }
+}
+function hcSummary() {
+  const per = Object.entries(hc.time).map(([m, t]) => `${m} ${(t.ms / t.n / 1000).toFixed(1)}초`).join(" / ");
+  hcMsg(`H Chat으로 누적 ${hc.calls}쪽을 읽었어요.${per ? ` 쪽당 평균: ${per}.` : ""}${hc.tokens ? ` 약 ${hc.tokens.toLocaleString()} 토큰.` : ""}`, "ok");
 }
 hcLoad();
 

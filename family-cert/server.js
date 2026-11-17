@@ -39,8 +39,9 @@ const CSP = [
 const HC_FILE = path.join(DIR, "data", "hchat.json");
 let hc = { ...DEFAULTS, key: process.env.H_CHAT_API_KEY || "", projectId: process.env.H_CHAT_API_PROJECT_ID || "", saved: false };
 if (process.env.H_CHAT_API_MODEL) hc.model = process.env.H_CHAT_API_MODEL;
+if (process.env.H_CHAT_INSECURE === "1") hc.insecure = true;
 try { hc = { ...hc, ...JSON.parse(fs.readFileSync(HC_FILE, "utf8")), saved: true }; } catch { /* 저장된 설정 없음 */ }
-const hcPublic = () => ({ baseUrl: hc.baseUrl, model: hc.model, verifyModel: hc.verifyModel, projectId: hc.projectId, api: hc.api, insecure: !!hc.insecure, hasKey: !!hc.key, saved: hc.saved, models: MODELS });
+const hcPublic = () => ({ baseUrl: hc.baseUrl, model: hc.model, verifyModel: hc.verifyModel, hasKey: !!hc.key, saved: hc.saved, models: MODELS });
 const json = (res, code, obj) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(obj));
 function readBody(req, limit = 12 << 20) {
   return new Promise((ok, bad) => {
@@ -64,11 +65,10 @@ async function api(req, res, p) {
       const b = await readBody(req, 20000);
       const baseUrl = String(b.baseUrl || "").trim();
       if (!/^https?:\/\/[^\s]+$/.test(baseUrl)) return json(res, 200, { ok: false, error: "주소는 http(s):// 로 시작해야 해요." });
-      hc = { ...hc, baseUrl, model: String(b.model || "").trim() || DEFAULTS.model, verifyModel: String(b.verifyModel || "").trim(), projectId: String(b.projectId || "").trim(),
-        api: ["auto", "chat", "messages", "responses", "gemini"].includes(b.api) ? b.api : "auto", insecure: !!b.insecure };
+      hc = { ...hc, baseUrl, model: String(b.model || "").trim() || DEFAULTS.model, verifyModel: String(b.verifyModel || "").trim() };
       if (hc.verifyModel === hc.model) hc.verifyModel = "";
       if (typeof b.key === "string" && b.key.trim()) hc.key = b.key.trim();
-      if (b.save) { fs.mkdirSync(path.dirname(HC_FILE), { recursive: true }); const { saved, ...keep } = hc; fs.writeFileSync(HC_FILE, JSON.stringify(keep), { mode: 0o600 }); hc.saved = true; }
+      if (b.save) { fs.mkdirSync(path.dirname(HC_FILE), { recursive: true }); const { saved, insecureAuto, ...keep } = hc; fs.writeFileSync(HC_FILE, JSON.stringify(keep), { mode: 0o600 }); hc.saved = true; }
       else { fs.rmSync(HC_FILE, { force: true }); hc.saved = false; }
       return json(res, 200, { ok: true, ...hcPublic() });
     }
