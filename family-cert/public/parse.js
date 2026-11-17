@@ -219,7 +219,7 @@ export function checkRow(row) {
   else if (!rrn) notes.push("주민번호 없음");
   if (rrn.includes("*")) notes.push("뒷자리 가려짐");
   if (!row.name) warn.push("이름 없음");
-  if (row.src === "ocr" && !row.edited) { const d = nameDoubt(row.name); if (d.length) warn.push("이름 확인(" + d.join(", ") + ")"); }
+  if (row.src === "ocr" && !row.edited && !row.nameAgreed) { const d = nameDoubt(row.name); if (d.length) warn.push("이름 확인(" + d.join(", ") + ")"); }
   if (rrn && !/^\d{6}-[\d*]{7}$/.test(rrn)) warn.push("주민번호 형식");
   if (row.birth && !/^\d{4}-\d{2}-\d{2}$/.test(row.birth)) warn.push("생년월일 형식");
   if (row.birth && rrn) {
@@ -290,4 +290,63 @@ function familyCheck(p) {
 
 export function maskRrn(rrn) {
   return /^\d{6}-\d/.test(rrn || "") ? rrn.slice(0, 8) + "******" : rrn || "";
+}
+
+// ───────── H Chat(사내 AI) 보조 판독값과 합치기
+// 원칙: AI 값도 그대로 믿지 않는다. ① 숫자는 "생년월일↔주민번호 맞물림 + 검증번호"를 통과하는 쪽을 쓴다.
+// ② 두 판독이 같으면 확인된 것으로 보고 경고를 내린다. ③ 다르면 표시하고 사람이 고르게 한다.
+const pairOk = (birth, rrn) => {
+  if (!birth || !/^\d{6}-[\d*]{7}$/.test(rrn || "") || birth.slice(2).replace(/-/g, "") !== rrn.slice(0, 6)) return false;
+  const checkable = /^\d{6}-\d{7}$/.test(rrn) && "1234".includes(rrn[7]) && birth < "2020-10-01";
+  return !checkable || rrnChecksumOk(rrn) === true;
+};
+const proven = (birth, rrn) => pairOk(birth, rrn) && /^\d{6}-\d{7}$/.test(rrn) && "1234".includes(rrn[7]) && birth < "2020-10-01"; // 검증번호까지 통과
+export function normalizeAi(ai) {
+  const nc = parseNameCell(String(ai.name || "") + (ai.hanja ? `(${ai.hanja})` : ""));
+  const b = String(ai.birth || "");
+  return {
+    rel: RELS.includes(String(ai.rel || "").replace(/\s+/g, "")) ? String(ai.rel).replace(/\s+/g, "") : "",
+    name: nc.name, hanja: nc.hanja, dead: !!ai.dead,
+    birth: /^\d{4}-\d{2}-\d{2}$/.test(b) ? parseBirth(b.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$1년 $2월 $3일")) : parseBirth(b, true),
+    rrn: parseRrn(ai.rrn).value, sex: parseSex(ai.sex),
+    bon: String(ai.bon || "").replace(/[^\u3400-\u9fff\uf900-\ufaff]/g, ""),
+  };
+}
+// row(로컬 판독) + ai(정규화 전 AI 판독) → 새 row. row.ai = { diff: [...], used: [...] } 로 무엇이 달랐는지 남긴다.
+export function mergeAi(row, aiRaw) {
+  const ai = normalizeAi(aiRaw), out = { ...row }, diff = [], used = [];
+  let warn = [...(row.ocrWarn || [])];
+  const drop = re => { warn = warn.filter(w => !re.test(w)); };
+  // 숫자
+  const same = ai.birth === (row.birth || "") && ai.rrn === (row.rrn || "");
+  if (same) drop(/^(생년월일|주민번호)/);
+  else if (proven(row.birth, row.rrn)) { /* 로컬 값이 검증번호까지 통과 — 그대로 둔다 */ drop(/^(생년월일|주민번호)/); }
+  else {
+    const pick = [[ai.birth, ai.rrn], [row.birth, ai.rrn], [ai.birth, row.rrn]].find(([b, r]) => proven(b, r)) ||
+      (!pairOk(row.birth, row.rrn) && [[ai.birth, ai.rrn], [row.birth, ai.rrn], [ai.birth, row.rrn]].find(([b, r]) => pairOk(b, r)));
+    if (pick) { [out.birth, out.rrn] = pick; used.push("숫자"); drop(/^(생년월일|주민번호)/); if (!proven(out.birth, out.rrn)) warn.push("주민번호: 글자 인식과 H Chat 판독이 다름"); }
+    else {
+      if (ai.birth !== (row.birth || "")) { diff.push("생년월일"); if (!row.birth && ai.birth) { out.birth = ai.birth; used.push("생년월일"); } }
+      if (ai.rrn !== (row.rrn || "")) { diff.push("주민번호"); if (!row.rrn && ai.rrn) { out.rrn = ai.rrn; used.push("주민번호"); } }
+    }
+  }
+  // 이름: 다르면 AI 쪽을 쓰되 반드시 표시 (드문 글자는 글자 인식이 약하다)
+  if (ai.name && ai.name === row.name) { drop(/^이름/); out.nameAgreed = true; }
+  else if (ai.name) {
+    // 한두 글자만 다른 "오독 바로잡기"일 때만 H Chat 값을 쓴다. 전혀 다른 이름이면(다른 줄을 읽었거나 지어낸 것) 로컬 값을 지킨다. 어느 쪽이든 표시.
+    const a = row.name || "", b = ai.name, close = !a || (a.length === b.length && [...a].filter((c, i) => c !== b[i]).length <= Math.max(1, Math.floor(a.length / 3)));
+    diff.push(`이름(글자 인식 '${a || "?"}' / H Chat '${b}')`);
+    if (close) { out.name = b; used.push("이름"); drop(/^이름/); }
+  }
+  // 구분·성별·사망
+  if (ai.rel && ai.rel !== row.rel) { if (!row.rel || warn.some(w => /^구분/.test(w))) { out.rel = ai.rel; used.push("구분"); } diff.push("구분"); } else if (ai.rel) drop(/^구분 글자/);
+  if (ai.sex && ai.sex !== row.sex) { if (!row.sex) { out.sex = ai.sex; used.push("성별"); drop(/^성별을/); } else diff.push("성별"); } else if (ai.sex) drop(/^성별을/);
+  if (ai.dead !== !!row.dead) diff.push("사망 표시"); else drop(/^사망 표시/);
+  // 한자·본: 스캔본에서는 로컬이 읽지 않으므로 AI 값으로 채운다 (대조할 짝이 없음)
+  if (!row.hanja && ai.hanja) out.hanja = ai.hanja;
+  if (!row.bon && ai.bon) out.bon = ai.bon;
+  if (diff.length) warn.push("H Chat 판독과 다름: " + diff.join(", "));
+  out.ocrWarn = [...new Set(warn)];
+  out.ai = { diff, used, raw: ai };
+  return fillRow(out);
 }

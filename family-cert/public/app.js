@@ -1,5 +1,5 @@
 import { readFile } from "./engine.js";
-import { buildPeople, checkRow, RELS } from "./parse.js";
+import { buildPeople, checkRow, RELS, mergeAi } from "./parse.js";
 import { buildWorkbook } from "./excel.js";
 
 const $ = s => document.querySelector(s);
@@ -61,6 +61,7 @@ async function run() {
     it.count = people.length;
     state.people.push(...people);
     renderFiles(); renderPeople();
+    if (hc.mode !== "off" && hc.hasKey) await aiPass(people.flatMap(p => p.rows));
   }
   state.running = false;
 }
@@ -87,6 +88,76 @@ function renderFiles() {
     ul.append(li);
   }
 }
+
+// ───────── H Chat 보조 판독 (선택)
+const hc = { mode: "off", hasKey: false, busy: false, tokens: 0, calls: 0 };
+const hcMsg = (text, cls = "") => { const m = $("#hcMsg"); m.textContent = text; m.className = "hcmsg " + cls; };
+async function hcApi(pathname, method = "GET", body) {
+  const r = await fetch(pathname, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+  return r.json();
+}
+function hcPaint() {
+  const on = hc.mode !== "off" && hc.hasKey;
+  const st = $("#hcState"); st.textContent = on ? (hc.mode === "all" ? "켜짐 · 스캔 줄 전부" : "켜짐 · 확인 필요한 줄만") : hc.mode !== "off" ? "키 필요" : "꺼짐"; st.className = "hcstate " + (on ? "on" : "off");
+  $("#bPc").innerHTML = on ? "글자 PDF·검수는 <b>이 PC 안에서</b>" : "<b>이 PC 안에서만</b> 처리";
+  $("#bNet").innerHTML = on ? "스캔 줄 그림 → <b>사내 H Chat 전송</b>" : "인터넷 전송 <b>없음</b>"; $("#bNet").classList.toggle("live", on);
+  $("#bAi").innerHTML = on ? "AI 토큰 <b>사용</b>" : "AI 토큰 사용 <b>없음</b>"; $("#bAi").classList.toggle("live", on);
+}
+async function hcLoad() {
+  try {
+    const c = await hcApi("/api/hchat");
+    $("#hcUrl").value = c.baseUrl; $("#hcFormat").value = c.format; $("#hcModel").value = c.model; $("#hcSave").checked = !!c.saved;
+    hc.hasKey = !!c.hasKey; if (c.hasKey) $("#hcKey").placeholder = "입력된 키 사용 중 (바꾸려면 새로 붙여 넣기)";
+    hc.mode = c.hasKey ? (localStorage.getItem("fc-hc-mode") || "off") : "off"; $("#hcMode").value = hc.mode;
+  } catch { /* 설정 주소가 없으면 기능을 끈 채로 둔다 */ }
+  hcPaint();
+}
+async function hcApply() {
+  const r = await hcApi("/api/hchat", "POST", { baseUrl: $("#hcUrl").value, format: $("#hcFormat").value, model: $("#hcModel").value, key: $("#hcKey").value, save: $("#hcSave").checked });
+  if (!r.ok) { hcMsg(r.error || "설정을 적용하지 못했어요.", "err"); return false; }
+  hc.hasKey = !!r.hasKey; $("#hcKey").value = ""; if (r.hasKey) $("#hcKey").placeholder = "입력된 키 사용 중 (바꾸려면 새로 붙여 넣기)";
+  hcPaint();
+  return true;
+}
+$("#hcMode").addEventListener("change", () => { hc.mode = $("#hcMode").value; localStorage.setItem("fc-hc-mode", hc.mode); hcPaint(); if (hc.mode !== "off" && !hc.hasKey) hcMsg("API 키를 넣고 '설정 적용'을 눌러 주세요.", "err"); });
+$("#hcApply").addEventListener("click", async () => { if (await hcApply()) hcMsg(hc.hasKey ? "설정을 적용했어요." + ($("#hcSave").checked ? " 키는 이 PC의 data 폴더에 저장했어요." : " 키는 프로그램을 끄면 지워져요.") : "키가 비어 있어요.", hc.hasKey ? "ok" : "err"); });
+$("#hcTest").addEventListener("click", async () => {
+  if (!(await hcApply())) return;
+  hcMsg("연결 확인 중…");
+  const r = await hcApi("/api/hchat/test", "POST", {});
+  hcMsg(r.ok ? `연결됐어요. (H Chat 답: ${r.message})` : r.error, r.ok ? "ok" : "err");
+});
+$("#hcRun").addEventListener("click", async () => {
+  if (!hc.hasKey) { hcMsg("API 키를 넣고 '설정 적용'을 눌러 주세요.", "err"); return; }
+  if (hc.mode === "off") { hcMsg("'사용'에서 범위를 먼저 골라 주세요.", "err"); return; }
+  if (state.running) { toast("파일을 읽는 중이에요. 끝난 뒤에 눌러 주세요."); return; }
+  await aiPass(state.people.flatMap(p => p.rows));
+});
+// 대상 줄의 그림을 H Chat에 보내 다시 읽고, 로컬 판독과 대조해 합친다
+async function aiPass(rows) {
+  if (hc.busy) return;
+  const targets = rows.filter(r => r.src === "ocr" && r.crop && !r.ai && !r.edited && (hc.mode === "all" || checkRow(r).warn.length));
+  if (!targets.length) { hcMsg("H Chat으로 다시 읽을 줄이 없어요."); return; }
+  hc.busy = true;
+  let done = 0, fail = "";
+  const next = async () => {
+    while (targets.length && !fail) {
+      const r = targets.shift();
+      try {
+        const res = await hcApi("/api/hchat/read", "POST", { image: r.crop });
+        if (!res.ok) { fail = res.error || "H Chat 오류"; break; }
+        Object.assign(r, mergeAi(r, res.row)); hc.tokens += res.tokens || 0; hc.calls++;
+      } catch (e) { fail = "H Chat 요청에 실패했어요: " + (e?.message || e); break; }
+      hcMsg(`H Chat으로 읽는 중… ${++done}줄`);
+    }
+  };
+  await Promise.all([next(), next(), next()]);
+  hc.busy = false;
+  renderPeople();
+  if (fail) { $("#hc").open = true; hcMsg(`${done}줄 읽고 멈췄어요: ${fail}`, "err"); }
+  else hcMsg(`H Chat으로 ${done}줄을 다시 읽어 대조했어요. (누적 ${hc.calls}줄${hc.tokens ? ` · 약 ${hc.tokens.toLocaleString()} 토큰` : ""})`, "ok");
+}
+hcLoad();
 
 // ───────── 검수 화면
 function warnCount() {
@@ -154,6 +225,7 @@ function rowView(p, r) {
     const { notes, warn } = checkRow(r);
     meta.textContent = "";
     for (const n of notes) meta.append(el("span", "note", n));
+    if (r.ai) meta.append(el("span", "note " + (r.ai.used.length ? "aiused" : "ai"), r.ai.used.length ? "H Chat 값 반영: " + r.ai.used.join("·") : r.ai.diff.length ? "H Chat 대조함" : "H Chat 판독과 일치"));
     if (warn.length) {
       const w = el("span", "warn" + (r.confirmed ? " ok" : ""), (r.confirmed ? "확인함: " : "확인 필요: ") + warn.join(" / "));
       const cb = el("input"); cb.type = "checkbox"; cb.checked = r.confirmed;
@@ -202,4 +274,4 @@ $("#reset").addEventListener("click", () => {
 });
 
 // 검수 자동화(테스트)용
-window.__fc = { state, opt, checkRow };
+window.__fc = { state, opt, checkRow, hc };

@@ -4,6 +4,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULTS, readRow, ping } from "./hchat.js";
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 2824);
@@ -30,9 +31,52 @@ const CSP = [
   "script-src 'self' 'wasm-unsafe-eval'", "style-src 'self' 'unsafe-inline'", "object-src 'none'", "base-uri 'none'", "form-action 'none'",
 ].join("; ");
 
+// ───────── H Chat 보조 판독 (선택 기능)
+// 켰을 때만 쓰인다. 키는 기본으로 메모리에만 두고, "이 PC에 저장"을 고르면 data/hchat.json 에 둔다(깃허브에 올라가지 않는 폴더).
+const HC_FILE = path.join(DIR, "data", "hchat.json");
+let hc = { ...DEFAULTS, key: "", saved: false };
+try { hc = { ...hc, ...JSON.parse(fs.readFileSync(HC_FILE, "utf8")), saved: true }; } catch { /* 저장된 설정 없음 */ }
+const hcPublic = () => ({ baseUrl: hc.baseUrl, format: hc.format, model: hc.model, hasKey: !!hc.key, saved: hc.saved });
+const json = (res, code, obj) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(obj));
+function readBody(req, limit = 4 << 20) {
+  return new Promise((ok, bad) => {
+    const chunks = []; let n = 0;
+    req.on("data", c => { n += c.length; if (n > limit) { bad(new Error("too large")); req.destroy(); } else chunks.push(c); });
+    req.on("end", () => { try { ok(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}")); } catch (e) { bad(e); } });
+    req.on("error", bad);
+  });
+}
+// 이 화면에서 온 요청만 받는다 (다른 웹사이트가 이 PC의 주소를 몰래 부르는 것을 막음)
+function sameSite(req) {
+  const host = String(req.headers.host || ""), origin = req.headers.origin;
+  if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) return false;
+  return !origin || origin === `http://${host}`;
+}
+async function api(req, res, p) {
+  if (!sameSite(req)) return json(res, 403, { ok: false, error: "허용되지 않은 요청" });
+  try {
+    if (p === "/api/hchat" && req.method === "GET") return json(res, 200, hcPublic());
+    if (p === "/api/hchat" && req.method === "POST") {
+      const b = await readBody(req, 20000);
+      const baseUrl = String(b.baseUrl || "").trim();
+      if (!/^https?:\/\/[^\s]+$/.test(baseUrl)) return json(res, 400, { ok: false, error: "주소는 http(s):// 로 시작해야 해요." });
+      hc = { ...hc, baseUrl, format: b.format === "openai" ? "openai" : "azure", model: String(b.model || "").trim() || DEFAULTS.model };
+      if (typeof b.key === "string" && b.key.trim()) hc.key = b.key.trim();
+      if (b.save) { fs.mkdirSync(path.dirname(HC_FILE), { recursive: true }); fs.writeFileSync(HC_FILE, JSON.stringify({ baseUrl: hc.baseUrl, format: hc.format, model: hc.model, key: hc.key }), { mode: 0o600 }); hc.saved = true; }
+      else { fs.rmSync(HC_FILE, { force: true }); hc.saved = false; }
+      return json(res, 200, { ok: true, ...hcPublic() });
+    }
+    if (p === "/api/hchat" && req.method === "DELETE") { fs.rmSync(HC_FILE, { force: true }); hc = { ...hc, key: "", saved: false }; return json(res, 200, { ok: true, ...hcPublic() }); }
+    if (p === "/api/hchat/test" && req.method === "POST") { const t = await ping(hc); return json(res, 200, { ok: true, message: t.slice(0, 60) }); }
+    if (p === "/api/hchat/read" && req.method === "POST") { const b = await readBody(req); const r = await readRow(hc, b.image); return json(res, 200, { ok: true, ...r }); }
+    return json(res, 404, { ok: false, error: "없는 주소" });
+  } catch (e) { return json(res, 200, { ok: false, error: String(e?.message || e) }); }
+}
+
 const server = http.createServer((req, res) => {
   let p;
   try { p = decodeURIComponent(new URL(req.url, "http://x").pathname); } catch { res.writeHead(400).end(); return; }
+  if (p.startsWith("/api/")) { api(req, res, p); return; }
   if (req.method !== "GET" && req.method !== "HEAD") { res.writeHead(405).end(); return; }
   if (p === "/") p = "/index.html";
   for (const [prefix, root] of ROOTS) {

@@ -13,5 +13,7 @@ if not exist node_modules\pdfjs-dist (
   if errorlevel 1 ( echo 내려받기에 실패했습니다. 인터넷 연결을 확인하세요. ^& pause ^& exit /b 1 )
 )
 start "" http://localhost:2824
-node server.js
+rem H Chat(사내 AI)을 쓸 때 사내 인증서를 믿도록, 가능한 Node 버전이면 Windows 인증서 저장소를 쓴다
+node --use-system-ca -e "" >nul 2>&1
+if errorlevel 1 ( node server.js ) else ( node --use-system-ca server.js )
 pause
