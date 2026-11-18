@@ -74,7 +74,8 @@ export function SubmissionActions({
       setCurrentThumb(s.thumbnailSignedUrl ?? "");
       setNewThumb(null);
       setThumbPreview("");
-      setKeptFiles((data.files ?? []).map((f: any) => ({
+      // 상세에는 고도화 · SaaS 신청 때 올린 결과물도 함께 오지만, 여기서 고치는 것은 출품 첨부(file_path 가 있는 것)뿐이다
+      setKeptFiles((data.files ?? []).filter((f: any) => f.file_path).map((f: any) => ({
         path: f.file_path, name: f.file_name, mime: f.mime_type ?? undefined, size: f.size_bytes ?? undefined,
       })));
       setNewFiles([]);

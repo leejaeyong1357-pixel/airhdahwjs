@@ -56,8 +56,7 @@ function axWorkIds(store: any): string[] {
 }
 
 /** 신규 등록작의 첨부 — 작품 상세의 [첨부 파일]과 카드 썸네일(첫 이미지)에 쓴다 */
-function newWorkMedia(w: any) {
-  const files = (w.files ?? []).map((f: any) => ({ file_name: f.name, signedUrl: f.path }));
+function newWorkMedia(w: any, files: any[]) {
   const img = (w.files ?? []).find((f: any) => /\.(png|jpe?g|gif|webp)$/i.test(f.name ?? ""));
   // 대표 이미지를 따로 올렸으면 그것, 없으면 첨부 중 첫 이미지
   return { thumbnailUrl: w.thumbnail || img?.path || "", files };
@@ -242,7 +241,7 @@ export const axGetOrgBoard = createServerFn({ method: "GET" })
 export const axListTeamWorks = createServerFn({ method: "GET" })
   .inputValidator((d: { team: string }) => z.object({ team: z.string().min(1) }).parse(d))
   .handler(async ({ data }) => {
-    const { readStore, requireUser, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { readStore, requireUser, mediaUrl, loadRoster, liveProfile, workAttachments } = await import("@/lib/local-store.server");
     const { normalizeTeam } = await import("@/lib/org");
     requireUser();
     const store = readStore();
@@ -261,14 +260,15 @@ export const axListTeamWorks = createServerFn({ method: "GET" })
         request: reqByWork.get(s.id) ?? null,
         description: s.description ?? "", features: s.features ?? "",
         techStack: s.tech_stack ?? "", expectedImpact: s.expected_impact ?? "",
-        files: (s.files ?? []).map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) })),
+        // 출품 첨부 + 고도화 · SaaS 신청 때 올린 결과물까지 모두
+        files: workAttachments(store, s.id, (s.files ?? []).map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) }))),
       }));
 
     const news = (store.axNewWorks ?? [])
       .map((w: any) => ({ w, author: liveProfile(roster, w.user_id, undefined) }))
       .filter(({ author }) => normalizeTeam(author.team) === data.team)
       .map(({ w, author }) => ({
-        id: w.id, source: "new" as const, title: w.title, ...newWorkMedia(w),
+        id: w.id, source: "new" as const, title: w.title, ...newWorkMedia(w, workAttachments(store, w.id, w.files ?? [])),
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stageOf(stage, w.id),
         request: reqByWork.get(w.id) ?? null,
@@ -293,7 +293,7 @@ export const axListWorksBy = createServerFn({ method: "GET" })
     }).parse(d),
   )
   .handler(async ({ data }) => {
-    const { readStore, requireUser, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { readStore, requireUser, mediaUrl, loadRoster, liveProfile, workAttachments } = await import("@/lib/local-store.server");
     const { normalizeTeam, silOfTeam } = await import("@/lib/org");
     requireUser();
     const store = readStore();
@@ -310,13 +310,14 @@ export const axListWorksBy = createServerFn({ method: "GET" })
         stage: stageOf(stage, s.id), request: reqByWork.get(s.id) ?? null,
         description: s.description ?? "", features: s.features ?? "",
         techStack: s.tech_stack ?? "", expectedImpact: s.expected_impact ?? "",
-        files: (s.files ?? []).map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) })),
+        // 출품 첨부 + 고도화 · SaaS 신청 때 올린 결과물까지 모두
+        files: workAttachments(store, s.id, (s.files ?? []).map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) }))),
       };
     });
     const news = (store.axNewWorks ?? []).map((w: any) => {
       const author = liveProfile(roster, w.user_id, undefined);
       return {
-        id: w.id, source: "new" as const, title: w.title, ...newWorkMedia(w),
+        id: w.id, source: "new" as const, title: w.title, ...newWorkMedia(w, workAttachments(store, w.id, w.files ?? [])),
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stageOf(stage, w.id), request: reqByWork.get(w.id) ?? null,
         description: w.description ?? "", features: w.features ?? "",
@@ -491,7 +492,7 @@ export const axRequestAdvancement = createServerFn({ method: "POST" })
 // ── 관리자: 전체 작품 분류 ───────────────────────────────────
 export const axAdminListWorks = createServerFn({ method: "GET" })
   .handler(async () => {
-    const { readStore, mediaUrl, loadRoster, liveProfile } = await import("@/lib/local-store.server");
+    const { readStore, mediaUrl, loadRoster, liveProfile, workAttachments } = await import("@/lib/local-store.server");
     await requireAxLabAdmin();
     const store = readStore();
     const roster = await loadRoster();
@@ -508,13 +509,14 @@ export const axAdminListWorks = createServerFn({ method: "GET" })
         stage: stageOf(stage, s.id), request: reqByWork.get(s.id) ?? null,
         description: s.description ?? "", features: s.features ?? "",
         techStack: s.tech_stack ?? "", expectedImpact: s.expected_impact ?? "",
-        files: (s.files ?? []).map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) })),
+        // 출품 첨부 + 고도화 · SaaS 신청 때 올린 결과물까지 모두
+        files: workAttachments(store, s.id, (s.files ?? []).map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) })), true),
       };
     });
     const news = (store.axNewWorks ?? []).map((w: any) => {
       const author = liveProfile(roster, w.user_id, undefined);
       return {
-        id: w.id, source: "new" as const, title: w.title, ...newWorkMedia(w),
+        id: w.id, source: "new" as const, title: w.title, ...newWorkMedia(w, workAttachments(store, w.id, w.files ?? [], true)),
         authorName: author.name, authorTeam: author.team, authorPosition: author.position,
         stage: stageOf(stage, w.id), request: reqByWork.get(w.id) ?? null,
         description: w.description ?? "", features: w.features ?? "",

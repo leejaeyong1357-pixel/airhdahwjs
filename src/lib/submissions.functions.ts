@@ -128,7 +128,7 @@ export const listJudgeSubmissions = createServerFn({ method: "GET" })
 export const getSubmission = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const { readStore, requireUser, mediaUrl, loadRoster, liveProfile, FALLBACK_EVALUATOR_EMP_NOS } = await import("@/lib/local-store.server");
+    const { readStore, requireUser, mediaUrl, loadRoster, liveProfile, workAttachments, FALLBACK_EVALUATOR_EMP_NOS } = await import("@/lib/local-store.server");
     const { sameSil } = await import("@/lib/org");
     const user = requireUser();
     const store = readStore();
@@ -147,7 +147,8 @@ export const getSubmission = createServerFn({ method: "GET" })
           profiles: liveProfile(roster, w.user_id, undefined),
           thumbnailSignedUrl: axNewWorkThumb(w),
         },
-        files: (w.files ?? []).map((f: any, i: number) => ({ id: `${w.id}-${i}`, file_name: f.name, signedUrl: f.path })),
+        // 등록 첨부 + 고도화 · SaaS 신청 때 올린 결과물까지 모두
+        files: workAttachments(store, w.id, w.files ?? []),
         comments: store.comments
           .filter((c) => c.submission_id === data.id)
           .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
@@ -158,9 +159,11 @@ export const getSubmission = createServerFn({ method: "GET" })
         isAxNew: true,
       };
     }
-    const files = store.submissions
-      .find((x) => x.id === data.id)!
-      .files.map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) }));
+    const files = [
+      ...s.files.map((f: any) => ({ ...f, signedUrl: mediaUrl("submissions", f.file_path) })),
+      // 고도화 · SaaS 신청 때 올린 결과물 (출품 첨부 뒤에 이어 붙인다)
+      ...workAttachments(store, s.id, []),
+    ];
     const comments = store.comments
       .filter((c) => c.submission_id === data.id)
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))

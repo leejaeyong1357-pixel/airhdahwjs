@@ -157,6 +157,35 @@ const EMPTY: Store = {
   axStage: {}, axGoals: {}, axNewWorks: [], axRequests: [],
 };
 
+/** 작품 상세에 보여줄 첨부 한 건 */
+export type WorkFile = { id: string; file_name: string; signedUrl: string; label?: string };
+
+/**
+ * 작품에 딸린 첨부를 모두 모은다 — 등록할 때 올린 파일 + 고도화 · SaaS 승인 신청 때 올린 결과물 파일.
+ * 신규 등록작은 파일을 신청 단계에서만 올리는 경우가 많아, 등록 첨부만 보여 주면 "첨부 없음"으로 보인다.
+ * 반려된 신청은 구성원 화면에서 없는 것으로 취급하므로(includeRejected=false) 그 파일도 뺀다. 관리자는 모두 본다.
+ */
+export function workAttachments(store: Store, workId: string, base: any[], includeRejected = false): WorkFile[] {
+  const out: WorkFile[] = [];
+  const seen = new Set<string>();
+  const push = (name: string | undefined, url: string | undefined, label?: string) => {
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    out.push({ id: `${workId}-${out.length}`, file_name: name || "첨부파일", signedUrl: url, ...(label ? { label } : {}) });
+  };
+  // 신청 첨부 경로 → 내려받기 주소 (예전 건은 앞부분 없이 저장돼 있다)
+  const url = (path?: string) => (!path ? "" : path.startsWith("/") ? path : `/media/ax-attachments/${path}`);
+  for (const f of base ?? []) push(f.file_name ?? f.name, f.signedUrl ?? f.path, f.label);
+  const KIND: Record<string, string> = { request: "고도화 신청", saas: "SaaS 승인 신청" };
+  for (const r of store.axRequests ?? []) {
+    if (r.workId !== workId) continue;
+    if (!includeRejected && r.status === "rejected") continue;
+    for (const v of r.versions ?? []) push(v.fileName, url(v.filePath), KIND[v.kind] ?? "신청");
+    push(r.form?.attachmentName, url(r.form?.attachmentPath), "고도화 신청"); // 버전 기록이 생기기 전의 옛 신청
+  }
+  return out;
+}
+
 function storePath() {
   return join(process.cwd(), "data", "db.json");
 }

@@ -164,8 +164,11 @@ function WorkPage() {
                   download={f.file_name}
                   className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3 text-sm hover:border-primary/40 hover:bg-muted/50"
                 >
-                  <span className="truncate font-medium">{f.file_name}</span>
-                  <Download className="h-4 w-4 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate font-medium">{f.file_name}</span>
+                  {f.label && (
+                    <span className="mx-2 shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-600">{f.label}</span>
+                  )}
+                  <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
                 </a>
               ))}
             </div>

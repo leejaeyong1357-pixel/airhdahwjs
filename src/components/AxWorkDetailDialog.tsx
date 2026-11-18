@@ -74,7 +74,10 @@ export function AxWorkDetailDialog({ work, onClose }: { work: any | null; onClos
                         download={f.file_name}
                         className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3.5 py-2.5 text-[13px] hover:border-primary/40 hover:bg-muted/50"
                       >
-                        <span className="truncate font-medium">{f.file_name}</span>
+                        <span className="min-w-0 flex-1 truncate font-medium">{f.file_name}</span>
+                        {f.label && (
+                          <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-600">{f.label}</span>
+                        )}
                         <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
                       </a>
                     ))}
