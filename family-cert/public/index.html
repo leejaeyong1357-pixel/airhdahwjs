@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF OCR · 가족관계증명서 엑셀 정리</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23004282'/%3E%3Crect x='21' y='5' width='6' height='6' fill='%23ed1c24'/%3E%3Cpath d='M8 11h12M14 11v13' stroke='%23fff' stroke-width='3.4' stroke-linecap='square' fill='none'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-in">
+      <img class="logo" src="teczen-logo.png" alt="TECZEN" />
+      <span class="nav-sep"></span>
+      <div class="brand"><b>PDF OCR</b><span>가족관계증명서 엑셀 정리</span></div>
+      <ul class="badges">
+        <li id="bPc"><b>이 PC 안에서만</b> 처리</li>
+        <li id="bNet">인터넷 전송 <b>없음</b></li>
+        <li id="bAi">AI 토큰 사용 <b>없음</b></li>
+      </ul>
+    </div>
+  </header>
+  <section class="hero">
+    <div class="hero-in">
+      <p class="eyebrow">PDF OCR</p>
+      <h1>가족관계증명서 <em>엑셀 정리</em></h1>
+      <p class="lead">PDF나 그림을 넣으면 본인과 가족을 사람별 묶음으로 정리해 엑셀로 내려줍니다. 글자가 들어 있는 PDF와 스캔본을 알아서 구분해 읽습니다.</p>
+      <ol class="steps"><li><i>1</i>파일 넣기</li><li><i>2</i>읽기 시작</li><li><i>3</i>원본과 대조</li><li><i>4</i>엑셀 받기</li></ol>
+    </div>
+  </section>
+
+  <main class="wrap">
+    <section class="card">
+      <div id="drop" class="drop" tabindex="0" role="button" aria-label="파일 넣기">
+        <svg viewBox="0 0 24 24" class="ico big"><path d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3" /></svg>
+        <p class="d1">여기에 파일을 끌어다 놓거나 <u>눌러서 고르기</u></p>
+        <p class="d2">PDF · JPG · PNG, 여러 개 한꺼번에 가능. 파일을 넣은 뒤 아래 <b>읽기 시작</b>을 누르세요.</p>
+        <input id="pick" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple hidden />
+      </div>
+      <p class="demo">처음이라면 <button id="demo" type="button">가짜 견본 파일로 먼저 해보기</button> <small>(글자 PDF 1개 + 스캔 PDF 1개, 실제 사람 아님)</small></p>
+
+      <div class="opts">
+        <fieldset>
+          <legend>주민등록번호</legend>
+          <label><input type="radio" name="rrn" value="asis" checked /> 문서 그대로</label>
+          <label><input type="radio" name="rrn" value="mask" /> 뒷자리 가리기 <small>800101-1******</small></label>
+        </fieldset>
+        <fieldset>
+          <legend>엑셀에 넣을 가족</legend>
+          <label><input type="checkbox" class="rel" value="부" checked /> 부</label>
+          <label><input type="checkbox" class="rel" value="모" checked /> 모</label>
+          <label><input type="checkbox" class="rel" value="배우자" checked /> 배우자</label>
+          <label><input type="checkbox" class="rel" value="자녀" checked /> 자녀</label>
+          <label class="sep"><input type="checkbox" id="birthCol" /> 생년월일 칸</label>
+          <label><input type="checkbox" id="hanja" /> 한자·본 칸 <small>글자 PDF·H Chat만 채워짐</small></label>
+        </fieldset>
+      </div>
+
+      <details id="hc" class="hc">
+        <summary><b>H Chat으로 읽기</b> <span id="hcState" class="hcstate off">꺼짐</span> <small>스캔·캡처 그림을 사내 AI가 표 그대로 옮겨 적습니다 (선택 · 토큰 사용)</small></summary>
+        <div class="hcbody">
+          <p class="hcwarn">켜면 <b>스캔·캡처 쪽의 그림(이름·주민등록번호 포함)이 사내 H Chat으로 전송</b>됩니다. 글자가 들어 있는 PDF는 보내지 않습니다. 회사 개인정보 처리 기준에 맞는지 먼저 확인하세요.</p>
+          <div class="hcrow">
+            <label>사용 <select id="hcMode"><option value="off">사용 안 함</option><option value="on">H Chat으로 읽기</option></select></label>
+            <label>주 판독 모델 <input id="hcModel" list="hcModels" spellcheck="false" autocomplete="off" /></label>
+            <label>교차 확인 모델 <small>(비우면 안 씀)</small><input id="hcVerify" list="hcModels" spellcheck="false" autocomplete="off" placeholder="없음" /></label>
+            <label class="grow">주소 (Base URL) <input id="hcUrl" spellcheck="false" autocomplete="off" /></label>
+            <datalist id="hcModels"></datalist>
+          </div>
+          <div class="hcrow">
+            <label class="grow">API 키 <input id="hcKey" type="password" autocomplete="off" placeholder="키를 붙여 넣으세요" /></label>
+            <label class="chk"><input type="checkbox" id="hcSave" /> 이 PC에 키 저장</label>
+            <button id="hcApply" class="btn ghost sm" type="button">설정 적용</button>
+            <button id="hcTest" class="btn ghost sm" type="button">연결 테스트</button>
+          </div>
+          <div id="hcMsg" class="hcmsg"></div>
+        </div>
+      </details>
+
+      <ul id="files" class="files"></ul>
+      <div id="startRow" class="startrow hidden">
+        <span id="startNote"></span>
+        <button id="start" class="btn primary" type="button">읽기 시작</button>
+      </div>
+    </section>
+
+    <section id="result" class="hidden">
+      <div class="sum">
+        <div class="chips" id="chips"></div>
+        <label class="only"><input type="checkbox" id="onlyWarn" /> 확인 필요한 줄만 보기</label>
+      </div>
+      <p class="guide">각 줄 위의 그림이 <b>원본에서 잘라낸 그 줄</b>입니다. 그림과 아래 칸을 견주어 보고, 틀린 칸은 바로 고치세요. 빨간 표시는 꼭 확인해 주세요.</p>
+      <div id="people"></div>
+    </section>
+  </main>
+
+  <div id="bar" class="bar hidden">
+    <span id="barNote"></span>
+    <button id="reset" class="btn ghost" type="button">처음부터 다시</button>
+    <button id="save" class="btn primary" type="button">
+      <svg viewBox="0 0 24 24" class="ico"><path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" /></svg> 엑셀 받기
+    </button>
+  </div>
+  <div id="toast" class="toast"></div>
+
+  <script src="/vendor/tesseract/tesseract.min.js"></script>
+  <script src="/vendor/exceljs/exceljs.min.js"></script>
+  <script src="/vendor/ort/ort.wasm.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

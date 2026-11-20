@@ -1,0 +1,7 @@
+{
+  "name": "bs-report",
+  "private": true,
+  "type": "module",
+  "description": "현장밀착점검 보고서(일일현장안전점검) 월별 파일 내려받기 페이지 + 관리자 페이지 — 비즈니스솔루션팀 김소진 매니저 (포트 2823)",
+  "scripts": { "start": "node server.js" }
+}

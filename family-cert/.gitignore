@@ -1,0 +1,12 @@
+node_modules/
+# 실제 증명서·결과 엑셀이 실수로 올라가지 않게 막는다 (가짜 견본만 예외)
+*.pdf
+*.xlsx
+*.jpg
+*.jpeg
+*.png
+!sample/견본_*.pdf
+!public/teczen-logo.png
+# 배포용 묶음(만들 때마다 새로 생김)
+portable/
+node.exe
